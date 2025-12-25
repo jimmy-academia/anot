@@ -1,0 +1,178 @@
+#!/usr/bin/env python3
+"""LLM evaluation for restaurant recommendation dataset."""
+
+import json
+import argparse
+from collections import defaultdict
+from typing import Any, Callable
+
+USER_REQUESTS = [
+    "I'm looking for a quiet restaurant with comfortable seating that won't break the bank. I want a peaceful dining experience where I can have a conversation without shouting.",
+    "I have food allergies and need a restaurant that takes allergen care seriously. I need clear ingredient labeling and low cross-contamination risk.",
+    "I'm visiting Chicago and want an authentic local experience with classic Chicago dishes. I'd like somewhere that's tourist-friendly but still has that genuine local vibe.",
+]
+
+
+def normalize_pred(raw: Any) -> int:
+    """Normalize prediction to {-1, 0, 1}."""
+    if raw is None:
+        raise ValueError("Prediction is None")
+    if isinstance(raw, int) and not isinstance(raw, bool):
+        if raw in {-1, 0, 1}:
+            return raw
+        raise ValueError(f"Invalid int: {raw}")
+    if isinstance(raw, bool):
+        return 1 if raw else -1
+    if isinstance(raw, float):
+        return -1 if raw <= -0.5 else (1 if raw >= 0.5 else 0)
+    if isinstance(raw, str):
+        s = raw.strip().lower()
+        if s in {"-1", "0", "1"}:
+            return int(s)
+        if any(p in s for p in ["not recommend", "don't recommend", "avoid", "reject"]):
+            return -1
+        if any(p in s for p in ["recommend", "yes", "suitable", "good", "great"]):
+            return 1
+        if any(p in s for p in ["neutral", "uncertain", "maybe", "mixed"]):
+            return 0
+        for tok in s.replace(",", " ").replace(":", " ").split():
+            tok = tok.strip("()[]{}.,;:")
+            if tok in {"-1", "0", "1"}:
+                return int(tok)
+    raise ValueError(f"Cannot normalize: {repr(raw)}")
+
+
+def format_query(item: dict) -> tuple[str, int]:
+    """Format restaurant item as query string. Excludes ground-truth labels."""
+    parts = [
+        "Restaurant:",
+        f"Name: {item.get('item_name', 'Unknown')}",
+        f"City: {item.get('city', 'Unknown')}",
+        f"Neighborhood: {item.get('neighborhood', 'Unknown')}",
+        f"Price: {item.get('price_range', 'Unknown')}",
+        f"Cuisine: {', '.join(item.get('cuisine', [])) or 'Unknown'}",
+        "",
+        "Reviews:",
+    ]
+    reviews = item.get("item_data", [])
+    for r in reviews:
+        parts.append(f"[{r.get('review_id', 'unknown')}] {r.get('review', '')}")
+    return "\n".join(parts), len(reviews)
+
+
+def load_data(path: str, limit: int = None) -> list[dict]:
+    """Load JSONL data file."""
+    items = []
+    with open(path, 'r') as f:
+        for line in f:
+            if line.strip():
+                items.append(json.loads(line))
+                if limit and len(items) >= limit:
+                    break
+    return items
+
+
+def evaluate(items: list[dict], method: Callable[[str, str], int]) -> dict:
+    """Run evaluation and collect results."""
+    results = []
+    stats = {
+        "total": 0, "correct": 0, "errors": 0,
+        "per_request": {f"R{i}": {"total": 0, "correct": 0} for i in range(3)},
+        "confusion": {g: {p: 0 for p in [-1, 0, 1]} for g in [-1, 0, 1]},
+    }
+
+    for item in items:
+        item_id = item.get("item_id", "unknown")
+        query, num_reviews = format_query(item)
+        gold_answers = item.get("final_answers", {})
+
+        for req_idx, context in enumerate(USER_REQUESTS):
+            req_id = f"R{req_idx}"
+            gold = gold_answers.get(req_id)
+            if gold is None:
+                continue
+            gold = int(gold)
+
+            try:
+                pred = normalize_pred(method(query, context))
+            except Exception as e:
+                pred = 0
+                stats["errors"] += 1
+
+            correct = pred == gold
+            stats["total"] += 1
+            stats["correct"] += correct
+            stats["per_request"][req_id]["total"] += 1
+            stats["per_request"][req_id]["correct"] += correct
+            stats["confusion"][gold][pred] += 1
+
+            results.append({
+                "item_id": item_id,
+                "request_id": req_id,
+                "pred": pred,
+                "gold": gold,
+                "correct": correct,
+            })
+
+    return {"results": results, "stats": stats}
+
+
+def print_results(stats: dict):
+    """Print evaluation summary."""
+    total, correct = stats["total"], stats["correct"]
+    acc = correct / total if total else 0
+    print(f"\nOverall: {acc:.4f} ({correct}/{total})")
+
+    print("\nPer-request:")
+    for req_id in ["R0", "R1", "R2"]:
+        r = stats["per_request"][req_id]
+        acc = r["correct"] / r["total"] if r["total"] else 0
+        print(f"  {req_id}: {acc:.4f} ({r['correct']}/{r['total']})")
+
+    print("\nConfusion (rows=gold, cols=pred):")
+    print("       -1    0    1")
+    for g in [-1, 0, 1]:
+        row = stats["confusion"][g]
+        print(f"  {g:2d}  {row[-1]:4d} {row[0]:4d} {row[1]:4d}")
+
+
+def dummy_method(query: str, context: str) -> int:
+    """Placeholder method. Replace with actual LLM method."""
+    return (hash(query + context) % 3) - 1
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Evaluate LLM on restaurant recommendations")
+    parser.add_argument("--data", default="data.jsonl", help="Input JSONL file")
+    parser.add_argument("--out", default="results.jsonl", help="Output results file")
+    parser.add_argument("--limit", type=int, help="Limit items to process")
+    parser.add_argument("--method", choices=["cot", "not", "dummy"], default="dummy", help="Method to use")
+    args = parser.parse_args()
+
+    # Load data
+    items = load_data(args.data, args.limit)
+    print(f"Loaded {len(items)} items from {args.data}")
+
+    # Select method
+    if args.method == "cot":
+        from cot import method
+    elif args.method == "not":
+        from rnot import method
+    else:
+        method = dummy_method
+    print(f"Using method: {args.method}")
+
+    eval_out = evaluate(items, method)
+
+    # Print results
+    print_results(eval_out["stats"])
+
+    # Save results
+    with open(args.out, 'w') as f:
+        for r in eval_out["results"]:
+            f.write(json.dumps(r) + '\n')
+    print(f"\nResults saved to {args.out}")
+
+
+if __name__ == "__main__":
+    main()
