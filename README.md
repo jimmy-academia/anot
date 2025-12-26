@@ -6,7 +6,8 @@ LLM evaluation framework comparing prompting methodologies on a restaurant recom
 
 ```
 xnot/
-├── main.py         # Evaluation harness
+├── main.py         # Evaluation harness (supports --attack)
+├── attack.py       # Attack functions (typo, injection, fake_review)
 ├── llm.py          # LLM API wrapper (OpenAI/Anthropic)
 ├── cot.py          # Chain-of-Thought method
 ├── rnot.py         # Network-of-Thought method
@@ -22,7 +23,6 @@ xnot/
 │   └── {N}_{name}/      # Auto-numbered run directories
 │
 ├── scripts/        # Data generation scripts
-├── eval/           # Attack and verification scripts
 └── doc/            # Experiment documentation
 ```
 
@@ -36,6 +36,10 @@ export OPENAI_API_KEY=$(cat ../.openaiapi)
 uv run python main.py --method knot --run-name my_experiment
 uv run python main.py --method cot --run-name baseline
 
+# With attacks
+uv run python main.py --method knot --attack typo_10 --run-name robustness
+uv run python main.py --method knot --attack all --run-name full_robustness
+
 # Custom data
 uv run python main.py --method knot --data data/processed/complex_data.jsonl --run-name complex
 
@@ -44,12 +48,12 @@ uv run python main.py --method dummy --limit 5
 ```
 
 Each run creates:
-- `results.jsonl` - predictions
-- `config.json` - run parameters and stats
+- `results.jsonl` - predictions (or `results_{attack}.jsonl` for --attack all)
+- `config.json` - run parameters, attack type, and stats
 
 ## Attack Types
 
-Adversarial attacks for robustness testing (`eval/attack.py`):
+Adversarial attacks for robustness testing (`attack.py`):
 
 | Attack | Description |
 |--------|-------------|

@@ -13,6 +13,19 @@ from typing import Any, Callable
 USER_REQUESTS = None  # Loaded from requests.json or default
 RESULTS_DIR = Path("results")
 
+# Attack configurations: name -> (attack_type, kwargs)
+ATTACK_CONFIGS = {
+    "typo_10": ("typo", {"rate": 0.1}),
+    "typo_20": ("typo", {"rate": 0.2}),
+    "inject_override": ("injection", {"injection_type": "override", "target": 1}),
+    "inject_fake_sys": ("injection", {"injection_type": "fake_system", "target": 1}),
+    "inject_hidden": ("injection", {"injection_type": "hidden", "target": 1}),
+    "inject_manipulation": ("injection", {"injection_type": "manipulation", "target": 1}),
+    "fake_positive": ("fake_review", {"sentiment": "positive"}),
+    "fake_negative": ("fake_review", {"sentiment": "negative"}),
+}
+ATTACK_CHOICES = ["none"] + list(ATTACK_CONFIGS.keys()) + ["all"]
+
 
 def get_next_run_number() -> int:
     """Scan results/ and find the next available run number."""
@@ -231,6 +244,8 @@ def main():
     parser.add_argument("--mode", choices=["string", "dict"], default="string", help="Input mode for knot")
     parser.add_argument("--knot-approach", choices=["base", "voting", "iterative", "divide"], default="base",
                         help="Approach for knot (base=default, voting=self-consistency, iterative=plan refinement, divide=divide-conquer)")
+    parser.add_argument("--attack", choices=ATTACK_CHOICES, default="none",
+                        help="Attack type to apply (none=clean, all=run all attacks)")
     args = parser.parse_args()
 
     # Create run directory
@@ -240,9 +255,9 @@ def main():
     print(f"Run directory: {run_dir}")
 
     # Load data and requests
-    items = load_data(args.data, args.limit)
+    items_clean = load_data(args.data, args.limit)
     requests = load_requests(args.requests)
-    print(f"Loaded {len(items)} items from {args.data}")
+    print(f"Loaded {len(items_clean)} items from {args.data}")
     print(f"Loaded {len(requests)} requests")
 
     # Select method
@@ -259,16 +274,50 @@ def main():
         method = dummy_method
     print(f"Using method: {args.method}" + (f" (mode={args.mode}, approach={getattr(args, 'knot_approach', 'base')})" if args.method == "knot" else ""))
 
-    eval_out = evaluate(items, method, requests, mode=args.mode if args.method == "knot" else "string")
+    # Determine which attacks to run
+    if args.attack == "all":
+        attacks_to_run = ["clean"] + list(ATTACK_CONFIGS.keys())
+    elif args.attack == "none":
+        attacks_to_run = ["clean"]
+    else:
+        attacks_to_run = [args.attack]
 
-    # Print results
-    print_results(eval_out["stats"], eval_out.get("req_ids"))
+    # Import attack functions if needed
+    if args.attack != "none":
+        from attack import apply_attack
 
-    # Save results
-    with open(out_path, 'w') as f:
-        for r in eval_out["results"]:
-            f.write(json.dumps(r) + '\n')
-    print(f"\nResults saved to {out_path}")
+    # Run evaluation for each attack
+    all_stats = {}
+    for attack_name in attacks_to_run:
+        print(f"\n{'='*50}")
+        print(f"Running: {attack_name}")
+        print("=" * 50)
+
+        # Apply attack (or use clean data)
+        if attack_name == "clean":
+            items = items_clean
+        else:
+            attack_type, attack_kwargs = ATTACK_CONFIGS[attack_name]
+            items = apply_attack(items_clean, attack_type, **attack_kwargs)
+
+        # Evaluate
+        eval_mode = args.mode if args.method == "knot" else "string"
+        eval_out = evaluate(items, method, requests, mode=eval_mode)
+
+        # Print results
+        print_results(eval_out["stats"], eval_out.get("req_ids"))
+        all_stats[attack_name] = eval_out["stats"]
+
+        # Save results
+        if len(attacks_to_run) == 1:
+            result_filename = "results.jsonl"
+        else:
+            result_filename = f"results_{attack_name}.jsonl"
+        result_path = run_dir / result_filename
+        with open(result_path, 'w') as f:
+            for r in eval_out["results"]:
+                f.write(json.dumps(r) + '\n')
+        print(f"Results saved to {result_path}")
 
     # Save run config
     config = {
@@ -279,12 +328,14 @@ def main():
         "data": args.data,
         "requests": args.requests,
         "limit": args.limit,
-        "stats": eval_out["stats"],
+        "attack": args.attack,
+        "attacks_run": attacks_to_run,
+        "stats": all_stats if len(attacks_to_run) > 1 else all_stats.get("clean", all_stats),
     }
     config_path = run_dir / "config.json"
     with open(config_path, 'w') as f:
         json.dump(config, f, indent=2)
-    print(f"Config saved to {config_path}")
+    print(f"\nConfig saved to {config_path}")
 
 
 if __name__ == "__main__":
