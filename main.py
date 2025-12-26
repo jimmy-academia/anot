@@ -42,8 +42,23 @@ def normalize_pred(raw: Any) -> int:
     raise ValueError(f"Cannot normalize: {repr(raw)}")
 
 
-def format_query(item: dict) -> tuple[str, int]:
-    """Format restaurant item as query string. Excludes ground-truth labels."""
+def format_query(item: dict, mode: str = "string"):
+    """Format restaurant item as query. Excludes ground-truth labels."""
+    reviews = item.get("item_data", [])
+
+    if mode == "dict":
+        # Return clean dict for structured access
+        return {
+            "item_name": item.get("item_name", "Unknown"),
+            "city": item.get("city", "Unknown"),
+            "neighborhood": item.get("neighborhood", "Unknown"),
+            "price_range": item.get("price_range", "Unknown"),
+            "cuisine": item.get("cuisine", []),
+            "item_data": [{"review_id": r.get("review_id", ""), "review": r.get("review", "")}
+                          for r in reviews]
+        }, len(reviews)
+
+    # String mode (default)
     parts = [
         "Restaurant:",
         f"Name: {item.get('item_name', 'Unknown')}",
@@ -54,7 +69,6 @@ def format_query(item: dict) -> tuple[str, int]:
         "",
         "Reviews:",
     ]
-    reviews = item.get("item_data", [])
     for r in reviews:
         parts.append(f"[{r.get('review_id', 'unknown')}] {r.get('review', '')}")
     return "\n".join(parts), len(reviews)
@@ -72,7 +86,7 @@ def load_data(path: str, limit: int = None) -> list[dict]:
     return items
 
 
-def evaluate(items: list[dict], method: Callable[[str, str], int]) -> dict:
+def evaluate(items: list[dict], method: Callable, mode: str = "string") -> dict:
     """Run evaluation and collect results."""
     results = []
     stats = {
@@ -83,7 +97,7 @@ def evaluate(items: list[dict], method: Callable[[str, str], int]) -> dict:
 
     for item in items:
         item_id = item.get("item_id", "unknown")
-        query, num_reviews = format_query(item)
+        query, num_reviews = format_query(item, mode)
         gold_answers = item.get("final_answers", {})
 
         for req_idx, context in enumerate(USER_REQUESTS):
@@ -146,7 +160,8 @@ def main():
     parser.add_argument("--data", default="data.jsonl", help="Input JSONL file")
     parser.add_argument("--out", default="results.jsonl", help="Output results file")
     parser.add_argument("--limit", type=int, help="Limit items to process")
-    parser.add_argument("--method", choices=["cot", "not", "dummy"], default="dummy", help="Method to use")
+    parser.add_argument("--method", choices=["cot", "not", "knot", "dummy"], default="dummy", help="Method to use")
+    parser.add_argument("--mode", choices=["string", "dict"], default="string", help="Input mode for knot")
     args = parser.parse_args()
 
     # Load data
@@ -158,11 +173,14 @@ def main():
         from cot import method
     elif args.method == "not":
         from rnot import method
+    elif args.method == "knot":
+        from knot import create_method
+        method = create_method(mode=args.mode)
     else:
         method = dummy_method
-    print(f"Using method: {args.method}")
+    print(f"Using method: {args.method}" + (f" (mode={args.mode})" if args.method == "knot" else ""))
 
-    eval_out = evaluate(items, method)
+    eval_out = evaluate(items, method, mode=args.mode if args.method == "knot" else "string")
 
     # Print results
     print_results(eval_out["stats"])
