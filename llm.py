@@ -19,29 +19,29 @@ def _load_api_key():
 
 _load_api_key()
 
-PROVIDER = os.environ.get("LLM_PROVIDER", "").lower()
-MODEL = os.environ.get("LLM_MODEL", "")
+# Model configuration by role
+MODEL_CONFIG = {
+    "planner": "gpt-4o-mini",   # For knowledge/script generation in knot
+    "worker": "gpt-5-nano",     # For script execution in knot
+    "default": "gpt-4o-mini",   # For cot and other methods
+}
+DEFAULT_PROVIDER = "openai"
+
 TEMPERATURE = float(os.environ.get("LLM_TEMPERATURE", "0.0"))
 MAX_TOKENS = int(os.environ.get("LLM_MAX_TOKENS", "1024"))
 
 
-def _detect_provider():
-    """Auto-detect provider from API keys."""
-    if PROVIDER:
-        return PROVIDER, MODEL or ("gpt-4o-mini" if PROVIDER == "openai" else "claude-sonnet-4-20250514")
-    if os.environ.get("ANTHROPIC_API_KEY"):
-        return "anthropic", MODEL or "claude-sonnet-4-20250514"
-    if os.environ.get("OPENAI_API_KEY"):
-        return "openai", MODEL or "gpt-4o"
-    raise EnvironmentError("Set ANTHROPIC_API_KEY or OPENAI_API_KEY")
+def get_model(role: str = "default") -> str:
+    """Get model for a specific role."""
+    return MODEL_CONFIG.get(role, MODEL_CONFIG["default"])
 
 
-def call_llm(prompt: str, system: str = "", provider: str = None, model: str = None) -> str:
-    """Call LLM API. Auto-detects provider if not specified."""
-    if provider is None or model is None:
-        auto_provider, auto_model = _detect_provider()
-        provider = provider or auto_provider
-        model = model or auto_model
+def call_llm(prompt: str, system: str = "", provider: str = None, model: str = None, role: str = "default") -> str:
+    """Call LLM API. Uses role-based model selection if model not specified."""
+    if provider is None:
+        provider = DEFAULT_PROVIDER
+    if model is None:
+        model = get_model(role)
 
     if provider == "openai":
         import openai

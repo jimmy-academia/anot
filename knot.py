@@ -220,7 +220,7 @@ Example with verification:
 """
             prompt = prompt + defense_addition
 
-        knowledge = call_llm(prompt, system=SYSTEM_PROMPT)
+        knowledge = call_llm(prompt, system=SYSTEM_PROMPT, role="planner")
 
         if DEBUG:
             print("=" * 50)
@@ -240,7 +240,7 @@ Example with verification:
             example = TASK_EXAMPLE_STRING
 
         prompt = SCRIPT_PROMPT % (example, knowledge, goal)
-        script = call_llm(prompt, system=SYSTEM_PROMPT)
+        script = call_llm(prompt, system=SYSTEM_PROMPT, role="planner")
 
         if DEBUG:
             print("SCRIPT:")
@@ -257,7 +257,7 @@ Example with verification:
         if not steps:
             # Fallback: direct answer
             fallback = f"Based on restaurant: {query}\nUser wants: {context}\nRecommend? Output only: -1, 0, or 1"
-            return call_llm(fallback, system=SYSTEM_PROMPT)
+            return call_llm(fallback, system=SYSTEM_PROMPT, role="worker")
 
         final = ""
         for idx, instr in steps:
@@ -267,7 +267,7 @@ Example with verification:
                 print(f"Step ({idx}): {filled[:100]}...")
 
             try:
-                output = call_llm(filled, system=SYSTEM_PROMPT)
+                output = call_llm(filled, system=SYSTEM_PROMPT, role="worker")
             except Exception as e:
                 output = "0"
                 if DEBUG:
