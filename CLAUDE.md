@@ -24,13 +24,12 @@ python main.py --method dummy --limit 5
 
 ### Environment Setup
 ```bash
-# API key is stored in ../.openaiapi (parent directory)
-export OPENAI_API_KEY=$(cat ../.openaiapi)
-
-# Or for Anthropic
+# API key: llm.py auto-loads from ../.openaiapi (no manual export needed)
+# Or set manually:
+export OPENAI_API_KEY="sk-..."
 export ANTHROPIC_API_KEY="sk-ant-..."
 
-# Optional LLM configuration (llm.py)
+# Optional LLM configuration
 export LLM_PROVIDER="openai"  # or "anthropic" or "local"
 export LLM_MODEL="gpt-4o-mini"
 
@@ -67,11 +66,9 @@ data/
 results/
 ├── results_log.md  # Central index of all runs
 ├── 1_baseline/     # Auto-numbered run directories
-├── 2_experiment/
 └── ...
 
 scripts/           # Data generation scripts
-eval/              # Attack and verification scripts
 doc/               # Experiment documentation
 ```
 

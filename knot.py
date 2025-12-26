@@ -6,9 +6,10 @@ import re
 import json
 import ast
 import time
+import asyncio
 from datetime import datetime
 from pathlib import Path
-from llm import call_llm
+from llm import call_llm, call_llm_async
 
 DEBUG = os.environ.get("KNOT_DEBUG", "0") == "1"
 LOG_ENABLED = os.environ.get("KNOT_LOG", "0") == "1"
@@ -325,6 +326,54 @@ def parse_script(script: str) -> list:
     return steps
 
 
+def extract_dependencies(instruction: str) -> set:
+    """Extract step indices referenced in instruction (e.g., {(0)}, {(1)})."""
+    # Find all {(N)} patterns, excluding {(input)} and {(context)}
+    matches = re.findall(r'\{\((\d+)\)\}', instruction)
+    return set(matches)
+
+
+def build_execution_layers(steps: list) -> list:
+    """Group steps into layers that can run in parallel.
+
+    Returns list of layers, where each layer is [(idx, instr), ...].
+    Steps in the same layer have no dependencies on each other.
+    """
+    if not steps:
+        return []
+
+    # Build dependency graph
+    step_deps = {}  # idx -> set of indices it depends on
+    for idx, instr in steps:
+        step_deps[idx] = extract_dependencies(instr)
+
+    # Assign steps to layers using topological sort
+    layers = []
+    assigned = set()  # indices already assigned to a layer
+
+    while len(assigned) < len(steps):
+        # Find all steps whose dependencies are satisfied
+        current_layer = []
+        for idx, instr in steps:
+            if idx in assigned:
+                continue
+            deps = step_deps[idx]
+            if deps <= assigned:  # all dependencies already assigned
+                current_layer.append((idx, instr))
+
+        if not current_layer:
+            # Circular dependency or error - fall back to sequential
+            remaining = [(idx, instr) for idx, instr in steps if idx not in assigned]
+            layers.append(remaining)
+            break
+
+        layers.append(current_layer)
+        for idx, _ in current_layer:
+            assigned.add(idx)
+
+    return layers
+
+
 def parse_final_answer(output: str) -> int:
     """Parse output to -1, 0, or 1."""
     output = output.strip()
@@ -469,6 +518,64 @@ Example with verification:
 
         return final
 
+    async def execute_script_parallel(self, script: str, query, context: str) -> str:
+        """Execute script with parallel execution of independent steps."""
+        self.cache = {}
+        steps = parse_script(script)
+
+        if not steps:
+            # Fallback: direct answer
+            fallback = f"Based on restaurant: {query}\nUser wants: {context}\nRecommend? Output only: -1, 0, or 1"
+            start = time.time()
+            output = await call_llm_async(fallback, system=SYSTEM_PROMPT, role="worker")
+            duration_sec = time.time() - start
+            log_execution_step("fallback", "direct answer", fallback, output, duration_sec)
+            return output
+
+        # Build execution layers (DAG analysis)
+        layers = build_execution_layers(steps)
+
+        if DEBUG:
+            print(f"Execution layers: {len(layers)} layers")
+            for i, layer in enumerate(layers):
+                print(f"  Layer {i}: {[idx for idx, _ in layer]}")
+
+        final = ""
+        for layer_idx, layer in enumerate(layers):
+            if DEBUG:
+                print(f"\n--- Layer {layer_idx} ({len(layer)} steps in parallel) ---")
+
+            # Prepare all tasks for this layer
+            async def run_step(idx, instr):
+                filled = substitute_variables(instr, query, context, self.cache)
+                if DEBUG:
+                    print(f"Step ({idx}): {filled[:80]}...")
+                start = time.time()
+                try:
+                    output = await call_llm_async(filled, system=SYSTEM_PROMPT, role="worker")
+                except Exception as e:
+                    output = "0"
+                    if DEBUG:
+                        print(f"  Error: {e}")
+                duration_sec = time.time() - start
+                log_execution_step(idx, instr, filled, output, duration_sec)
+                return idx, output
+
+            # Run all steps in this layer concurrently
+            results = await asyncio.gather(*[run_step(idx, instr) for idx, instr in layer])
+
+            # Cache results
+            for idx, output in results:
+                try:
+                    self.cache[idx] = ast.literal_eval(output)
+                except:
+                    self.cache[idx] = output
+                final = output
+                if DEBUG:
+                    print(f"  ({idx}) -> {output[:80]}...")
+
+        return final
+
     def solve(self, query, context: str, item_id: str = None, request_id: str = None) -> int:
         """Full pipeline: knowledge → script → execute → parse."""
         # Use global IDs if not provided directly
@@ -489,7 +596,14 @@ Example with verification:
 
         knowledge = self.generate_knowledge(query, context)
         script = self.generate_script(knowledge, query, context)
-        output = self.execute_script(script, query, context)
+
+        # Use parallel execution (runs independent steps concurrently)
+        try:
+            output = asyncio.run(self.execute_script_parallel(script, query, context))
+        except RuntimeError:
+            # Fallback to sequential if already in async context
+            output = self.execute_script(script, query, context)
+
         answer = parse_final_answer(output)
 
         # Save log
@@ -564,7 +678,10 @@ class KnowledgeNetworkOfThoughtVoting(KnowledgeNetworkOfThought):
             try:
                 knowledge = self.generate_knowledge(query, context)
                 script = self.generate_script(knowledge, query, context)
-                output = self.execute_script(script, query, context)
+                try:
+                    output = asyncio.run(self.execute_script_parallel(script, query, context))
+                except RuntimeError:
+                    output = self.execute_script(script, query, context)
                 answer = parse_final_answer(output)
                 answers.append(answer)
                 if DEBUG:

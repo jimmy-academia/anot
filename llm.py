@@ -94,3 +94,44 @@ def call_llm(prompt: str, system: str = "", provider: str = None, model: str = N
             return json.loads(resp.read())["choices"][0]["message"]["content"]
 
     raise ValueError(f"Unknown provider: {provider}")
+
+
+async def call_llm_async(prompt: str, system: str = "", provider: str = None, model: str = None, role: str = "default") -> str:
+    """Async version of call_llm for parallel execution."""
+    if provider is None:
+        provider = DEFAULT_PROVIDER
+    if model is None:
+        model = get_model(role)
+
+    if provider == "openai":
+        import openai
+        client = openai.AsyncOpenAI()
+        messages = []
+        if system:
+            messages.append({"role": "system", "content": system})
+        messages.append({"role": "user", "content": prompt})
+        is_new_model = "gpt-5" in model or "o1" in model or "o3" in model
+        if is_new_model:
+            resp = await client.chat.completions.create(
+                model=model, messages=messages,
+                max_completion_tokens=MAX_TOKENS_REASONING
+            )
+        else:
+            resp = await client.chat.completions.create(
+                model=model, messages=messages,
+                temperature=TEMPERATURE, max_tokens=MAX_TOKENS
+            )
+        return resp.choices[0].message.content
+
+    elif provider == "anthropic":
+        import anthropic
+        client = anthropic.AsyncAnthropic()
+        if "claude" not in model.lower():
+            model = "claude-sonnet-4-20250514"
+        resp = await client.messages.create(
+            model=model, max_tokens=MAX_TOKENS,
+            system=system or "", messages=[{"role": "user", "content": prompt}]
+        )
+        return resp.content[0].text
+
+    raise ValueError(f"Unknown provider for async: {provider}")
