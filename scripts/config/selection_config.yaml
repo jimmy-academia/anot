@@ -1,0 +1,109 @@
+restaurant:
+  min_reviews: 8
+  max_reviews: 15
+  min_star_variance: 2.0
+  max_restaurants: 20
+
+review:
+  min_length: 50
+  max_length: 500
+  max_per_restaurant: 12
+
+labeling:
+  positive_threshold: 1.5
+  keywords:
+    speed:
+      positive:
+        - fast
+        - quick
+        - quickly
+        - prompt
+        - no wait
+        - right away
+        - immediately
+      negative:
+        - slow
+        - wait
+        - waited
+        - waiting
+        - long time
+        - forever
+        - hour
+        - minutes
+
+    consistency:
+      positive:
+        - always
+        - every time
+        - consistent
+        - reliable
+        - never disappoints
+      negative:
+        - used to
+        - changed
+        - inconsistent
+        - hit or miss
+        - varies
+        - sometimes
+        - not as good
+        - declining
+
+    ambiance:
+      positive:
+        - quiet
+        - romantic
+        - cozy
+        - intimate
+        - relaxed
+        - peaceful
+        - nice atmosphere
+        - great vibe
+      negative:
+        - loud
+        - noisy
+        - crowded
+        - chaotic
+        - cramped
+        - uncomfortable
+        - too dark
+        - too bright
+
+    value:
+      positive:
+        - worth
+        - good value
+        - reasonable
+        - affordable
+        - cheap
+        - great price
+        - deal
+        - bargain
+      negative:
+        - expensive
+        - overpriced
+        - pricey
+        - not worth
+        - rip off
+        - too much
+        - costly
+
+    food:
+      positive:
+        - delicious
+        - tasty
+        - fresh
+        - amazing food
+        - great food
+        - excellent
+        - flavorful
+        - perfectly cooked
+      negative:
+        - bland
+        - tasteless
+        - stale
+        - bad food
+        - terrible
+        - disgusting
+        - undercooked
+        - overcooked
+        - cold food

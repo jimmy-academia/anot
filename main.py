@@ -3,10 +3,41 @@
 
 import json
 import argparse
+import glob
+import os
 from collections import defaultdict
+from datetime import datetime
+from pathlib import Path
 from typing import Any, Callable
 
 USER_REQUESTS = None  # Loaded from requests.json or default
+RESULTS_DIR = Path("results")
+
+
+def get_next_run_number() -> int:
+    """Scan results/ and find the next available run number."""
+    existing = glob.glob(str(RESULTS_DIR / "[0-9]*_*/"))
+    if not existing:
+        return 1
+    numbers = []
+    for p in existing:
+        folder_name = Path(p).name
+        try:
+            num = int(folder_name.split("_")[0])
+            numbers.append(num)
+        except ValueError:
+            continue
+    return max(numbers) + 1 if numbers else 1
+
+
+def create_run_dir(run_name: str) -> Path:
+    """Create a numbered run directory and return its path."""
+    RESULTS_DIR.mkdir(exist_ok=True)
+    run_num = get_next_run_number()
+    run_dir = RESULTS_DIR / f"{run_num}_{run_name}"
+    run_dir.mkdir(exist_ok=True)
+    return run_dir
+
 
 DEFAULT_REQUESTS = [
     {"id": "R0", "context": "I'm in a hurry and need quick service. Is the wait time reasonable?"},
@@ -191,15 +222,22 @@ def dummy_method(query: str, context: str) -> int:
 
 def main():
     parser = argparse.ArgumentParser(description="Evaluate LLM on restaurant recommendations")
-    parser.add_argument("--data", default="data.jsonl", help="Input JSONL file")
-    parser.add_argument("--requests", default="requests.json", help="User requests JSON file")
-    parser.add_argument("--out", default="results.jsonl", help="Output results file")
+    parser.add_argument("--data", default="data/processed/real_data.jsonl", help="Input JSONL file")
+    parser.add_argument("--requests", default="data/requests/requests.json", help="User requests JSON file")
+    parser.add_argument("--run-name", help="Name for this run (creates results/{N}_{run-name}/)")
+    parser.add_argument("--out", help="Output results file (default: auto in run dir)")
     parser.add_argument("--limit", type=int, help="Limit items to process")
     parser.add_argument("--method", choices=["cot", "not", "knot", "dummy"], default="dummy", help="Method to use")
     parser.add_argument("--mode", choices=["string", "dict"], default="string", help="Input mode for knot")
     parser.add_argument("--knot-approach", choices=["base", "voting", "iterative", "divide"], default="base",
                         help="Approach for knot (base=default, voting=self-consistency, iterative=plan refinement, divide=divide-conquer)")
     args = parser.parse_args()
+
+    # Create run directory
+    run_name = args.run_name or args.method
+    run_dir = create_run_dir(run_name)
+    out_path = Path(args.out) if args.out else run_dir / "results.jsonl"
+    print(f"Run directory: {run_dir}")
 
     # Load data and requests
     items = load_data(args.data, args.limit)
@@ -213,7 +251,8 @@ def main():
     elif args.method == "not":
         from rnot import method
     elif args.method == "knot":
-        from knot import create_method
+        from knot import create_method, set_output_dir
+        set_output_dir(run_dir)  # Tell knot where to write logs
         approach = getattr(args, 'knot_approach', 'base')
         method = create_method(mode=args.mode, approach=approach)
     else:
@@ -226,10 +265,26 @@ def main():
     print_results(eval_out["stats"], eval_out.get("req_ids"))
 
     # Save results
-    with open(args.out, 'w') as f:
+    with open(out_path, 'w') as f:
         for r in eval_out["results"]:
             f.write(json.dumps(r) + '\n')
-    print(f"\nResults saved to {args.out}")
+    print(f"\nResults saved to {out_path}")
+
+    # Save run config
+    config = {
+        "timestamp": datetime.now().isoformat(),
+        "method": args.method,
+        "mode": args.mode if args.method == "knot" else None,
+        "approach": getattr(args, 'knot_approach', None) if args.method == "knot" else None,
+        "data": args.data,
+        "requests": args.requests,
+        "limit": args.limit,
+        "stats": eval_out["stats"],
+    }
+    config_path = run_dir / "config.json"
+    with open(config_path, 'w') as f:
+        json.dump(config, f, indent=2)
+    print(f"Config saved to {config_path}")
 
 
 if __name__ == "__main__":

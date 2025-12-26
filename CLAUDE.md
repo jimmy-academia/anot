@@ -10,11 +10,16 @@ This is a Python-based LLM evaluation framework comparing prompting methodologie
 
 ### Run Evaluation
 ```bash
-python main.py --method cot --data data.jsonl --out results.jsonl
-python main.py --method not --data data.jsonl --out results.jsonl
-python main.py --method knot --data data.jsonl --out results.jsonl  # Dynamic script
-python main.py --method knot --mode dict --data data.jsonl  # Dict indexing mode
-python main.py --method dummy --limit 5  # Test with dummy method
+# Runs create auto-numbered directories in results/
+python main.py --method cot --run-name baseline
+python main.py --method knot --run-name experiment1
+python main.py --method knot --mode dict --run-name dict_test
+
+# Custom data paths
+python main.py --method knot --data data/processed/complex_data.jsonl --run-name complex
+
+# Test with dummy method
+python main.py --method dummy --limit 5
 ```
 
 ### Environment Setup
@@ -51,7 +56,24 @@ export KNOT_DEBUG=1  # for knot.py
   - Phase 2: Generate executable script from knowledge
   - Supports `--mode string` (flatten input) or `--mode dict` (structured access)
 
-- **data.jsonl** - Dataset with 9 Chicago restaurants and ground-truth labels.
+### Directory Structure
+
+```
+data/
+├── raw/           # Raw Yelp data
+├── processed/     # Generated datasets (real_data.jsonl, complex_data.jsonl, etc.)
+└── requests/      # User persona definitions (requests.json)
+
+results/
+├── results_log.md  # Central index of all runs
+├── 1_baseline/     # Auto-numbered run directories
+├── 2_experiment/
+└── ...
+
+scripts/           # Data generation scripts
+eval/              # Attack and verification scripts
+doc/               # Experiment documentation
+```
 
 ### Method Interface
 

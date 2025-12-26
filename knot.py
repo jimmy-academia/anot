@@ -18,9 +18,16 @@ _log_data = None
 _log_counter = 0
 _current_item_id = None
 _current_request_id = None
+_output_dir = None  # Set by main.py for run-specific output
 
 # Defense support
 _defense = None
+
+
+def set_output_dir(path):
+    """Set output directory for logs (called by main.py)."""
+    global _output_dir
+    _output_dir = Path(path) if path else None
 
 
 def set_current_ids(item_id: str, request_id: str):
@@ -106,8 +113,8 @@ def save_log(final_answer: int):
 
     _log_counter += 1
 
-    # Create results directory
-    results_dir = Path("results")
+    # Use output directory set by main.py, or default to "results"
+    results_dir = _output_dir if _output_dir else Path("results")
     results_dir.mkdir(exist_ok=True)
 
     # Generate filename for detailed log
