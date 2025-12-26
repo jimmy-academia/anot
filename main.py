@@ -6,11 +6,24 @@ import argparse
 from collections import defaultdict
 from typing import Any, Callable
 
-USER_REQUESTS = [
-    "I'm looking for a quiet restaurant with comfortable seating that won't break the bank. I want a peaceful dining experience where I can have a conversation without shouting.",
-    "I have food allergies and need a restaurant that takes allergen care seriously. I need clear ingredient labeling and low cross-contamination risk.",
-    "I'm visiting Chicago and want an authentic local experience with classic Chicago dishes. I'd like somewhere that's tourist-friendly but still has that genuine local vibe.",
+USER_REQUESTS = None  # Loaded from requests.json or default
+
+DEFAULT_REQUESTS = [
+    {"id": "R0", "context": "I'm in a hurry and need quick service. Is the wait time reasonable?"},
+    {"id": "R1", "context": "I've heard mixed things. Is this place consistent in quality?"},
+    {"id": "R2", "context": "Planning a special dinner date. Good for romantic occasions?"},
+    {"id": "R3", "context": "Is it worth the price? Looking for good value, not necessarily cheap."},
+    {"id": "R4", "context": "I care more about food quality than service. How's the food?"},
 ]
+
+
+def load_requests(path: str = "requests.json") -> list[dict]:
+    """Load user requests from JSON file."""
+    try:
+        with open(path) as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return DEFAULT_REQUESTS
 
 
 def normalize_pred(raw: Any) -> int:
@@ -86,22 +99,25 @@ def load_data(path: str, limit: int = None) -> list[dict]:
     return items
 
 
-def evaluate(items: list[dict], method: Callable, mode: str = "string") -> dict:
+def evaluate(items: list[dict], method: Callable, requests: list[dict], mode: str = "string") -> dict:
     """Run evaluation and collect results."""
     results = []
+    req_ids = [r["id"] for r in requests]
     stats = {
         "total": 0, "correct": 0, "errors": 0,
-        "per_request": {f"R{i}": {"total": 0, "correct": 0} for i in range(3)},
+        "per_request": {rid: {"total": 0, "correct": 0} for rid in req_ids},
         "confusion": {g: {p: 0 for p in [-1, 0, 1]} for g in [-1, 0, 1]},
     }
 
     for item in items:
         item_id = item.get("item_id", "unknown")
         query, num_reviews = format_query(item, mode)
-        gold_answers = item.get("final_answers", {})
+        # Support both old (final_answers) and new (gold_labels) format
+        gold_answers = item.get("gold_labels") or item.get("final_answers", {})
 
-        for req_idx, context in enumerate(USER_REQUESTS):
-            req_id = f"R{req_idx}"
+        for req in requests:
+            req_id = req["id"]
+            context = req["context"]
             gold = gold_answers.get(req_id)
             if gold is None:
                 continue
@@ -128,20 +144,22 @@ def evaluate(items: list[dict], method: Callable, mode: str = "string") -> dict:
                 "correct": correct,
             })
 
-    return {"results": results, "stats": stats}
+    return {"results": results, "stats": stats, "req_ids": req_ids}
 
 
-def print_results(stats: dict):
+def print_results(stats: dict, req_ids: list[str] = None):
     """Print evaluation summary."""
     total, correct = stats["total"], stats["correct"]
     acc = correct / total if total else 0
     print(f"\nOverall: {acc:.4f} ({correct}/{total})")
 
     print("\nPer-request:")
-    for req_id in ["R0", "R1", "R2"]:
-        r = stats["per_request"][req_id]
-        acc = r["correct"] / r["total"] if r["total"] else 0
-        print(f"  {req_id}: {acc:.4f} ({r['correct']}/{r['total']})")
+    req_ids = req_ids or list(stats["per_request"].keys())
+    for req_id in req_ids:
+        if req_id in stats["per_request"]:
+            r = stats["per_request"][req_id]
+            acc = r["correct"] / r["total"] if r["total"] else 0
+            print(f"  {req_id}: {acc:.4f} ({r['correct']}/{r['total']})")
 
     print("\nConfusion (rows=gold, cols=pred):")
     print("       -1    0    1")
@@ -158,15 +176,18 @@ def dummy_method(query: str, context: str) -> int:
 def main():
     parser = argparse.ArgumentParser(description="Evaluate LLM on restaurant recommendations")
     parser.add_argument("--data", default="data.jsonl", help="Input JSONL file")
+    parser.add_argument("--requests", default="requests.json", help="User requests JSON file")
     parser.add_argument("--out", default="results.jsonl", help="Output results file")
     parser.add_argument("--limit", type=int, help="Limit items to process")
     parser.add_argument("--method", choices=["cot", "not", "knot", "dummy"], default="dummy", help="Method to use")
     parser.add_argument("--mode", choices=["string", "dict"], default="string", help="Input mode for knot")
     args = parser.parse_args()
 
-    # Load data
+    # Load data and requests
     items = load_data(args.data, args.limit)
+    requests = load_requests(args.requests)
     print(f"Loaded {len(items)} items from {args.data}")
+    print(f"Loaded {len(requests)} requests")
 
     # Select method
     if args.method == "cot":
@@ -180,10 +201,10 @@ def main():
         method = dummy_method
     print(f"Using method: {args.method}" + (f" (mode={args.mode})" if args.method == "knot" else ""))
 
-    eval_out = evaluate(items, method, mode=args.mode if args.method == "knot" else "string")
+    eval_out = evaluate(items, method, requests, mode=args.mode if args.method == "knot" else "string")
 
     # Print results
-    print_results(eval_out["stats"])
+    print_results(eval_out["stats"], eval_out.get("req_ids"))
 
     # Save results
     with open(args.out, 'w') as f:

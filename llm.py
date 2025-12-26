@@ -3,6 +3,21 @@
 
 import os
 import json
+from pathlib import Path
+
+
+def _load_api_key():
+    """Load API key from file if not in environment."""
+    if os.environ.get("OPENAI_API_KEY") or os.environ.get("ANTHROPIC_API_KEY"):
+        return
+    # Try to load from ../.openaiapi
+    key_file = Path(__file__).parent.parent / ".openaiapi"
+    if key_file.exists():
+        key = key_file.read_text().strip()
+        os.environ["OPENAI_API_KEY"] = key
+
+
+_load_api_key()
 
 PROVIDER = os.environ.get("LLM_PROVIDER", "").lower()
 MODEL = os.environ.get("LLM_MODEL", "")

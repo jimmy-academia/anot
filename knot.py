@@ -10,42 +10,71 @@ from llm import call_llm
 DEBUG = os.environ.get("KNOT_DEBUG", "0") == "1"
 
 # Task-specific prompts for restaurant recommendation
-TASK_CONCEPT = """You are evaluating whether a restaurant should be recommended to a user.
-The input contains restaurant info: item_name, city, neighborhood, price_range, cuisine, and item_data (list of reviews).
-Each review in item_data has: review_id and review text.
-The context describes what the user is looking for.
-Output a final recommendation: 1 (recommend), 0 (neutral/uncertain), -1 (not recommend).
-Break down the analysis: extract requirements, analyze reviews, check evidence, synthesize."""
+TASK_CONCEPT = """You are evaluating whether a restaurant matches a user's SPECIFIC need.
+The input contains restaurant info and multiple reviews with varying opinions.
+The context describes ONE specific aspect the user cares about (e.g., speed, consistency, ambiance, value, food quality).
 
-TASK_EXAMPLE_STRING = """example for restaurant recommendation (string mode)
-(0)=LLM("Extract 3-5 key requirements from the user request: {(context)}")
-(1)=LLM("Split the reviews from the restaurant info into a list: {(input)}")
-(2)=LLM("For each review in {(1)}, summarize key points about atmosphere, service, price, food quality")
-(3)=LLM("For each requirement in {(0)}, check if {(2)} provides POSITIVE, NEGATIVE, or NO CLEAR evidence")
-(4)=LLM("Count evidence from {(3)}: how many POSITIVE vs NEGATIVE? If POSITIVE > NEGATIVE output 1. If NEGATIVE > POSITIVE output -1. Otherwise output 0. Output ONLY the number.")"""
+CRITICAL: Different user requests require DIFFERENT analysis strategies:
+- Speed/wait time: Find explicit time mentions, calculate if wait is reasonable
+- Consistency: Compare reviews across time, look for "used to", "changed", "always"
+- Romantic/ambiance: Find atmosphere descriptions, noise levels, crowd info
+- Value: Compare price mentions to quality praise, look for "worth", "overpriced"
+- Food quality: Focus ONLY on food comments, ignore service issues
 
-TASK_EXAMPLE_DICT = """example for restaurant recommendation (dict mode)
-(0)=LLM("Extract 3-5 key requirements from: {(context)}")
-(1)=LLM("Restaurant is {(input)}[item_name] in {(input)}[neighborhood], price {(input)}[price_range]. Summarize this context.")
-(2)=LLM("Summarize this review for key points: {(input)}[item_data][0][review]")
-(3)=LLM("Summarize this review for key points: {(input)}[item_data][1][review]")
-(4)=LLM("Combine review summaries: {(2)}, {(3)}. List overall positive and negative points.")
-(5)=LLM("Check requirements {(0)} against evidence {(4)}. For each requirement: POSITIVE, NEGATIVE, or UNCLEAR.")
-(6)=LLM("Based on {(5)}: count POSITIVE vs NEGATIVE. If POSITIVE > NEGATIVE output 1. If NEGATIVE > POSITIVE output -1. Otherwise 0. Output ONLY the number.")"""
+Output: 1 (good match), 0 (unclear/mixed), -1 (poor match)
+The analysis must be TAILORED to what the user specifically asked about."""
+
+TASK_EXAMPLE_STRING = """example for speed/wait time request:
+(0)=LLM("What specific aspect does the user care about? Extract the key criterion from: {(context)}")
+(1)=LLM("From these reviews, find ALL mentions of wait time, speed, or how long things took: {(input)}")
+(2)=LLM("From {(1)}: List each wait/speed mention as FAST (reasonable wait), SLOW (too long), or UNCLEAR")
+(3)=LLM("Count from {(2)}: X mentions say FAST, Y mentions say SLOW. If X>Y output 1. If Y>X output -1. Otherwise 0. Output ONLY the number.")
+
+example for consistency request:
+(0)=LLM("User wants to know about consistency. Find any mentions of 'used to', 'changed', 'always', 'sometimes' in: {(input)}")
+(1)=LLM("Compare star ratings across reviews in {(input)}. Are they consistent (all similar) or varying (some high, some low)?")
+(2)=LLM("Based on temporal patterns in {(0)} and rating variance in {(1)}: Is this place consistent? If YES output 1. If NO output -1. If UNCLEAR output 0.")
+
+example for food quality (ignoring service):
+(0)=LLM("From these reviews, extract ONLY comments about FOOD (taste, freshness, dishes). Ignore service/wait: {(input)}")
+(1)=LLM("For each food comment in {(0)}: Label as POSITIVE, NEGATIVE, or NEUTRAL")
+(2)=LLM("Count from {(1)}: P=positive, N=negative. If P>N output 1. If N>P output -1. Otherwise 0. Output ONLY the number.")"""
+
+TASK_EXAMPLE_DICT = """example for speed/wait time request (dict mode):
+(0)=LLM("What specific aspect does the user care about? Extract from: {(context)}")
+(1)=LLM("From review: {(input)}[item_data][0][review] - any wait time or speed mentions?")
+(2)=LLM("From review: {(input)}[item_data][1][review] - any wait time or speed mentions?")
+(3)=LLM("From review: {(input)}[item_data][2][review] - any wait time or speed mentions?")
+(4)=LLM("Combine wait/speed mentions from {(1)}, {(2)}, {(3)}. Count FAST vs SLOW. If FAST>SLOW output 1. If SLOW>FAST output -1. Otherwise 0.")
+
+example for value assessment (dict mode):
+(0)=LLM("From review {(input)}[item_data][0][review]: any price or value comments? Label as WORTH_IT, OVERPRICED, or NO_MENTION")
+(1)=LLM("From review {(input)}[item_data][1][review]: any price or value comments? Label as WORTH_IT, OVERPRICED, or NO_MENTION")
+(2)=LLM("From {(0)} and {(1)}: Count WORTH_IT vs OVERPRICED. If WORTH>OVER output 1. If OVER>WORTH output -1. Otherwise 0.")"""
 
 KNOWLEDGE_PROMPT = """Given this task:
 %s
 
-Please create a step-by-step solution approach.
-Each step should be simple and focused on one sub-task.
-Don't use loops - list each step explicitly.
-Use Step0, Step1, Step2 to represent intermediate results.
+FIRST: Identify what TYPE of request this is:
+- SPEED: looking for quick service, reasonable wait
+- CONSISTENCY: checking if quality is reliable over time
+- AMBIANCE: romantic, quiet, atmosphere for special occasion
+- VALUE: worth the price, good deal
+- FOOD QUALITY: taste, freshness (ignoring service issues)
 
-Key steps should include:
-1. Extract user requirements from context
-2. Parse/summarize review information from input
-3. Check each requirement against the evidence
-4. Synthesize findings into a final recommendation (1, 0, or -1)
+THEN: Create a TAILORED step-by-step approach for THIS specific type.
+Each step should be simple and focused.
+Use Step0, Step1, Step2 format.
+
+Example for SPEED request:
+- Step0: Find all wait time mentions in reviews
+- Step1: Categorize each as FAST or SLOW
+- Step2: Count and compare, output final number
+
+Example for FOOD QUALITY request (user says ignore service):
+- Step0: Extract ONLY food-related comments from reviews
+- Step1: Label each as POSITIVE or NEGATIVE
+- Step2: If more POSITIVE → 1, more NEGATIVE → -1, else 0
 """
 
 SCRIPT_PROMPT = """Create an executable script for restaurant recommendation.
