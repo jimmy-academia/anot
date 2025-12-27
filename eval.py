@@ -1,0 +1,148 @@
+#!/usr/bin/env python3
+"""Evaluation functions for LLM assessment."""
+
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Callable
+
+from data.loader import format_query, normalize_pred
+
+
+def evaluate(items: list[dict], method: Callable, requests: list[dict], mode: str = "string") -> dict:
+    """Run evaluation and collect results."""
+    results = []
+    req_ids = [r["id"] for r in requests]
+    stats = {
+        "total": 0, "correct": 0, "errors": 0,
+        "per_request": {rid: {"total": 0, "correct": 0} for rid in req_ids},
+        "confusion": {g: {p: 0 for p in [-1, 0, 1]} for g in [-1, 0, 1]},
+    }
+
+    for item in items:
+        item_id = item.get("item_id", "unknown")
+        query, num_reviews = format_query(item, mode)
+        # Support both old (final_answers) and new (gold_labels) format
+        gold_answers = item.get("gold_labels") or item.get("final_answers", {})
+
+        for req in requests:
+            req_id = req["id"]
+            context = req["context"]
+            gold = gold_answers.get(req_id)
+            if gold is None:
+                continue
+            gold = int(gold)
+
+            # Set IDs for knot logging (if enabled)
+            try:
+                from methods.knot import set_current_ids
+                set_current_ids(item_id, req_id)
+            except ImportError:
+                pass
+
+            try:
+                pred = normalize_pred(method(query, context))
+            except Exception as e:
+                pred = 0
+                stats["errors"] += 1
+
+            correct = pred == gold
+            stats["total"] += 1
+            stats["correct"] += correct
+            stats["per_request"][req_id]["total"] += 1
+            stats["per_request"][req_id]["correct"] += correct
+            stats["confusion"][gold][pred] += 1
+
+            results.append({
+                "item_id": item_id,
+                "request_id": req_id,
+                "pred": pred,
+                "gold": gold,
+                "correct": correct,
+            })
+
+    return {"results": results, "stats": stats, "req_ids": req_ids}
+
+
+def evaluate_single(item: dict, req: dict, method: Callable, mode: str = "string") -> dict:
+    """Evaluate a single item-request pair (thread-safe)."""
+    item_id = item.get("item_id", "unknown")
+    req_id = req["id"]
+    context = req["context"]
+    gold_answers = item.get("gold_labels") or item.get("final_answers", {})
+    gold = gold_answers.get(req_id)
+    if gold is None:
+        return None
+
+    query, _ = format_query(item, mode)
+    try:
+        pred = normalize_pred(method(query, context))
+        error = False
+    except Exception:
+        pred = 0
+        error = True
+
+    return {
+        "item_id": item_id,
+        "request_id": req_id,
+        "pred": pred,
+        "gold": int(gold),
+        "correct": pred == int(gold),
+        "error": error,
+    }
+
+
+def compute_stats(results: list[dict], req_ids: list[str]) -> dict:
+    """Aggregate stats from results list."""
+    stats = {
+        "total": len(results),
+        "correct": sum(1 for r in results if r["correct"]),
+        "errors": sum(1 for r in results if r.get("error", False)),
+        "per_request": {rid: {"total": 0, "correct": 0} for rid in req_ids},
+        "confusion": {g: {p: 0 for p in [-1, 0, 1]} for g in [-1, 0, 1]},
+    }
+    for r in results:
+        rid = r["request_id"]
+        if rid in stats["per_request"]:
+            stats["per_request"][rid]["total"] += 1
+            stats["per_request"][rid]["correct"] += r["correct"]
+        stats["confusion"][r["gold"]][r["pred"]] += 1
+    return stats
+
+
+def evaluate_parallel(items: list[dict], method: Callable, requests: list[dict],
+                      mode: str = "string", max_workers: int = 40) -> dict:
+    """Parallel version of evaluate() - all item-request pairs at once."""
+    req_ids = [r["id"] for r in requests]
+    pairs = [(item, req) for item in items for req in requests]
+    results = []
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = [executor.submit(evaluate_single, item, req, method, mode)
+                   for item, req in pairs]
+        for future in as_completed(futures):
+            result = future.result()
+            if result:
+                results.append(result)
+
+    stats = compute_stats(results, req_ids)
+    return {"results": results, "stats": stats, "req_ids": req_ids}
+
+
+def print_results(stats: dict, req_ids: list[str] = None):
+    """Print evaluation summary."""
+    total, correct = stats["total"], stats["correct"]
+    acc = correct / total if total else 0
+    print(f"\nOverall: {acc:.4f} ({correct}/{total})")
+
+    print("\nPer-request:")
+    req_ids = req_ids or list(stats["per_request"].keys())
+    for req_id in req_ids:
+        if req_id in stats["per_request"]:
+            r = stats["per_request"][req_id]
+            acc = r["correct"] / r["total"] if r["total"] else 0
+            print(f"  {req_id}: {acc:.4f} ({r['correct']}/{r['total']})")
+
+    print("\nConfusion (rows=gold, cols=pred):")
+    print("       -1    0    1")
+    for g in [-1, 0, 1]:
+        row = stats["confusion"][g]
+        print(f"  {g:2d}  {row[-1]:4d} {row[0]:4d} {row[1]:4d}")

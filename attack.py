@@ -177,6 +177,63 @@ def apply_attack(items: list, attack_type: str, **kwargs) -> list:
     return [attack_func(item, **kwargs) for item in items]
 
 
+# Attack configurations: name -> (attack_type, kwargs)
+ATTACK_CONFIGS = {
+    "typo_10": ("typo", {"rate": 0.1}),
+    "typo_20": ("typo", {"rate": 0.2}),
+    "inject_override": ("injection", {"injection_type": "override", "target": 1}),
+    "inject_fake_sys": ("injection", {"injection_type": "fake_system", "target": 1}),
+    "inject_hidden": ("injection", {"injection_type": "hidden", "target": 1}),
+    "inject_manipulation": ("injection", {"injection_type": "manipulation", "target": 1}),
+    "fake_positive": ("fake_review", {"sentiment": "positive"}),
+    "fake_negative": ("fake_review", {"sentiment": "negative"}),
+}
+ATTACK_CHOICES = ["none"] + list(ATTACK_CONFIGS.keys()) + ["all"]
+
+
+def run_attack(attack_name: str, items_clean: list, method, requests: list,
+               mode: str, run_dir, evaluate_parallel_fn) -> tuple:
+    """Run evaluation for a single attack (can run in parallel with other attacks).
+
+    Args:
+        attack_name: Name of attack (e.g., "clean", "typo_10")
+        items_clean: Original unattacked items
+        method: Evaluation method callable
+        requests: List of request dicts
+        mode: Input mode ("string" or "dict")
+        run_dir: Path to run directory for saving results
+        evaluate_parallel_fn: Function to evaluate items (passed to avoid circular import)
+
+    Returns:
+        Tuple of (attack_name, eval_output_dict)
+    """
+    import json
+    from pathlib import Path
+
+    print(f"Starting: {attack_name}")
+
+    if attack_name == "clean":
+        items = items_clean
+    else:
+        attack_type, kwargs = ATTACK_CONFIGS[attack_name]
+        items = apply_attack(items_clean, attack_type, **kwargs)
+
+    # Use parallel evaluation for item-request pairs
+    eval_out = evaluate_parallel_fn(items, method, requests, mode)
+
+    # Save results (sorted for deterministic output)
+    run_dir = Path(run_dir)
+    result_path = run_dir / f"results_{attack_name}.jsonl"
+    with open(result_path, 'w') as f:
+        for r in sorted(eval_out["results"], key=lambda x: (x["item_id"], x["request_id"])):
+            f.write(json.dumps(r) + '\n')
+
+    stats = eval_out["stats"]
+    acc = stats["correct"] / stats["total"] if stats["total"] else 0
+    print(f"Completed: {attack_name} - {acc:.4f} ({stats['correct']}/{stats['total']})")
+    return attack_name, eval_out
+
+
 if __name__ == "__main__":
     # Demo attacks
     import json

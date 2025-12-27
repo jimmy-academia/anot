@@ -4,29 +4,15 @@
 import json
 import argparse
 import glob
-import os
-from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable
 
-from data.loader import load_data, load_requests, format_query, normalize_pred
+from data.loader import load_data, load_requests
+from eval import evaluate, evaluate_parallel, print_results
+from attack import ATTACK_CONFIGS, ATTACK_CHOICES, run_attack, apply_attack
 
 RESULTS_DIR = Path("results")
-
-# Attack configurations: name -> (attack_type, kwargs)
-ATTACK_CONFIGS = {
-    "typo_10": ("typo", {"rate": 0.1}),
-    "typo_20": ("typo", {"rate": 0.2}),
-    "inject_override": ("injection", {"injection_type": "override", "target": 1}),
-    "inject_fake_sys": ("injection", {"injection_type": "fake_system", "target": 1}),
-    "inject_hidden": ("injection", {"injection_type": "hidden", "target": 1}),
-    "inject_manipulation": ("injection", {"injection_type": "manipulation", "target": 1}),
-    "fake_positive": ("fake_review", {"sentiment": "positive"}),
-    "fake_negative": ("fake_review", {"sentiment": "negative"}),
-}
-ATTACK_CHOICES = ["none"] + list(ATTACK_CONFIGS.keys()) + ["all"]
 
 
 def get_next_run_number() -> int:
@@ -54,198 +40,61 @@ def create_run_dir(run_name: str) -> Path:
     return run_dir
 
 
-def evaluate(items: list[dict], method: Callable, requests: list[dict], mode: str = "string") -> dict:
-    """Run evaluation and collect results."""
-    results = []
-    req_ids = [r["id"] for r in requests]
-    stats = {
-        "total": 0, "correct": 0, "errors": 0,
-        "per_request": {rid: {"total": 0, "correct": 0} for rid in req_ids},
-        "confusion": {g: {p: 0 for p in [-1, 0, 1]} for g in [-1, 0, 1]},
-    }
-
-    for item in items:
-        item_id = item.get("item_id", "unknown")
-        query, num_reviews = format_query(item, mode)
-        # Support both old (final_answers) and new (gold_labels) format
-        gold_answers = item.get("gold_labels") or item.get("final_answers", {})
-
-        for req in requests:
-            req_id = req["id"]
-            context = req["context"]
-            gold = gold_answers.get(req_id)
-            if gold is None:
-                continue
-            gold = int(gold)
-
-            # Set IDs for knot logging (if enabled)
-            try:
-                from methods.knot import set_current_ids
-                set_current_ids(item_id, req_id)
-            except ImportError:
-                pass
-
-            try:
-                pred = normalize_pred(method(query, context))
-            except Exception as e:
-                pred = 0
-                stats["errors"] += 1
-
-            correct = pred == gold
-            stats["total"] += 1
-            stats["correct"] += correct
-            stats["per_request"][req_id]["total"] += 1
-            stats["per_request"][req_id]["correct"] += correct
-            stats["confusion"][gold][pred] += 1
-
-            results.append({
-                "item_id": item_id,
-                "request_id": req_id,
-                "pred": pred,
-                "gold": gold,
-                "correct": correct,
-            })
-
-    return {"results": results, "stats": stats, "req_ids": req_ids}
-
-
-def evaluate_single(item: dict, req: dict, method: Callable, mode: str = "string") -> dict:
-    """Evaluate a single item-request pair (thread-safe)."""
-    item_id = item.get("item_id", "unknown")
-    req_id = req["id"]
-    context = req["context"]
-    gold_answers = item.get("gold_labels") or item.get("final_answers", {})
-    gold = gold_answers.get(req_id)
-    if gold is None:
-        return None
-
-    query, _ = format_query(item, mode)
-    try:
-        pred = normalize_pred(method(query, context))
-        error = False
-    except Exception:
-        pred = 0
-        error = True
-
-    return {
-        "item_id": item_id,
-        "request_id": req_id,
-        "pred": pred,
-        "gold": int(gold),
-        "correct": pred == int(gold),
-        "error": error,
-    }
-
-
-def compute_stats(results: list[dict], req_ids: list[str]) -> dict:
-    """Aggregate stats from results list."""
-    stats = {
-        "total": len(results),
-        "correct": sum(1 for r in results if r["correct"]),
-        "errors": sum(1 for r in results if r.get("error", False)),
-        "per_request": {rid: {"total": 0, "correct": 0} for rid in req_ids},
-        "confusion": {g: {p: 0 for p in [-1, 0, 1]} for g in [-1, 0, 1]},
-    }
-    for r in results:
-        rid = r["request_id"]
-        if rid in stats["per_request"]:
-            stats["per_request"][rid]["total"] += 1
-            stats["per_request"][rid]["correct"] += r["correct"]
-        stats["confusion"][r["gold"]][r["pred"]] += 1
-    return stats
-
-
-def evaluate_parallel(items: list[dict], method: Callable, requests: list[dict],
-                      mode: str = "string", max_workers: int = 40) -> dict:
-    """Parallel version of evaluate() - all item-request pairs at once."""
-    req_ids = [r["id"] for r in requests]
-    pairs = [(item, req) for item in items for req in requests]
-    results = []
-
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = [executor.submit(evaluate_single, item, req, method, mode)
-                   for item, req in pairs]
-        for future in as_completed(futures):
-            result = future.result()
-            if result:
-                results.append(result)
-
-    stats = compute_stats(results, req_ids)
-    return {"results": results, "stats": stats, "req_ids": req_ids}
-
-
-def print_results(stats: dict, req_ids: list[str] = None):
-    """Print evaluation summary."""
-    total, correct = stats["total"], stats["correct"]
-    acc = correct / total if total else 0
-    print(f"\nOverall: {acc:.4f} ({correct}/{total})")
-
-    print("\nPer-request:")
-    req_ids = req_ids or list(stats["per_request"].keys())
-    for req_id in req_ids:
-        if req_id in stats["per_request"]:
-            r = stats["per_request"][req_id]
-            acc = r["correct"] / r["total"] if r["total"] else 0
-            print(f"  {req_id}: {acc:.4f} ({r['correct']}/{r['total']})")
-
-    print("\nConfusion (rows=gold, cols=pred):")
-    print("       -1    0    1")
-    for g in [-1, 0, 1]:
-        row = stats["confusion"][g]
-        print(f"  {g:2d}  {row[-1]:4d} {row[0]:4d} {row[1]:4d}")
-
-
-def run_attack(attack_name: str, items_clean: list[dict], method: Callable,
-               requests: list[dict], mode: str, run_dir: Path,
-               attack_configs: dict, apply_attack_fn) -> tuple:
-    """Run evaluation for a single attack (can run in parallel with other attacks)."""
-    print(f"Starting: {attack_name}")
-
-    if attack_name == "clean":
-        items = items_clean
-    else:
-        attack_type, kwargs = attack_configs[attack_name]
-        items = apply_attack_fn(items_clean, attack_type, **kwargs)
-
-    # Use parallel evaluation for item-request pairs
-    eval_out = evaluate_parallel(items, method, requests, mode)
-
-    # Save results (sorted for deterministic output)
-    result_path = run_dir / f"results_{attack_name}.jsonl"
-    with open(result_path, 'w') as f:
-        for r in sorted(eval_out["results"], key=lambda x: (x["item_id"], x["request_id"])):
-            f.write(json.dumps(r) + '\n')
-
-    stats = eval_out["stats"]
-    acc = stats["correct"] / stats["total"] if stats["total"] else 0
-    print(f"Completed: {attack_name} - {acc:.4f} ({stats['correct']}/{stats['total']})")
-    return attack_name, eval_out
-
-
 def main():
     parser = argparse.ArgumentParser(description="Evaluate LLM on restaurant recommendations")
+
+    # Data arguments
     parser.add_argument("--data", default="data/processed/real_data.jsonl", help="Input JSONL file")
     parser.add_argument("--requests", default="data/requests/complex_requests.json", help="User requests JSON file")
     parser.add_argument("--run-name", help="Name for this run (creates results/{N}_{run-name}/)")
     parser.add_argument("--out", help="Output results file (default: auto in run dir)")
     parser.add_argument("--limit", type=int, help="Limit items to process")
+
+    # Method arguments
     parser.add_argument("--method", choices=["cot", "not", "knot", "dummy"], default="dummy", help="Method to use")
     parser.add_argument("--mode", choices=["string", "dict"], default="string", help="Input mode for knot")
     parser.add_argument("--knot-approach", choices=["base", "voting", "iterative", "divide", "v4"], default="base",
                         help="Approach for knot (base=default, voting=self-consistency, iterative=plan refinement, divide=divide-conquer, v4=hierarchical planning)")
+
+    # Attack arguments
     parser.add_argument("--attack", choices=ATTACK_CHOICES, default="none",
                         help="Attack type to apply (none=clean, all=run all attacks)")
     parser.add_argument("--defense", action="store_true",
                         help="Enable defense prompts (attack-resistant mode)")
+
+    # LLM configuration
+    parser.add_argument("--provider", choices=["openai", "anthropic", "local"], default="openai",
+                        help="LLM provider (default: openai)")
+    parser.add_argument("--model", default=None,
+                        help="Override model (default: role-based selection)")
+    parser.add_argument("--temperature", type=float, default=0.0,
+                        help="LLM temperature (default: 0.0)")
+    parser.add_argument("--max-tokens", type=int, default=1024,
+                        help="Max tokens for response (default: 1024)")
+    parser.add_argument("--max-tokens-reasoning", type=int, default=4096,
+                        help="Max tokens for reasoning models (default: 4096)")
+    parser.add_argument("--base-url", default="",
+                        help="Base URL for local provider")
+
+    # Execution arguments
     parser.add_argument("--max-concurrent", type=int, default=500,
                         help="Max concurrent API calls (default=500, safe for Tier 5)")
     parser.add_argument("--no-parallel", dest="parallel", action="store_false", default=True,
                         help="Disable parallel execution (run sequentially instead)")
+
     args = parser.parse_args()
 
-    # Initialize rate limiter
-    from llm import init_rate_limiter
+    # Initialize LLM configuration
+    from llm import init_rate_limiter, configure
     init_rate_limiter(args.max_concurrent)
+    configure(
+        temperature=args.temperature,
+        max_tokens=args.max_tokens,
+        max_tokens_reasoning=args.max_tokens_reasoning,
+        provider=args.provider,
+        model=args.model,
+        base_url=args.base_url,
+    )
 
     # Create run directory
     run_name = args.run_name or args.method
@@ -275,12 +124,6 @@ def main():
     else:
         attacks_to_run = [args.attack]
 
-    # Import attack functions if needed
-    if args.attack != "none":
-        from attack import apply_attack
-    else:
-        apply_attack = None
-
     # v4 approach requires dict mode for variable substitution
     if args.method == "knot" and approach == "v4":
         eval_mode = "dict"
@@ -297,7 +140,7 @@ def main():
         with ThreadPoolExecutor(max_workers=len(attacks_to_run)) as executor:
             futures = {
                 executor.submit(run_attack, name, items_clean, method, requests,
-                                eval_mode, run_dir, ATTACK_CONFIGS, apply_attack): name
+                                eval_mode, run_dir, evaluate_parallel): name
                 for name in attacks_to_run
             }
 
@@ -353,6 +196,12 @@ def main():
         "limit": args.limit,
         "attack": args.attack,
         "attacks_run": attacks_to_run,
+        "llm_config": {
+            "provider": args.provider,
+            "model": args.model,
+            "temperature": args.temperature,
+            "max_tokens": args.max_tokens,
+        },
         "stats": all_stats if len(attacks_to_run) > 1 else all_stats.get("clean", all_stats),
     }
     config_path = run_dir / "config.json"

@@ -45,23 +45,47 @@ MODEL_CONFIG = {
     "worker": "gpt-5-nano",    # For script execution in knot
     "default": "gpt-5-nano",   # For cot and other methods
 }
-DEFAULT_PROVIDER = "openai"
 
-TEMPERATURE = float(os.environ.get("LLM_TEMPERATURE", "0.0"))
-MAX_TOKENS = int(os.environ.get("LLM_MAX_TOKENS", "1024"))
-# gpt-5-nano uses reasoning tokens, needs higher limit
-MAX_TOKENS_REASONING = int(os.environ.get("LLM_MAX_TOKENS_REASONING", "4096"))
+# Configuration (set via configure() from main.py argparse)
+_config = {
+    "temperature": 0.0,
+    "max_tokens": 1024,
+    "max_tokens_reasoning": 4096,
+    "provider": "openai",
+    "model": None,  # None = use role-based MODEL_CONFIG
+    "base_url": "",
+}
+
+
+def configure(temperature: float = None, max_tokens: int = None,
+              max_tokens_reasoning: int = None, provider: str = None,
+              model: str = None, base_url: str = None):
+    """Configure LLM settings. Call from main() before evaluation."""
+    if temperature is not None:
+        _config["temperature"] = temperature
+    if max_tokens is not None:
+        _config["max_tokens"] = max_tokens
+    if max_tokens_reasoning is not None:
+        _config["max_tokens_reasoning"] = max_tokens_reasoning
+    if provider is not None:
+        _config["provider"] = provider
+    if model is not None:
+        _config["model"] = model
+    if base_url is not None:
+        _config["base_url"] = base_url
 
 
 def get_model(role: str = "default") -> str:
-    """Get model for a specific role."""
+    """Get model for a specific role. Uses _config['model'] override if set."""
+    if _config["model"]:
+        return _config["model"]
     return MODEL_CONFIG.get(role, MODEL_CONFIG["default"])
 
 
 def call_llm(prompt: str, system: str = "", provider: str = None, model: str = None, role: str = "default") -> str:
     """Call LLM API. Uses role-based model selection if model not specified."""
     if provider is None:
-        provider = DEFAULT_PROVIDER
+        provider = _config["provider"]
     if model is None:
         model = get_model(role)
 
@@ -86,12 +110,12 @@ def _call_llm_impl(prompt: str, system: str, provider: str, model: str) -> str:
             # These models use max_completion_tokens, only temperature=1, and need higher limit for reasoning tokens
             resp = client.chat.completions.create(
                 model=model, messages=messages,
-                max_completion_tokens=MAX_TOKENS_REASONING
+                max_completion_tokens=_config["max_tokens_reasoning"]
             )
         else:
             resp = client.chat.completions.create(
                 model=model, messages=messages,
-                temperature=TEMPERATURE, max_tokens=MAX_TOKENS
+                temperature=_config["temperature"], max_tokens=_config["max_tokens"]
             )
         return resp.choices[0].message.content
 
@@ -101,21 +125,21 @@ def _call_llm_impl(prompt: str, system: str, provider: str, model: str) -> str:
         if "claude" not in model.lower():
             model = "claude-sonnet-4-20250514"
         resp = client.messages.create(
-            model=model, max_tokens=MAX_TOKENS,
+            model=model, max_tokens=_config["max_tokens"],
             system=system or "", messages=[{"role": "user", "content": prompt}]
         )
         return resp.content[0].text
 
     elif provider == "local":
         import urllib.request
-        base_url = os.environ.get("LLM_BASE_URL", "")
+        base_url = _config["base_url"]
         url = base_url.rstrip("/") + "/v1/chat/completions"
         messages = []
         if system:
             messages.append({"role": "system", "content": system})
         messages.append({"role": "user", "content": prompt})
         payload = {"model": model, "messages": messages,
-                   "temperature": TEMPERATURE, "max_tokens": MAX_TOKENS}
+                   "temperature": _config["temperature"], "max_tokens": _config["max_tokens"]}
         req = urllib.request.Request(url, data=json.dumps(payload).encode(),
                                       headers={"Content-Type": "application/json"}, method="POST")
         with urllib.request.urlopen(req, timeout=120) as resp:
@@ -150,7 +174,7 @@ def _get_async_anthropic_client():
 async def call_llm_async(prompt: str, system: str = "", provider: str = None, model: str = None, role: str = "default") -> str:
     """Async version of call_llm for parallel execution."""
     if provider is None:
-        provider = DEFAULT_PROVIDER
+        provider = _config["provider"]
     if model is None:
         model = get_model(role)
 
@@ -164,12 +188,12 @@ async def call_llm_async(prompt: str, system: str = "", provider: str = None, mo
         if is_new_model:
             resp = await client.chat.completions.create(
                 model=model, messages=messages,
-                max_completion_tokens=MAX_TOKENS_REASONING
+                max_completion_tokens=_config["max_tokens_reasoning"]
             )
         else:
             resp = await client.chat.completions.create(
                 model=model, messages=messages,
-                temperature=TEMPERATURE, max_tokens=MAX_TOKENS
+                temperature=_config["temperature"], max_tokens=_config["max_tokens"]
             )
         return resp.choices[0].message.content
 
@@ -178,7 +202,7 @@ async def call_llm_async(prompt: str, system: str = "", provider: str = None, mo
         if "claude" not in model.lower():
             model = "claude-sonnet-4-20250514"
         resp = await client.messages.create(
-            model=model, max_tokens=MAX_TOKENS,
+            model=model, max_tokens=_config["max_tokens"],
             system=system or "", messages=[{"role": "user", "content": prompt}]
         )
         return resp.content[0].text
