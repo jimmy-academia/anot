@@ -452,6 +452,13 @@ def parse_final_answer(output: str) -> int:
         return int(match.group(1))
 
     lower = output.lower()
+    # Handle POSITIVE/NEGATIVE/NEUTRAL from script intermediate steps
+    if "negative" in lower:
+        return -1
+    if "positive" in lower:
+        return 1
+    if "neutral" in lower:
+        return 0
     if "not recommend" in lower:
         return -1
     if "recommend" in lower and "not" not in lower:

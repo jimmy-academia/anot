@@ -239,8 +239,8 @@ def main():
                         help="Enable defense prompts (attack-resistant mode)")
     parser.add_argument("--max-concurrent", type=int, default=500,
                         help="Max concurrent API calls (default=500, safe for Tier 5)")
-    parser.add_argument("--parallel", action="store_true",
-                        help="Enable parallel execution (all attacks + all item-request pairs)")
+    parser.add_argument("--no-parallel", dest="parallel", action="store_false", default=True,
+                        help="Disable parallel execution (run sequentially instead)")
     args = parser.parse_args()
 
     # Initialize rate limiter
@@ -281,7 +281,11 @@ def main():
     else:
         apply_attack = None
 
-    eval_mode = args.mode if args.method == "knot" else "string"
+    # v4 approach requires dict mode for variable substitution
+    if args.method == "knot" and approach == "v4":
+        eval_mode = "dict"
+    else:
+        eval_mode = args.mode if args.method == "knot" else "string"
     all_stats = {}
 
     if args.parallel and len(attacks_to_run) > 1:

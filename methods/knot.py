@@ -470,7 +470,10 @@ def create_method(mode="string", approach="base", run_dir: str = None):
                 _executor = KnowledgeNetworkOfThoughtDivide(mode=mode)
             elif approach == "v4":
                 from .knot_v4 import KnowledgeNetworkOfThoughtV4
-                _executor = KnowledgeNetworkOfThoughtV4(mode=mode, run_dir=run_dir)
+                # v4 requires dict mode for variable substitution
+                if mode != "dict" and DEBUG:
+                    print(f"Warning: v4 requires mode=dict, overriding mode={mode}")
+                _executor = KnowledgeNetworkOfThoughtV4(mode="dict", run_dir=run_dir)
             else:
                 _executor = KnowledgeNetworkOfThought(mode=mode)
 

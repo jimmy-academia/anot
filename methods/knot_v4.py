@@ -321,115 +321,95 @@ Write the corrected plan as a numbered list."""
     # ==================== STAGE 2: Script Generation ====================
 
     def stage2_phase_a(self, dag: dict, query, context: str) -> str:
-        """Phase a: Generate initial script from DAG."""
+        """Phase a: Generate script deterministically from DAG structure.
+
+        No LLM needed - we have the structure from Stage 1, just convert to script format.
+        This eliminates the 70% failure rate from LLM-based generation.
+        """
         self._log("2.a", "start")
 
         conditions = dag.get("conditions", ["criterion"])
         review_count = dag.get("review_count", 5)
-        logic = dag.get("decision", {}).get("logic", "")
-        decision_rule = dag.get("decision", {}).get("decision_rule", "")
+        logic = dag.get("decision", {}).get("logic", "criterion")
 
-        # Generate script structure prompt
-        prompt = f"""Generate an executable script for restaurant recommendation.
+        lines = []
+        step = 0
 
-DAG structure:
-- {review_count} reviews to analyze
-- Conditions to check: {conditions}
-- Logic: {logic}
-- Decision rule: {decision_rule}
+        # 1. Extraction steps: one per (review × condition)
+        # Layout: for each review, extract all conditions
+        for r in range(review_count):
+            for c in conditions:
+                lines.append(
+                    f'({step})=LLM("Extract {c} evidence from review {r}: '
+                    f'{{{{(input)}}}}[item_data][{r}][review]. Output: POSITIVE, NEGATIVE, or NONE")'
+                )
+                step += 1
 
-Each line format: (N)=LLM("instruction")
-Use {{(input)}} for data, {{(context)}} for user request, {{(N)}} for previous results.
+        # 2. Aggregation steps: one per condition
+        # Each aggregation references all extraction steps for that condition
+        agg_start = step
+        num_conditions = len(conditions)
+        for i, c in enumerate(conditions):
+            # References to extraction steps for this condition across all reviews
+            refs = ", ".join(f"{{{{({r * num_conditions + i})}}}}" for r in range(review_count))
+            lines.append(
+                f'({step})=LLM("Aggregate {c}: {refs}. '
+                f'Count POSITIVE vs NEGATIVE. Output: POSITIVE, NEGATIVE, or NEUTRAL")'
+            )
+            step += 1
 
-Structure:
-1. Review blocks: For each review, extract evidence for each condition
-2. Aggregation: Combine evidence per condition into scores
-3. Decision: Apply logic to get final -1, 0, or 1
+        # 3. Decision step: apply logic using aggregation results
+        agg_refs = ", ".join(f"{c}={{{{({agg_start + i})}}}}" for i, c in enumerate(conditions))
+        lines.append(
+            f'({step})=LLM("Apply logic: {agg_refs}. Logic: {logic}. Output ONLY: -1, 0, or 1")'
+        )
 
-Example for 3 reviews and 2 conditions (speed, food):
-(0)=LLM("From review 0: {{(input)}}[item_data][0][review], extract evidence about speed. Output: FAST, SLOW, or NONE")
-(1)=LLM("From review 0: {{(input)}}[item_data][0][review], extract evidence about food. Output: GOOD, BAD, or NONE")
-(2)=LLM("From review 1: {{(input)}}[item_data][1][review], extract evidence about speed. Output: FAST, SLOW, or NONE")
-(3)=LLM("From review 1: {{(input)}}[item_data][1][review], extract evidence about food. Output: GOOD, BAD, or NONE")
-(4)=LLM("From review 2: {{(input)}}[item_data][2][review], extract evidence about speed. Output: FAST, SLOW, or NONE")
-(5)=LLM("From review 2: {{(input)}}[item_data][2][review], extract evidence about food. Output: GOOD, BAD, or NONE")
-(6)=LLM("Aggregate speed evidence from {{(0)}}, {{(2)}}, {{(4)}}. Count FAST vs SLOW. Output: POSITIVE, NEGATIVE, or NEUTRAL")
-(7)=LLM("Aggregate food evidence from {{(1)}}, {{(3)}}, {{(5)}}. Count GOOD vs BAD. Output: POSITIVE, NEGATIVE, or NEUTRAL")
-(8)=LLM("Apply logic: speed={{(6)}}, food={{(7)}}. If speed NEGATIVE -> -1. If both POSITIVE -> 1. Else -> 0. Output ONLY -1, 0, or 1")
+        script = "\n".join(lines)
 
-Now generate script for {review_count} reviews and conditions {conditions}.
-Use the user context: {context}
-
-Output ONLY the script lines, nothing else."""
-
-        response = call_llm(prompt, system=SYSTEM_PROMPT, role="planner")
-        self._log_llm("2.a", prompt, response)
-        self._log("2.a", "end", {"script_length": len(response)})
+        self._log("2.a", "end", {"script_length": len(script), "step_count": step + 1})
         self._flush()
 
         if DEBUG:
-            print(f"Phase 2.a initial script:\n{response[:500]}...")
+            print(f"Phase 2.a script (deterministic):\n{script[:500]}...")
 
-        return response
+        return script
 
     def stage2_phase_b(self, script: str, dag: dict, max_iterations: int = 2) -> str:
-        """Phase b: Overall structure check-fix loop."""
+        """Phase b: Validate script structure (no LLM needed with deterministic generation)."""
         self._log("2.b", "start")
 
         conditions = dag.get("conditions", [])
         review_count = dag.get("review_count", 5)
         expected_extraction_steps = review_count * len(conditions)
         expected_aggregation_steps = len(conditions)
+        expected_total = expected_extraction_steps + expected_aggregation_steps + 1
 
-        for iteration in range(max_iterations):
-            # Parse script
-            steps = parse_script(script)
+        # Parse and validate
+        steps = parse_script(script)
 
-            # Check structure
-            checks = []
-            checks.append(("has_steps", len(steps) > 0))
-            checks.append(("has_enough_steps", len(steps) >= expected_extraction_steps + expected_aggregation_steps + 1))
-            checks.append(("ends_with_decision", len(steps) > 0 and ("-1" in steps[-1][1] or "0" in steps[-1][1] or "1" in steps[-1][1])))
+        checks = [
+            ("has_steps", len(steps) > 0),
+            ("has_enough_steps", len(steps) >= expected_total),
+            ("ends_with_decision", len(steps) > 0 and any(x in steps[-1][1] for x in ["-1", "0", "1"])),
+        ]
 
-            all_passed = all(passed for _, passed in checks)
-            self._log("2.b", "check", {"iteration": iteration, "checks": checks, "step_count": len(steps), "all_passed": all_passed})
-
-            if all_passed:
-                break
-
-            # Fix: regenerate with explicit requirements
-            prompt = f"""Fix this script. It needs:
-- Extraction steps for {review_count} reviews x {len(conditions)} conditions = {expected_extraction_steps} extraction steps
-- {expected_aggregation_steps} aggregation steps (one per condition)
-- 1 final decision step outputting -1, 0, or 1
-
-REQUIRED FORMAT - each line MUST be:
-(N)=LLM("instruction text here")
-
-Example for 1 review, 2 conditions (speed, food):
-(0)=LLM("Extract speed evidence from review 0: {{(input)}}[item_data][0][review]. Output: FAST, SLOW, or NONE")
-(1)=LLM("Extract food evidence from review 0: {{(input)}}[item_data][0][review]. Output: GOOD, BAD, or NONE")
-(2)=LLM("Aggregate speed: {{(0)}}. Output: POSITIVE, NEGATIVE, or NEUTRAL")
-(3)=LLM("Aggregate food: {{(1)}}. Output: POSITIVE, NEGATIVE, or NEUTRAL")
-(4)=LLM("Apply logic: speed={{(2)}}, food={{(3)}}. Output ONLY: -1, 0, or 1")
-
-Current script:
-{script}
-
-Conditions: {conditions}
-Reviews: {review_count}
-
-Output ONLY the script lines in (N)=LLM("...") format, nothing else."""
-
-            script = call_llm(prompt, system=SYSTEM_PROMPT, role="planner")
-            self._log_llm("2.b", prompt, script)
-            self._log("2.b", "fix", {"iteration": iteration, "action": "regenerate"})
-
-        self._log("2.b", "end", {"final_step_count": len(parse_script(script))})
-        self._flush()
+        all_passed = all(passed for _, passed in checks)
+        self._log("2.b", "check", {
+            "checks": checks,
+            "step_count": len(steps),
+            "expected": expected_total,
+            "all_passed": all_passed
+        })
 
         if DEBUG:
-            print(f"Phase 2.b validated script:\n{script[:500]}...")
+            status = "PASSED" if all_passed else "FAILED"
+            print(f"Phase 2.b validation: {status} ({len(steps)}/{expected_total} steps)")
+            if not all_passed:
+                failed = [name for name, passed in checks if not passed]
+                print(f"  Failed checks: {failed}")
+
+        self._log("2.b", "end", {"final_step_count": len(steps), "valid": all_passed})
+        self._flush()
 
         return script
 
@@ -549,9 +529,17 @@ Output only the corrected step in format: (N)=LLM("...")"""
                 print("=" * 60)
 
             script = self.stage2_phase_a(dag, query, context)
+            if DEBUG:
+                print(f"Phase 2.a script:\n{script}\n")
             script = self.stage2_phase_b(script, dag)
+            if DEBUG:
+                print(f"Phase 2.b script:\n{script}\n")
             script = self.stage2_phase_c(script, dag, query, context)
             script = self.stage2_phase_d(script, dag)
+            if DEBUG:
+                from .base import parse_script
+                steps = parse_script(script)
+                print(f"Final script has {len(steps)} parsed steps")
 
             # === STAGE 3: Execute ===
             if DEBUG:
@@ -565,6 +553,9 @@ Output only the corrected step in format: (N)=LLM("...")"""
                 output = asyncio.run(self.execute_script_parallel(script, query, context))
             except RuntimeError:
                 output = self.execute_script(script, query, context)
+
+            if DEBUG:
+                print(f"Raw output before parsing: '{output[:200]}...' " if len(output) > 200 else f"Raw output: '{output}'")
 
             answer = parse_final_answer(output)
 
