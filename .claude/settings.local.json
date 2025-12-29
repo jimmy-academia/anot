@@ -23,7 +23,8 @@
       "Bash(KNOT_DEBUG=1 python main.py:*)",
       "Bash(python main.py:*)",
       "Bash(tree:*)",
-      "WebFetch(domain:raw.githubusercontent.com)"
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(mv:*)"
     ]
   }
 }

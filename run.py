@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Evaluation functions for LLM assessment."""
+"""Evaluation and orchestration functions for LLM assessment."""
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Callable
 
 from data.loader import format_query, normalize_pred
+from attack import ATTACK_CONFIGS, run_attack, apply_attack
 
 
 def evaluate(items: list[dict], method: Callable, requests: list[dict], mode: str = "string") -> dict:
@@ -146,3 +147,100 @@ def print_results(stats: dict, req_ids: list[str] = None):
     for g in [-1, 0, 1]:
         row = stats["confusion"][g]
         print(f"  {g:2d}  {row[-1]:4d} {row[0]:4d} {row[1]:4d}")
+
+
+# --- Orchestration Helpers ---
+
+def get_attacks_list(args):
+    """Determine which attacks to run."""
+    if args.attack == "all":
+        return ["clean"] + list(ATTACK_CONFIGS.keys())
+    elif args.attack == "none":
+        return ["clean"]
+    else:
+        return [args.attack]
+
+
+def run_evaluation_loop(args, items, requests, method, attacks, experiment):
+    """Core loop to run attacks (sequentially or in parallel) and save results."""
+    # Determine eval_mode for variable substitution
+    approach = getattr(args, 'knot_approach', 'base')
+    if args.method == "knot" and approach in ("v4", "v5"):
+        eval_mode = "dict"
+    else:
+        eval_mode = args.mode if args.method == "knot" else "string"
+
+    run_dir = experiment.run_dir
+    all_stats = {}
+
+    if args.parallel and len(attacks) > 1:
+        # PARALLEL: Run all attacks concurrently
+        print(f"\n{'='*50}\nRunning {len(attacks)} attacks in PARALLEL\n{'='*50}")
+
+        with ThreadPoolExecutor(max_workers=len(attacks)) as executor:
+            futures = {
+                executor.submit(run_attack, name, items, method, requests,
+                                eval_mode, run_dir, evaluate_parallel): name
+                for name in attacks
+            }
+
+            for future in as_completed(futures):
+                attack_name, eval_out = future.result()
+                all_stats[attack_name] = eval_out["stats"]
+                print_results(eval_out["stats"], eval_out.get("req_ids"))
+
+                # Save results via ExperimentManager
+                experiment.save_results(eval_out["results"], f"results_{attack_name}.jsonl")
+
+    else:
+        # SEQUENTIAL: Run attacks one by one
+        for attack_name in attacks:
+            print(f"\n{'='*50}\nRunning: {attack_name}\n{'='*50}")
+
+            if attack_name == "clean":
+                curr_items = items
+            else:
+                atype, akwargs = ATTACK_CONFIGS[attack_name]
+                curr_items = apply_attack(items, atype, **akwargs)
+
+            # Evaluate
+            if args.parallel:
+                eval_out = evaluate_parallel(curr_items, method, requests, mode=eval_mode)
+            else:
+                eval_out = evaluate(curr_items, method, requests, mode=eval_mode)
+
+            # Print and save
+            print_results(eval_out["stats"], eval_out.get("req_ids"))
+            all_stats[attack_name] = eval_out["stats"]
+
+            filename = "results.jsonl" if len(attacks) == 1 else f"results_{attack_name}.jsonl"
+            result_path = experiment.save_results(eval_out["results"], filename)
+            print(f"Results saved to {result_path}")
+
+    return all_stats
+
+
+def save_final_config(args, attacks, stats, experiment):
+    """Construct and save the run configuration."""
+    config = {
+        "method": args.method,
+        "mode": args.mode if args.method == "knot" else None,
+        "approach": getattr(args, 'knot_approach', None) if args.method == "knot" else None,
+        "defense": args.defense,
+        "data": args.data,
+        "requests": args.requests,
+        "limit": args.limit,
+        "attack": args.attack,
+        "attacks_run": attacks,
+        "llm_config": {
+            "provider": args.provider,
+            "model": args.model,
+            "temperature": args.temperature,
+            "max_tokens": args.max_tokens,
+        },
+        # Unwrap stats if only one attack was run
+        "stats": stats if len(attacks) > 1 else stats.get("clean", stats),
+    }
+
+    config_path = experiment.save_config(config)
+    print(f"\nConfig saved to {config_path}")
