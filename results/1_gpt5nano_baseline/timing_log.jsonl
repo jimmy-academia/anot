@@ -1,3 +1,0 @@
-{"timestamp": "2025-12-26T15:43:10.896184", "item_id": "9OG5YkX1g2GR", "request_id": "C0", "answer": 1, "total_sec": 84.1, "knowledge_sec": 11.96, "script_sec": 24.4, "execution_sec": 47.74, "num_steps": 3, "detail_file": "knot_9OG5YkX1_C0_0001.json"}
-{"timestamp": "2025-12-26T15:45:42.527607", "item_id": "9OG5YkX1g2GR_attack", "request_id": "C0", "answer": 1, "total_sec": 59.03, "knowledge_sec": 20.79, "script_sec": 36.23, "execution_sec": 2.01, "num_steps": 1, "detail_file": "knot_9OG5YkX1_C0_0001.json"}
-{"timestamp": "2025-12-26T16:04:25.990218", "item_id": "9OG5YkX1g2GR_defense", "request_id": "C0", "answer": 1, "total_sec": 86.89, "knowledge_sec": 36.22, "script_sec": 39.28, "execution_sec": 11.39, "num_steps": 1, "detail_file": "knot_9OG5YkX1_C0_0001.json"}
