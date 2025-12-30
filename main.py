@@ -10,7 +10,7 @@ from utils.logger import setup_logger_level, logger
 from utils.llm import config_llm
 from utils.experiment import create_experiment
 
-from data.loader import load_data, load_requests
+from data.loader import load_data, load_requests, resolve_dataset, check_dataset_exists
 from data.schema import print_schema
 from methods import get_method
 
@@ -29,16 +29,20 @@ def main():
     logger.info(f"Mode: {modestr}")
     logger.info(f"Run directory: {run_dir}")
 
+    # Resolve dataset name to paths and check existence
+    data_path, requests_path = resolve_dataset(args.data)
+    check_dataset_exists(data_path, requests_path, args.data)
+
     # Load data and requests
-    data = load_data(args.data, args.limit, args.attack)
+    data = load_data(str(data_path), args.limit, args.attack)
     print_schema()
     input()
-    requests = load_requests(args.requests)
+    requests = load_requests(str(requests_path))
 
     if isinstance(data, dict):
         logger.info(f"Loaded {len(data)} attack variants")
     else:
-        logger.info(f"Loaded {len(data)} items from {args.data}")
+        logger.info(f"Loaded {len(data)} items from {data_path}")
     logger.info(f"Loaded {len(requests)} requests")
 
     # Select method

@@ -2,13 +2,52 @@
 """Data loading and formatting utilities."""
 
 import json
+import sys
 from pathlib import Path
 from typing import Any, Union
 
-ATTACKED_DIR = Path("data/attacked")
-SELECTIONS_PATH = Path("data/selections.jsonl")
-RAW_DIR = Path("data/raw")
-PROCESSED_DIR = Path("data/processed")
+DATA_DIR = Path(__file__).parent
+ATTACKED_DIR = DATA_DIR / "attacked"
+SELECTIONS_PATH = DATA_DIR / "selections.jsonl"
+RAW_DIR = DATA_DIR / "raw"
+PROCESSED_DIR = DATA_DIR / "processed"
+REQUESTS_DIR = DATA_DIR / "requests"
+
+
+def resolve_dataset(name_or_path: str) -> tuple[Path, Path]:
+    """Resolve dataset name to (data_path, requests_path).
+
+    If name_or_path is a path (contains / or ends with .json/.jsonl), use as-is.
+    Otherwise treat as dataset name and resolve to standard locations.
+    """
+    # Explicit path - use directly
+    if "/" in name_or_path or name_or_path.endswith((".json", ".jsonl")):
+        data_path = Path(name_or_path)
+        # Derive requests from data path name
+        requests_path = REQUESTS_DIR / f"{data_path.stem}.json"
+    else:
+        # Dataset name - resolve to standard locations
+        data_path = PROCESSED_DIR / f"{name_or_path}.jsonl"
+        requests_path = REQUESTS_DIR / f"{name_or_path}.json"
+
+    return data_path, requests_path
+
+
+def check_dataset_exists(data_path: Path, requests_path: Path, dataset_name: str) -> None:
+    """Warn user if dataset files don't exist and exit."""
+    missing = []
+    if not data_path.exists():
+        missing.append(f"  - Data: {data_path}")
+    if not requests_path.exists():
+        missing.append(f"  - Requests: {requests_path}")
+
+    if missing:
+        print(f"\n\u26a0\ufe0f  Dataset '{dataset_name}' not found:")
+        print("\n".join(missing))
+        print(f"\nTo create this dataset, run:")
+        print(f"  python data/scripts/yelp_curation.py")
+        print()
+        sys.exit(1)
 
 DEFAULT_SELECTION = "v1_basic"
 

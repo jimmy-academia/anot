@@ -8,8 +8,8 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Evaluate LLM on restaurant recommendations")
 
     # Data arguments
-    parser.add_argument("--data", default="data/processed/real_data.jsonl", help="Input JSONL file")
-    parser.add_argument("--requests", default="data/requests/complex_requests.json", help="User requests JSON file")
+    parser.add_argument("--data", default="yelp",
+                        help="Dataset name (e.g., 'yelp', 'real') or explicit path to JSONL file")
     parser.add_argument("--run-name", help="Name for this run (creates results/{N}_{run-name}/)")
     parser.add_argument("--out", help="Output results file (default: auto in run dir)")
     parser.add_argument("--limit", type=int, help="Limit items to process")
