@@ -189,100 +189,93 @@ class YelpCurator:
             cats_str += f" +{len(categories) - 3} more"
         self.console.print(Panel(panel_content, title=f"[bold cyan]Preview: {self.selected_city} > {cats_str}[/bold cyan]"))
 
-    def search_city(self, query: str) -> list:
-        """Search cities by name (case-insensitive partial match)."""
+    def search_items(self, query: str, items: list) -> list:
+        """Search items by name (case-insensitive partial match)."""
         query_lower = query.lower()
-        city_counts = self.get_city_counts()
-        matches = [(city, count) for city, count in city_counts.items()
-                   if query_lower in city.lower()]
-        return sorted(matches, key=lambda x: -x[1])
+        return [(name, count) for name, count in items if query_lower in name.lower()]
 
-    def select_city_loop(self) -> bool:
-        """Iterative city selection with preview and confirm."""
-        city_counts = self.get_city_counts()
-        all_cities = list(city_counts.items())
+    def paginated_select(self, items: list, title: str, prompt_text: str,
+                         page_size: int = 20, allow_back: bool = False) -> tuple:
+        """Reusable paginated selection. Returns (action, selection, page).
+
+        Actions: 'select' (with selection), 'back', 'quit', or None (continue loop).
+        """
         page = 0
-        page_size = 20
-        total_pages = (len(all_cities) + page_size - 1) // page_size
+        total_pages = max(1, (len(items) + page_size - 1) // page_size)
 
         while True:
             start = page * page_size
-            end = min(start + page_size, len(all_cities))
-            displayed_cities = all_cities[start:end]
+            end = min(start + page_size, len(items))
+            displayed = items[start:end]
 
-            table = Table(title=f"Cities {start + 1}-{end} of {len(all_cities)} (Page {page + 1}/{total_pages})")
+            table = Table(title=f"{title} {start + 1}-{end} of {len(items)} (Page {page + 1}/{total_pages})")
             table.add_column("#", style="cyan", width=4)
-            table.add_column("City", style="bold")
-            table.add_column("Restaurants", justify="right")
+            table.add_column("Name", style="bold")
+            table.add_column("Count", justify="right")
 
-            for i, (city, count) in enumerate(displayed_cities, start + 1):
-                table.add_row(str(i), city, str(count))
+            for i, (name, count) in enumerate(displayed, start + 1):
+                table.add_row(str(i), name, str(count))
 
             self.console.print(table)
-            self.console.print("[dim][n]ext page | [p]rev page | [number] select | [text] search | [q]uit[/dim]")
-            self.console.print()
+            nav = "[n]ext | [p]rev | [number] | [text] search"
+            if allow_back:
+                nav += " | [b]ack"
+            self.console.print(f"[dim]{nav} | [q]uit[/dim]\n")
 
-            choice = Prompt.ask("Select city", default="1")
+            choice = Prompt.ask(prompt_text, default="1")
+            c = choice.lower()
 
-            # Check for navigation
-            if choice.lower() in ("n", "next"):
+            # Navigation
+            if c in ("n", "next"):
                 page = min(page + 1, total_pages - 1)
-                continue
-            elif choice.lower() in ("p", "prev"):
+            elif c in ("p", "prev"):
                 page = max(page - 1, 0)
-                continue
-            elif choice.lower() == "q":
-                return False
-
-            # Try as number first
-            if choice.isdigit():
+            elif c == "q":
+                return ("quit", None, page)
+            elif c == "b" and allow_back:
+                return ("back", None, page)
+            elif choice.isdigit():
                 idx = int(choice)
-                if 1 <= idx <= len(all_cities):
-                    selected_city = all_cities[idx - 1][0]
-                else:
-                    self.console.print("[red]Invalid number[/red]")
-                    continue
+                if 1 <= idx <= len(items):
+                    return ("select", items[idx - 1][0], page)
+                self.console.print("[red]Invalid number[/red]")
             else:
-                # Treat as search query
-                matches = self.search_city(choice)
+                # Search
+                matches = self.search_items(choice, items)
                 if not matches:
-                    self.console.print(f"[red]No cities found matching '{choice}'[/red]")
-                    continue
+                    self.console.print(f"[red]No match for '{choice}'[/red]")
                 elif len(matches) == 1:
-                    selected_city = matches[0][0]
-                    self.console.print(f"[green]Found: {selected_city} ({matches[0][1]} restaurants)[/green]")
+                    return ("select", matches[0][0], page)
                 else:
-                    # Show search results
-                    self.console.print(f"\n[bold]Found {len(matches)} cities matching '{choice}':[/bold]")
-                    for i, (city, count) in enumerate(matches[:10], 1):
-                        self.console.print(f"  {i}. {city} ({count} restaurants)")
-                    if len(matches) > 10:
-                        self.console.print(f"  [dim]... and {len(matches) - 10} more[/dim]")
+                    self.console.print(f"\n[bold]Found {len(matches)} matches:[/bold]")
+                    for i, (name, count) in enumerate(matches[:10], 1):
+                        self.console.print(f"  {i}. {name} ({count})")
+                    sub = Prompt.ask("Select number, or Enter to go back", default="")
+                    if sub.isdigit() and 1 <= int(sub) <= min(len(matches), 10):
+                        return ("select", matches[int(sub) - 1][0], page)
+                    self.console.print("[yellow]Returning to list...[/yellow]")
 
-                    sub_choice = Prompt.ask("Select number, or Enter to go back", default="")
-                    if not sub_choice:
-                        self.console.print("[yellow]Returning to city list...[/yellow]")
-                        continue
-                    if sub_choice.isdigit() and 1 <= int(sub_choice) <= min(len(matches), 10):
-                        selected_city = matches[int(sub_choice) - 1][0]
-                    else:
-                        self.console.print("[yellow]Returning to city list...[/yellow]")
-                        continue
+    def select_city_loop(self) -> bool:
+        """Iterative city selection with preview and confirm."""
+        all_cities = list(self.get_city_counts().items())
 
-            self.preview_city(selected_city)
+        while True:
+            action, selected, _ = self.paginated_select(
+                all_cities, "Cities", "Select city", allow_back=False)
 
-            action = Prompt.ask(
-                "[C]onfirm / [A]djust / [Q]uit",
-                choices=["c", "a", "q", "C", "A", "Q"],
-                default="c"
-            ).lower()
-
-            if action == "q":
+            if action == "quit":
                 return False
-            elif action == "c":
-                self.selected_city = selected_city
+            if action != "select":
+                continue
+
+            self.preview_city(selected)
+            confirm = Prompt.ask("[C]onfirm / [A]djust / [Q]uit",
+                                 choices=["c", "a", "q", "C", "A", "Q"], default="c").lower()
+            if confirm == "q":
+                return False
+            if confirm == "c":
+                self.selected_city = selected
                 return True
-            # else: adjust - loop continues
 
     def parse_category_input(self, input_str: str, available_cats: list) -> List[str]:
         """Parse '1,3,5' or 'Italian, Mexican' into category list."""
@@ -305,62 +298,67 @@ class YelpCurator:
         return selected
 
     def select_category_loop(self) -> bool:
-        """Iterative category selection with preview and confirm. Supports multi-select."""
-        while True:
-            cat_counts = self.get_category_counts(self.selected_city)
-            top_cats = list(cat_counts.items())[:20]
+        """Iterative category selection with pagination. Supports multi-select."""
+        cat_counts = self.get_category_counts(self.selected_city)
+        all_cats = list(cat_counts.items())
+        page = 0
+        page_size = 20
 
-            table = Table(title=f"Top 20 Categories in {self.selected_city}")
+        while True:
+            total_pages = max(1, (len(all_cats) + page_size - 1) // page_size)
+            start = page * page_size
+            end = min(start + page_size, len(all_cats))
+            displayed = all_cats[start:end]
+
+            table = Table(title=f"Categories in {self.selected_city} {start + 1}-{end} of {len(all_cats)} (Page {page + 1}/{total_pages})")
             table.add_column("#", style="cyan", width=4)
             table.add_column("Category", style="bold")
-            table.add_column("Restaurants", justify="right")
+            table.add_column("Count", justify="right")
 
-            for i, (cat, count) in enumerate(top_cats, 1):
+            for i, (cat, count) in enumerate(displayed, start + 1):
                 table.add_row(str(i), cat, str(count))
 
             self.console.print(table)
-            self.console.print('[dim]Enter numbers (e.g., "1,3,5") or names (e.g., "Italian, Mexican")[/dim]')
-            self.console.print('[dim][b]ack to city | [q]uit[/dim]')
-            self.console.print()
+            self.console.print('[dim][n]ext | [p]rev | "1,3,5" or "Italian, Mexican" | [b]ack | [q]uit[/dim]\n')
 
             choice = Prompt.ask("Select categories", default="1")
+            c = choice.lower()
 
-            # Check for back/quit
-            if choice.lower() == "b":
+            # Navigation
+            if c in ("n", "next"):
+                page = min(page + 1, total_pages - 1)
+                continue
+            elif c in ("p", "prev"):
+                page = max(page - 1, 0)
+                continue
+            elif c == "b":
                 self.selected_city = None
-                return None  # Signal to go back to city
-            elif choice.lower() == "q":
+                return None
+            elif c == "q":
                 return False
 
-            # Parse multi-selection
-            selected_cats = self.parse_category_input(choice, top_cats)
+            # Parse multi-selection (works across all pages)
+            selected_cats = self.parse_category_input(choice, all_cats)
             if not selected_cats:
                 self.console.print("[red]No valid categories selected[/red]")
                 continue
 
-            # Show what was selected
             self.console.print(f"\n[green]Selected {len(selected_cats)} categories:[/green]")
             for cat in selected_cats:
-                count = cat_counts.get(cat, 0)
-                self.console.print(f"  - {cat} ({count})")
+                self.console.print(f"  - {cat} ({cat_counts.get(cat, 0)})")
 
             self.preview_categories(selected_cats, cat_counts)
 
-            action = Prompt.ask(
-                "[C]onfirm / [A]djust / [B]ack to city / [Q]uit",
-                choices=["c", "a", "b", "q", "C", "A", "B", "Q"],
-                default="c"
-            ).lower()
-
+            action = Prompt.ask("[C]onfirm / [A]djust / [B]ack / [Q]uit",
+                                choices=["c", "a", "b", "q", "C", "A", "B", "Q"], default="c").lower()
             if action == "q":
                 return False
             elif action == "b":
                 self.selected_city = None
-                return None  # Special signal for "back"
+                return None
             elif action == "c":
                 self.selected_categories = selected_cats
                 return True
-            # else: adjust - loop continues
 
     def display_restaurant(self, biz: dict) -> None:
         """Display restaurant info in a panel."""
