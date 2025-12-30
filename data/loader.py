@@ -170,13 +170,6 @@ def _ensure_data_exists(path: str, selection_id: str = None) -> None:
     generate_from_selection(selection_id, path)
 
 
-DEFAULT_REQUESTS = [
-    {"id": "R0", "context": "I'm in a hurry and need quick service. Is the wait time reasonable?"},
-    {"id": "R1", "context": "I've heard mixed things. Is this place consistent in quality?"},
-    {"id": "R2", "context": "Planning a special dinner date. Good for romantic occasions?"},
-    {"id": "R3", "context": "Is it worth the price? Looking for good value, not necessarily cheap."},
-    {"id": "R4", "context": "I care more about food quality than service. How's the food?"},
-]
 
 
 def load_requests(path: str = "requests.json") -> list[dict]:
@@ -472,12 +465,14 @@ def load_yelp_dataset(selection_name: str, limit: int = None) -> tuple[list[dict
             "item_data": item_data
         })
 
-    # Load requests (use defaults if file doesn't exist)
-    if requests_path.exists():
-        requests = load_requests(str(requests_path))
-    else:
-        requests = DEFAULT_REQUESTS
+    # Load requests (error if file doesn't exist)
+    if not requests_path.exists():
+        msg = f"Requests file not found: {requests_path}\n\n"
+        msg += f"To create, run:\n"
+        msg += f"  python data/scripts/yelp_requests.py {selection_name}"
+        raise FileNotFoundError(msg)
 
+    requests = load_requests(str(requests_path))
     return items, requests
 
 
