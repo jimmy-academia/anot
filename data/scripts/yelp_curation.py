@@ -365,7 +365,7 @@ Reply with just the percentage and one sentence explanation. Example: "85% - Rev
     async def run_auto_mode(self) -> None:
         """Auto mode: batch estimate with early stopping, save ALL estimated."""
         scored = self.compute_richness_scores()
-        target = 4
+        target = 100
         threshold = 70
         batch_size = 20
 
