@@ -4,12 +4,19 @@ from attack import ATTACK_CHOICES
 PARALLEL_MODE = True
 BENCHMARK_MODE = False
 
+# Default selection number for each dataset
+DEFAULT_SELECTIONS = {
+    "yelp": 1,
+}
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Evaluate LLM on restaurant recommendations")
 
     # Data arguments
     parser.add_argument("--data", default="yelp",
                         help="Dataset name (e.g., 'yelp', 'real') or explicit path to JSONL file")
+    parser.add_argument("--selection", type=int, default=None,
+                        help="Selection number to use (default: from DEFAULT_SELECTIONS)")
     parser.add_argument("--run-name", help="Name for this run (creates results/{N}_{run-name}/)")
     parser.add_argument("--out", help="Output results file (default: auto in run dir)")
     parser.add_argument("--limit", type=int, help="Limit items to process")
@@ -52,4 +59,13 @@ def parse_args():
     args = parser.parse_args()
     args.parallel = PARALLEL_MODE and not args.sequential
     args.benchmark = BENCHMARK_MODE
+
+    # Resolve selection_name from --selection or DEFAULT_SELECTIONS
+    if args.selection is not None:
+        args.selection_name = f"selection_{args.selection}"
+    elif args.data in DEFAULT_SELECTIONS:
+        args.selection_name = f"selection_{DEFAULT_SELECTIONS[args.data]}"
+    else:
+        args.selection_name = None
+
     return args

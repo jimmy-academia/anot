@@ -46,7 +46,8 @@ def check_dataset_exists(data_path: Path, requests_path: Path, dataset_name: str
         print(f"\n\u26a0\ufe0f  Dataset '{dataset_name}' not found:")
         print("\n".join(missing))
         print(f"\nTo create this dataset, run:")
-        print(f"  python data/scripts/yelp_curation.py")
+        print(f"  1. python data/scripts/{dataset_name}_curation.py")
+        print(f"  2. python data/scripts/{dataset_name}_review_sampler.py <selection_name>")
         print()
         sys.exit(1)
 
@@ -305,9 +306,14 @@ def load_yelp_dataset(selection_name: str, limit: int = None) -> list[dict]:
     restaurants_cache_path = YELP_DIR / f"restaurants_cache_{n}.jsonl"
 
     # Check files exist
-    for path in [selection_path, rev_selection_path, reviews_cache_path, restaurants_cache_path]:
-        if not path.exists():
-            raise FileNotFoundError(f"Missing file: {path}\nRun: python data/scripts/yelp_review_sampler.py {selection_name}")
+    missing = [p for p in [selection_path, rev_selection_path, reviews_cache_path, restaurants_cache_path] if not p.exists()]
+    if missing:
+        msg = f"Missing files for '{selection_name}':\n"
+        msg += "\n".join(f"  - {p}" for p in missing)
+        msg += f"\n\nTo create, run:\n"
+        msg += f"  1. python data/scripts/yelp_curation.py  (creates {selection_name}.jsonl)\n"
+        msg += f"  2. python data/scripts/yelp_review_sampler.py {selection_name}  (creates cache files)"
+        raise FileNotFoundError(msg)
 
     # Load selection (for llm_percent ordering)
     selection = {}
