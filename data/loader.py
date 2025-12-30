@@ -12,6 +12,7 @@ SELECTIONS_PATH = DATA_DIR / "selections.jsonl"
 RAW_DIR = DATA_DIR / "raw"
 PROCESSED_DIR = DATA_DIR / "processed"
 REQUESTS_DIR = DATA_DIR / "requests"
+YELP_DIR = PROCESSED_DIR / "yelp"
 
 
 def resolve_dataset(name_or_path: str) -> tuple[Path, Path]:
@@ -259,5 +260,139 @@ def prepare_data(data_path: str, requests_path: str, limit: int = None) -> tuple
     items = load_data(data_path, limit)
     requests = load_requests(requests_path)
     return items, requests
+
+
+# --- Yelp Dataset Loading ---
+
+def load_yelp_dataset(selection_name: str, limit: int = None) -> list[dict]:
+    """Load Yelp dataset from cached files (no raw file access).
+
+    Reads:
+    - selection_n.jsonl (restaurant IDs + LLM scores)
+    - rev_selection_n.jsonl (sampled review_ids per restaurant)
+    - reviews_cache_n.jsonl (reviews + user metadata)
+    - restaurants_cache_n.jsonl (restaurant metadata)
+
+    Args:
+        selection_name: e.g., "selection_1"
+        limit: Max restaurants to return (uses top by llm_percent)
+
+    Returns list of items with full data:
+    {
+        "item_id": "...",
+        "item_name": "...",
+        "city": "...",
+        "state": "...",
+        "categories": [...],
+        "stars": 4.5,
+        "attributes": {...},
+        "llm_percent": 95,
+        "item_data": [
+            {
+                "review_id": "...",
+                "review": "...",
+                "stars": 4,
+                "user": {"name": "...", "friends": [...], ...}
+            }
+        ]
+    }
+    """
+    # Derive file paths
+    n = selection_name.replace("selection_", "")
+    selection_path = YELP_DIR / f"{selection_name}.jsonl"
+    rev_selection_path = YELP_DIR / f"rev_{selection_name}.jsonl"
+    reviews_cache_path = YELP_DIR / f"reviews_cache_{n}.jsonl"
+    restaurants_cache_path = YELP_DIR / f"restaurants_cache_{n}.jsonl"
+
+    # Check files exist
+    for path in [selection_path, rev_selection_path, reviews_cache_path, restaurants_cache_path]:
+        if not path.exists():
+            raise FileNotFoundError(f"Missing file: {path}\nRun: python data/scripts/yelp_review_sampler.py {selection_name}")
+
+    # Load selection (for llm_percent ordering)
+    selection = {}
+    with open(selection_path) as f:
+        for line in f:
+            if line.strip():
+                item = json.loads(line)
+                selection[item["item_id"]] = item
+
+    # Load rev_selection (review_ids per restaurant)
+    rev_selection = {}
+    with open(rev_selection_path) as f:
+        for line in f:
+            if line.strip():
+                item = json.loads(line)
+                rev_selection[item["item_id"]] = item["review_ids"]
+
+    # Load reviews cache into dict by review_id
+    reviews_cache = {}
+    with open(reviews_cache_path) as f:
+        for line in f:
+            if line.strip():
+                r = json.loads(line)
+                reviews_cache[r["review_id"]] = r
+
+    # Load restaurants cache into dict by business_id
+    restaurants_cache = {}
+    with open(restaurants_cache_path) as f:
+        for line in f:
+            if line.strip():
+                biz = json.loads(line)
+                restaurants_cache[biz["business_id"]] = biz
+
+    # Sort by llm_percent descending
+    sorted_ids = sorted(selection.keys(), key=lambda x: -selection[x].get("llm_percent", 0))
+    if limit:
+        sorted_ids = sorted_ids[:limit]
+
+    # Assemble final items
+    items = []
+    for biz_id in sorted_ids:
+        biz = restaurants_cache.get(biz_id, {})
+        sel = selection.get(biz_id, {})
+        review_ids = rev_selection.get(biz_id, [])
+
+        # Parse categories string to list
+        cats_str = biz.get("categories", "")
+        categories = [c.strip() for c in cats_str.split(",") if c.strip()] if cats_str else []
+
+        # Build reviews list in order
+        item_data = []
+        for rid in review_ids:
+            r = reviews_cache.get(rid)
+            if r:
+                item_data.append({
+                    "review_id": r["review_id"],
+                    "review": r["text"],
+                    "stars": r["stars"],
+                    "date": r.get("date", ""),
+                    "useful": r.get("useful", 0),
+                    "funny": r.get("funny", 0),
+                    "cool": r.get("cool", 0),
+                    "user": r.get("user", {})
+                })
+
+        items.append({
+            "item_id": biz_id,
+            "item_name": biz.get("name", ""),
+            "address": biz.get("address", ""),
+            "city": biz.get("city", ""),
+            "state": biz.get("state", ""),
+            "postal_code": biz.get("postal_code", ""),
+            "latitude": biz.get("latitude"),
+            "longitude": biz.get("longitude"),
+            "stars": biz.get("stars"),
+            "review_count": biz.get("review_count"),
+            "is_open": biz.get("is_open"),
+            "attributes": biz.get("attributes", {}),
+            "categories": categories,
+            "hours": biz.get("hours"),
+            "llm_percent": sel.get("llm_percent", 0),
+            "llm_reasoning": sel.get("llm_reasoning", ""),
+            "item_data": item_data
+        })
+
+    return items
 
 
