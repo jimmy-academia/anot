@@ -30,8 +30,8 @@ def _load_api_key():
     """Load API key from file if not in environment."""
     if os.environ.get("OPENAI_API_KEY") or os.environ.get("ANTHROPIC_API_KEY"):
         return
-    # Try to load from ../.openaiapi
-    key_file = Path(__file__).parent.parent / ".openaiapi"
+    # Try to load from ../../.openaiapi (one level above project root)
+    key_file = Path(__file__).parent.parent.parent / ".openaiapi"
     if key_file.exists():
         key = key_file.read_text().strip()
         os.environ["OPENAI_API_KEY"] = key

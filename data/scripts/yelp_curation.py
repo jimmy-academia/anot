@@ -108,31 +108,33 @@ class YelpCurator:
             self.console.print(f"[cyan]Will create: {self.output_file}[/cyan]")
             return True
 
+        sorted_existing = sorted(existing)
         self.console.print("\n[bold]Existing selections:[/bold]")
-        for i, sel_id in enumerate(sorted(existing), 1):
+        for i, sel_id in enumerate(sorted_existing, 1):
             info = metalog["selections"][sel_id]
             cats = ", ".join(info.get("categories", [])[:2])
             self.console.print(f"  {i}. {sel_id}: {info.get('city')} > {cats} ({info.get('restaurant_count', 0)} restaurants)")
 
-        choice = Prompt.ask("\n[N]ew / [R]eplace #", default="n").lower()
+        choice = Prompt.ask(f"\n[N]ew / [1-{len(sorted_existing)}] to replace", default="n").strip().lower()
 
         if choice == "n":
             self.output_file, self.selection_id = self.get_next_selection_path()
             self.console.print(f"[cyan]Will create: {self.output_file}[/cyan]")
-        elif choice.startswith("r"):
-            # Parse number after 'r' or prompt
-            num_str = choice[1:].strip() if len(choice) > 1 else Prompt.ask("Which #?")
-            try:
-                idx = int(num_str) - 1
-                sel_id = sorted(existing)[idx]
+        elif choice.isdigit():
+            idx = int(choice) - 1
+            if 0 <= idx < len(sorted_existing):
+                sel_id = sorted_existing[idx]
                 self.selection_id = sel_id
                 self.output_file = OUTPUT_DIR / f"{sel_id}.jsonl"
                 # Clear existing file
                 self.output_file.unlink(missing_ok=True)
                 self.console.print(f"[yellow]Will replace: {self.output_file}[/yellow]")
-            except (ValueError, IndexError):
-                self.console.print("[red]Invalid selection[/red]")
+            else:
+                self.console.print("[red]Invalid selection number[/red]")
                 return False
+        else:
+            self.console.print("[red]Invalid input[/red]")
+            return False
         return True
 
     def load_business_data(self) -> None:
@@ -553,8 +555,20 @@ Reply with just the percentage and one sentence explanation. Example: "85% - Rev
         content.append(f"Richness Score: {richness:,} chars\n\n", style="bold cyan")
 
         content.append("Attributes:\n", style="bold")
-        for key, val in list(attrs.items())[:8]:
-            content.append(f"  - {key}: {val}\n")
+        # Display in two columns
+        attr_items = list(attrs.items())[:8]
+        col_width = 40
+        for i in range(0, len(attr_items), 2):
+            left_key, left_val = attr_items[i]
+            left_str = f"  - {left_key}: {left_val}"
+            if len(left_str) > col_width:
+                left_str = left_str[:col_width-3] + "..."
+            if i + 1 < len(attr_items):
+                right_key, right_val = attr_items[i + 1]
+                right_str = f"  - {right_key}: {right_val}"
+                content.append(f"{left_str:<{col_width}}{right_str}\n")
+            else:
+                content.append(f"{left_str}\n")
         if len(attrs) > 8:
             content.append(f"  ... and {len(attrs) - 8} more\n", style="dim")
 
@@ -743,13 +757,11 @@ Reply with just the percentage and one sentence explanation. Example: "85% - Rev
             self.display_restaurant(biz, richness)
 
             action = Prompt.ask(
-                "[K]eep / [S]kip / [A]ttributes / [E]vidence / [W]ord / [Q]uit",
-                default="k"
+                "Keep? [Y]es / [N]o / [A]ttributes / [E]vidence / [K]eyword",
+                default="y"
             ).lower()
 
-            if action == "q":
-                break
-            elif action == "s":
+            if action == "n":
                 idx += 1
                 continue
             elif action == "a":
@@ -760,11 +772,11 @@ Reply with just the percentage and one sentence explanation. Example: "85% - Rev
                 self.browse_evidence_loop(biz)
                 # Stay on same restaurant
                 continue
-            elif action == "w":
+            elif action == "k":
                 self.search_evidence_loop(biz)
                 # Stay on same restaurant
                 continue
-            elif action == "k":
+            elif action == "y":
                 self.process_and_save(biz, richness)
                 kept_count += 1
                 self.console.print(f"[green]Saved! ({kept_count}/{target})[/green]")
