@@ -40,6 +40,7 @@ class YelpCurator:
         self.reviews_by_biz: Dict[str, List[dict]] = defaultdict(list)
         self.selected_city: Optional[str] = None
         self.selected_categories: List[str] = []  # Multi-category support
+        self.category_keywords: List[str] = []  # LLM-generated keywords for category
         self.selections: List[dict] = []
         self.output_file: Optional[Path] = None
         self.selection_id: Optional[str] = None
@@ -218,23 +219,87 @@ class YelpCurator:
             scored.append((biz, richness))
         return sorted(scored, key=lambda x: -x[1])
 
+    def generate_category_keywords(self, categories: List[str]) -> List[str]:
+        """Use LLM to generate keywords that reveal if restaurant belongs to category."""
+        cats = ", ".join(categories)
+        prompt = f"""For the restaurant category "{cats}", list keywords that would appear in reviews if the restaurant truly belongs to this category.
+
+Think about:
+- Specific dishes, ingredients, cooking styles
+- Cultural/regional terms
+- Ambiance or service style typical of this cuisine
+
+Return ONLY a comma-separated list of 10-15 lowercase keywords. Example for "Italian": pasta, pizza, marinara, alfredo, tiramisu, espresso, vino, authentic italian, nonna, trattoria"""
+
+        try:
+            response = call_llm(prompt, system="You are a cuisine expert.")
+            # Parse comma-separated keywords
+            keywords = [kw.strip().lower() for kw in response.split(",") if kw.strip()]
+            # Add original category names
+            keywords.extend([cat.lower() for cat in categories])
+            return list(set(keywords))
+        except Exception:
+            return [cat.lower() for cat in categories]
+
+    def get_keyword_evidence(self, biz: dict, keywords: List[str], max_snippets: int = 5) -> Tuple[List[str], int, int]:
+        """Find review snippets containing any of the keywords.
+
+        Returns: (snippets, match_count, total_reviews)
+        """
+        reviews = self.reviews_by_biz.get(biz["business_id"], [])
+        total = len(reviews)
+        matches = []
+
+        for r in reviews:
+            text = r.get("text", "")
+            text_lower = text.lower()
+            for kw in keywords:
+                if kw in text_lower:
+                    # Extract snippet around keyword
+                    idx = text_lower.find(kw)
+                    start = max(0, idx - 100)
+                    end = min(len(text), idx + 300)
+                    snippet = ("..." if start > 0 else "") + text[start:end] + ("..." if end < len(text) else "")
+                    matches.append(snippet)
+                    break
+
+        return matches[:max_snippets], len(matches), total
+
     def estimate_category_fit(self, biz: dict) -> str:
         """Use LLM to estimate how well restaurant fits selected categories."""
         reviews = self.reviews_by_biz.get(biz["business_id"], [])
+        total_reviews = len(reviews)
 
-        # Sample up to 5 reviews for context
-        sample_reviews = reviews[:5]
+        # Use pre-generated category keywords
+        keywords = self.category_keywords
+
+        # Step 1: Get evidence snippets using keywords
+        evidence_snippets, evidence_count, _ = self.get_keyword_evidence(biz, keywords, max_snippets=5)
+        evidence_texts = "\n---\n".join(evidence_snippets) if evidence_snippets else "(None found)"
+
+        # Step 2: First 5 reviews + random 5 other reviews
+        first_5 = reviews[:5]
+        remaining = reviews[5:]
+        random_5 = random.sample(remaining, min(5, len(remaining))) if remaining else []
+        sample_reviews = first_5 + random_5
         review_texts = "\n---\n".join([r.get("text", "")[:500] for r in sample_reviews])
 
         cats = ", ".join(self.selected_categories)
-        prompt = f"""Based on these review excerpts, estimate the probability (0-100%) that this restaurant truly belongs to the category "{cats}".
+        prompt = f"""Based on these reviews and evidence, estimate the probability (0-100%) that this restaurant truly belongs to the category "{cats}".
 
 Restaurant: {biz.get('name')}
 Listed categories: {biz.get('categories', 'Unknown')}
 
-Review excerpts:
+Keywords used for evidence: {', '.join(keywords[:10])}...
+Keyword matches: {evidence_count} / {total_reviews} reviews contain category-related keywords
+
+=== Evidence snippets (reviews mentioning keywords) ===
+{evidence_texts}
+
+=== Sample reviews (first 5 + random 5) ===
 {review_texts}
 
+Consider both the keyword match ratio and the content of reviews.
 Reply with just the percentage and one sentence explanation. Example: "85% - Reviews consistently mention authentic Italian dishes and pasta."
 """
 
@@ -873,6 +938,11 @@ Reply with just the percentage and one sentence explanation. Example: "85% - Rev
                 continue
             else:  # Confirmed
                 break
+
+        # Generate category keywords ONCE for all restaurants
+        with self.console.status("[bold blue]Generating category keywords with LLM..."):
+            self.category_keywords = self.generate_category_keywords(self.selected_categories)
+        self.console.print(f"[cyan]Keywords: {', '.join(self.category_keywords[:15])}{'...' if len(self.category_keywords) > 15 else ''}[/cyan]\n")
 
         # Load reviews for filtered businesses
         filtered = self.get_filtered_businesses()
