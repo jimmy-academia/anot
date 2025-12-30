@@ -45,6 +45,11 @@ class YelpCurator:
         self.selections: List[dict] = []
         self.output_file: Optional[Path] = None
         self.selection_id: Optional[str] = None
+        
+        self.target = 100
+        self.threshold = 70
+        self.batch_size = 20
+
 
     def get_next_selection_path(self) -> Tuple[Path, str]:
         """Determine the next selection file path (selection_1, selection_2, etc.)."""
@@ -365,9 +370,7 @@ Reply with just the percentage and one sentence explanation. Example: "85% - Rev
     async def run_auto_mode(self) -> None:
         """Auto mode: batch estimate with early stopping, save ALL estimated."""
         scored = self.compute_richness_scores()
-        target = 100
-        threshold = 70
-        batch_size = 20
+        
 
         self.console.print(f"\n[bold]Auto mode: Estimating {len(scored)} restaurants...[/bold]")
 
@@ -375,26 +378,26 @@ Reply with just the percentage and one sentence explanation. Example: "85% - Rev
         above_threshold_count = 0
 
         # Process in batches with early stopping
-        for batch_start in range(0, len(scored), batch_size):
-            batch = scored[batch_start:batch_start + batch_size]
-            self.console.print(f"[dim]Processing batch {batch_start//batch_size + 1} ({batch_start+1}-{batch_start+len(batch)})...[/dim]")
+        for batch_start in range(0, len(scored), self.batch_size):
+            batch = scored[batch_start:batch_start + self.batch_size]
+            self.console.print(f"[dim]Processing batch {batch_start//self.batch_size + 1} ({batch_start+1}-{batch_start+len(batch)})...[/dim]")
 
             tasks = [self.estimate_category_fit_async(biz) for biz, _ in batch]
             results = await asyncio.gather(*tasks)
             all_results.extend(results)
 
-            # Count above threshold for early stopping
-            above_threshold_count = sum(1 for _, pct, _ in all_results if pct >= threshold)
+            # Count above self.threshold for early stopping
+            above_threshold_count = sum(1 for _, pct, _ in all_results if pct >= self.threshold)
 
-            # Early stop if we have enough above threshold
-            if above_threshold_count >= target:
-                self.console.print(f"[green]Reached {target} restaurants above {threshold}%. Stopping early.[/green]")
+            # Early stop if we have enough above self.threshold
+            if above_threshold_count >= self.target:
+                self.console.print(f"[green]Reached {self.target} restaurants above {self.threshold}%. Stopping early.[/green]")
                 break
 
         # Sort ALL estimated by percentage descending
         all_results.sort(key=lambda x: -x[1])
 
-        # Save ALL estimated results (not just above threshold)
+        # Save ALL estimated results (not just above self.threshold)
         for biz, pct, exp in all_results:
             self.save_selection(biz, pct, exp)
 
@@ -402,7 +405,7 @@ Reply with just the percentage and one sentence explanation. Example: "85% - Rev
         self.write_selections_file()
 
         self.console.print(f"\n[bold green]Saved {len(all_results)} estimated restaurants.[/bold green]")
-        self.console.print(f"[dim]Above {threshold}%: {above_threshold_count} | Below: {len(all_results) - above_threshold_count}[/dim]")
+        self.console.print(f"[dim]Above {self.threshold}%: {above_threshold_count} | Below: {len(all_results) - above_threshold_count}[/dim]")
 
         # Print summary (top 20)
         self.console.print("\n[bold]═══ Top 20 Restaurants ═══[/bold]")
@@ -909,18 +912,18 @@ Reply with just the percentage and one sentence explanation. Example: "85% - Rev
         """Iterate through richness-sorted restaurants until 100 kept."""
         scored = self.compute_richness_scores()
         kept_count = 0
-        target = 100
+        self.target = 100
 
         self.console.print(f"\n[bold]Starting restaurant selection ({len(scored)} candidates, sorted by richness)[/bold]\n")
 
         idx = 0
         while idx < len(scored):
-            if kept_count >= target:
-                self.console.print(f"\n[green]Reached {target} restaurants. Stopping.[/green]")
+            if kept_count >= self.target:
+                self.console.print(f"\n[green]Reached {self.target} restaurants. Stopping.[/green]")
                 break
 
             biz, richness = scored[idx]
-            self.console.print(f"\n[bold cyan]═══ Restaurant {idx + 1} of {len(scored)} | Kept: {kept_count}/{target} ═══[/bold cyan]")
+            self.console.print(f"\n[bold cyan]═══ Restaurant {idx + 1} of {len(scored)} | Kept: {kept_count}/{self.target} ═══[/bold cyan]")
             self.display_restaurant(biz, richness)
 
             action = Prompt.ask(
@@ -949,7 +952,7 @@ Reply with just the percentage and one sentence explanation. Example: "85% - Rev
                 llm_percent = self.parse_percentage(llm_response)
                 self.save_selection(biz, llm_percent, llm_response)
                 kept_count += 1
-                self.console.print(f"[green]Saved! ({kept_count}/{target})[/green]")
+                self.console.print(f"[green]Saved! ({kept_count}/{self.target})[/green]")
                 idx += 1
 
         # Write JSONL file at end
@@ -1016,7 +1019,7 @@ Reply with just the percentage and one sentence explanation. Example: "85% - Rev
         # Ask for mode choice
         self.console.print(f"\n[bold]Mode selection:[/bold]")
         self.console.print(f"  [M]anual: Review each restaurant one by one")
-        self.console.print(f"  [A]uto: LLM batch estimates, auto-keep ≥70%, target 10 restaurants")
+        self.console.print(f"  [A]uto: LLM batch estimates, auto-keep ≥{self.threshold}%, target {self.target} restaurants")
         mode = Prompt.ask("\nChoose mode", default="m").lower()
         if mode == "a":
             asyncio.run(self.run_auto_mode())
