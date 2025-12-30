@@ -5,10 +5,20 @@ Given a selection_n, this script:
 1. Loads the dataset (items with reviews)
 2. Computes distributions (stars, categories, cities, reviewer metadata)
 3. Samples representative reviews
-4. Generates a ChatGPT prompt for creating 20 structured requests
+4. Prints data context and 4 level prompts to console
+
+Levels (5 requests each, 20 total):
+- L1 (R0-R4): Text conditions only (review_text source) with AND/OR
+- L2 (R5-R9): Text + item meta conditions with AND/OR
+- L3 (R10-R14): Nested text + item meta (AND containing OR or vice versa)
+- L4 (R15-R19): Nested text + item meta + user social (reviewer_meta, review_meta)
+
+Output format: JSONL (one JSON per line)
 
 Usage:
     python data/scripts/yelp_requests.py selection_1
+    # Then copy DATA CONTEXT + one LEVEL PROMPT to ChatGPT
+    # Save output to data/yelp/requests_1.jsonl
 """
 
 import argparse
@@ -35,6 +45,121 @@ ASPECT_KEYWORDS = {
     "portions": ["portion", "serving", "generous", "small", "huge", "filling"],
     "parking": ["parking", "park", "valet"],
     "outdoor": ["outdoor", "patio", "outside"],
+}
+
+# Allowed aspects by source type
+ALLOWED_ASPECTS = {
+    "review_text": [
+        "food_quality", "service", "speed", "value",
+        "ambiance", "portions", "parking", "outdoor"
+    ],
+    "item_meta": [
+        # Categories
+        "Sandwiches", "Cafes", "Coffee & Tea", "Bakeries",
+        "Breakfast & Brunch", "American (New)", "Nightlife",
+        # Attributes
+        "WiFi", "BusinessAcceptsCreditCards", "RestaurantsReservations",
+        "outdoor_seating", "BusinessParking", "BusinessParking_garage",
+        "BusinessParking_lot", "BusinessParking_street", "RestaurantsPriceRange2",
+        "stars", "review_count"
+    ],
+    "reviewer_meta": [
+        "friends_count", "common_friend", "reviewer_review_count"
+        # common_friend takes user_ids param: list of user_ids to check network overlap
+    ],
+    "review_meta": [
+        "stars", "date", "useful_votes", "funny_votes", "cool_votes"
+    ]
+}
+
+# Hard-coded level prompts for request generation
+LEVEL_PROMPTS = {
+    1: """Generate 5 restaurant requests using ONLY review text sentiment.
+IDs: R0-R4
+
+Allowed aspects (source=review_text):
+- food_quality, service, speed, value, ambiance, portions, parking, outdoor
+
+Operators: AND or OR (not nested)
+Levels: MUST, SHOULD, or NICE
+
+Output JSONL format (one JSON per line, NO array wrapper):
+{"id": "R0", "text": "...", "structure": {"op": "AND", "conditions": [...]}}
+
+Example:
+{"id": "R0", "text": "I want a place with great food and fast service.", "structure": {"op": "AND", "conditions": [{"aspect": "food_quality", "level": "MUST", "source": "review_text"}, {"aspect": "speed", "level": "SHOULD", "source": "review_text"}]}}
+{"id": "R1", "text": "Looking for good value or generous portions.", "structure": {"op": "OR", "conditions": [{"aspect": "value", "level": "MUST", "source": "review_text"}, {"aspect": "portions", "level": "MUST", "source": "review_text"}]}}
+
+IMPORTANT: DO NOT use item_meta, reviewer_meta, or review_meta sources. ONLY review_text.
+""",
+
+    2: """Generate 5 restaurant requests using review text AND item metadata.
+IDs: R5-R9
+
+Allowed aspects:
+- review_text: food_quality, service, speed, value, ambiance, portions
+- item_meta: categories (Sandwiches, Cafes, Coffee & Tea, Bakeries, Breakfast & Brunch, American (New), Nightlife), WiFi, BusinessAcceptsCreditCards, RestaurantsReservations, outdoor_seating, BusinessParking, BusinessParking_garage, BusinessParking_lot, BusinessParking_street, RestaurantsPriceRange2, stars, review_count
+
+Operators: AND or OR (not nested)
+Levels: MUST, SHOULD, or NICE
+
+Output JSONL format (one JSON per line, NO array wrapper).
+
+Example:
+{"id": "R5", "text": "I want a cafe with good food.", "structure": {"op": "AND", "conditions": [{"aspect": "Cafes", "level": "MUST", "source": "item_meta"}, {"aspect": "food_quality", "level": "SHOULD", "source": "review_text"}]}}
+{"id": "R6", "text": "Looking for a sandwich shop or bakery.", "structure": {"op": "OR", "conditions": [{"aspect": "Sandwiches", "level": "MUST", "source": "item_meta"}, {"aspect": "Bakeries", "level": "MUST", "source": "item_meta"}]}}
+
+IMPORTANT: Each request MUST use at least one condition from review_text AND one from item_meta. DO NOT use reviewer_meta or review_meta.
+""",
+
+    3: """Generate 5 requests with NESTED conditions (AND containing OR, or OR containing AND).
+IDs: R10-R14
+
+Allowed aspects:
+- review_text: food_quality, service, speed, value, ambiance, portions
+- item_meta: categories, WiFi, parking attributes, outdoor_seating, stars, etc.
+
+Structure MUST be nested (e.g., outer AND with inner OR, or outer OR with inner AND).
+Levels: MUST, SHOULD, or NICE
+
+Output JSONL format (one JSON per line, NO array wrapper).
+
+Example (AND containing OR):
+{"id": "R10", "text": "I need parking (garage or street) and good food.", "structure": {"op": "AND", "conditions": [{"aspect": "food_quality", "level": "MUST", "source": "review_text"}, {"op": "OR", "conditions": [{"aspect": "BusinessParking_garage", "level": "MUST", "source": "item_meta"}, {"aspect": "BusinessParking_street", "level": "MUST", "source": "item_meta"}]}]}}
+
+Example (OR containing AND):
+{"id": "R11", "text": "Either a cafe with WiFi, or a restaurant with outdoor seating.", "structure": {"op": "OR", "conditions": [{"op": "AND", "conditions": [{"aspect": "Cafes", "level": "MUST", "source": "item_meta"}, {"aspect": "WiFi", "level": "MUST", "source": "item_meta"}]}, {"op": "AND", "conditions": [{"aspect": "outdoor_seating", "level": "MUST", "source": "item_meta"}, {"aspect": "food_quality", "level": "SHOULD", "source": "review_text"}]}]}}
+
+IMPORTANT: DO NOT use reviewer_meta or review_meta. Each request MUST have nested structure.
+""",
+
+    4: """Generate 5 requests with nested conditions INCLUDING reviewer/review metadata.
+IDs: R15-R19
+
+Allowed aspects:
+- review_text: food_quality, service, speed, value, ambiance, portions
+- item_meta: categories, WiFi, parking, outdoor_seating, stars, etc.
+- reviewer_meta: friends_count, common_friend (takes user_ids list), reviewer_review_count
+- review_meta: stars, date, useful_votes
+
+Note: common_friend checks if reviewer has a friend in common with a provided list of user_ids.
+
+Structure MUST be nested AND must include at least one reviewer_meta or review_meta condition.
+Levels: MUST, SHOULD, or NICE
+
+Output JSONL format (one JSON per line, NO array wrapper).
+
+Example with common_friend:
+{"id": "R15", "text": "Show me places my friends' network trusts for good food.", "structure": {"op": "AND", "conditions": [{"aspect": "food_quality", "level": "MUST", "source": "review_text"}, {"aspect": "common_friend", "level": "SHOULD", "source": "reviewer_meta", "user_ids": ["user_abc123", "user_xyz789"]}]}}
+
+Example with nested OR:
+{"id": "R16", "text": "I want recommendations from experienced reviewers (100+ reviews) or those in my network.", "structure": {"op": "AND", "conditions": [{"aspect": "food_quality", "level": "MUST", "source": "review_text"}, {"op": "OR", "conditions": [{"aspect": "reviewer_review_count", "level": "MUST", "source": "reviewer_meta", "min_value": 100}, {"aspect": "common_friend", "level": "MUST", "source": "reviewer_meta", "user_ids": ["user_abc123"]}]}]}}
+
+Example with review_meta:
+{"id": "R17", "text": "Find cafes with recent positive reviews that my network trusts.", "structure": {"op": "AND", "conditions": [{"aspect": "Cafes", "level": "MUST", "source": "item_meta"}, {"op": "OR", "conditions": [{"aspect": "date", "level": "SHOULD", "source": "review_meta", "recency": "6_months"}, {"aspect": "common_friend", "level": "SHOULD", "source": "reviewer_meta", "user_ids": ["user_abc123"]}]}]}}
+
+IMPORTANT: Each request MUST include at least one reviewer_meta or review_meta condition with nested structure.
+"""
 }
 
 
@@ -162,18 +287,19 @@ def get_sample_item(items: list) -> dict:
     return sample
 
 
-def generate_prompt(selection_name: str, items: list, stats: dict, samples: list, aspects: dict, sample_item: dict) -> str:
-    """Generate ChatGPT prompt."""
-    n = selection_name.replace("selection_", "")
+def print_data_context(selection_name: str, items: list, stats: dict, samples: list, aspects: dict, sample_item: dict):
+    """Print data context to console (no file writing)."""
+    total_reviews = sum(len(item.get('item_data', [])) for item in items)
 
-    prompt = f"""You are designing 20 user requests for a restaurant recommendation benchmark.
+    print("\n" + "="*80)
+    print("DATA CONTEXT - Copy this section with each level prompt")
+    print("="*80)
 
-**Task:** Analyze the sample data below and create diverse, realistic user requests that leverage the data's rich structure.
-
+    print(f"""
 ## Dataset Context
 - Selection: {selection_name}
 - Items: {len(items)} restaurants
-- Total Reviews: {sum(len(item.get('item_data', [])) for item in items)}
+- Total Reviews: {total_reviews}
 - Cities: {dict(stats['cities'].most_common(5))}
 - Top Categories: {dict(stats['categories'].most_common(10))}
 
@@ -182,79 +308,30 @@ def generate_prompt(selection_name: str, items: list, stats: dict, samples: list
 {json.dumps(sample_item, indent=2)}
 ```
 
-## Sample Reviews (with reviewer metadata)
-"""
+## Sample Reviews (with reviewer metadata)""")
+
     for s in samples[:6]:
         elite_str = "[ELITE]" if s["elite"] else ""
-        prompt += f'\n- [{s["stars"]}-star, {s["friends"]} friends, {s["reviewer_reviews"]} reviews] {elite_str}\n  "{s["text"][:150]}..."\n'
+        print(f'- [{s["stars"]}-star, {s["friends"]} friends, {s["reviewer_reviews"]} reviews] {elite_str}')
+        print(f'  "{s["text"][:150]}..."')
 
-    prompt += f"""
-
-## Aspect Coverage in Reviews
-"""
+    print("\n## Aspect Coverage in Reviews")
     for aspect, pct in sorted(aspects.items(), key=lambda x: -x[1]):
-        prompt += f"- {aspect}: {pct}% of reviews mention this\n"
+        print(f"- {aspect}: {pct}% of reviews mention this")
 
-    prompt += """
+    # Print sample user_ids for common_friend examples
+    user_ids = []
+    for item in items[:5]:
+        for review in item.get("item_data", [])[:2]:
+            user = review.get("user", {})
+            if user.get("user_id"):
+                user_ids.append(user["user_id"])
+    if user_ids:
+        print(f"\n## Sample User IDs (for common_friend)")
+        for uid in user_ids[:5]:
+            print(f"- {uid}")
 
-## Available Data Dimensions
-
-**1. Review Text** - Extract sentiment about:
-   - food quality, service, speed, value, ambiance, portions, etc.
-
-**2. Item Metadata**:
-   - categories (cuisine type)
-   - stars (overall rating)
-   - attributes (parking, outdoor, wifi, etc.)
-   - city, hours
-
-**3. Reviewer Metadata**:
-   - elite status (expert opinion weight)
-   - friends list (trust network)
-   - review_count (experience level)
-   - average_stars (reviewer tendency)
-
-**4. Review Metadata**:
-   - stars (per-review rating)
-   - date (recency)
-   - useful/funny/cool votes (community validation)
-
-## Request Schema
-```json
-{
-  "id": "R0",
-  "text": "Natural language user request...",
-  "structure": {
-    "op": "AND|OR",
-    "conditions": [
-      {"aspect": "aspect_name", "level": "MUST|SHOULD|NICE", "source": "review_text|item_meta|reviewer_meta|review_meta"}
-    ]
-  }
-}
-```
-
-**Levels:**
-- MUST: Non-negotiable (fail = reject restaurant)
-- SHOULD: Important preference (affects score)
-- NICE: Bonus (never penalizes)
-
-## Requirements
-1. Generate exactly 20 requests (R0-R19)
-2. **Mix aspect sources** - don't only use review text:
-   - Include 3+ requests using reviewer trust (e.g., "weight elite reviewers higher")
-   - Include 3+ requests using item metadata (e.g., "must have parking", "Italian cuisine")
-   - Include 2+ requests using review metadata (e.g., "recent reviews only")
-3. **Vary complexity**:
-   - 4 simple (1 condition)
-   - 6 medium (2-3 conditions with AND)
-   - 6 complex (3+ conditions with AND/OR)
-   - 4 nested (AND containing OR or vice versa)
-4. Natural, realistic user language in "text" field
-5. Cover the aspects that appear frequently in the data
-
-Output as a JSON array.
-"""
-    return prompt
+    print("\n" + "="*80)
 
 
 def main():
@@ -392,20 +469,20 @@ def main():
     # Get sample item
     sample_item = get_sample_item(items)
 
-    # Generate prompt
-    console.print(f"\n[bold]=== ChatGPT Prompt ===[/bold]")
-    prompt = generate_prompt(selection_name, items, stats, samples, aspects, sample_item)
+    # Print data context (no file writing)
+    print_data_context(selection_name, items, stats, samples, aspects, sample_item)
 
-    # print("\n" + "="*80)
-    # print(prompt)
-    # print("="*80)
+    # Print level prompts
+    console.print(f"\n[bold]=== Level Prompts ===[/bold]")
+    console.print("[yellow]Copy the DATA CONTEXT above + one level prompt below to ChatGPT[/yellow]")
+    console.print("[yellow]Output should be saved to: data/yelp/requests_{n}.jsonl[/yellow]\n")
 
-    # Save prompt to file
-    prompt_path = YELP_DIR / f"requests_{n}_prompt.txt"
-    with open(prompt_path, "w") as f:
-        f.write(prompt)
-    console.print(f"\n[green]Prompt saved to: {prompt_path}[/green]")
-    console.print(f"[yellow]Copy the prompt above to ChatGPT, then save output to: data/yelp/requests_{n}.json[/yellow]")
+    for level, prompt in LEVEL_PROMPTS.items():
+        print(f"\n{'='*80}")
+        print(f"LEVEL {level} PROMPT")
+        print("="*80)
+        print(prompt)
+        print("="*80)
 
 
 if __name__ == "__main__":
