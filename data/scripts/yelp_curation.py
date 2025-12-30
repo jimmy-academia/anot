@@ -87,8 +87,16 @@ class YelpCurator:
             "restaurant_count": len(self.selections),
         }
 
+        # Write with indent, then compact short arrays to one line
+        json_str = json.dumps(metalog, indent=4)
+        # Compact arrays that span multiple lines (e.g., categories)
+        json_str = re.sub(
+            r'\[\s*\n\s*"([^"]+)"(?:,\s*\n\s*"([^"]+)")*\s*\n\s*\]',
+            lambda m: "[" + ", ".join(f'"{x}"' for x in re.findall(r'"([^"]+)"', m.group(0))) + "]",
+            json_str
+        )
         with open(METALOG_FILE, "w") as f:
-            json.dump(metalog, f, indent=2)
+            f.write(json_str)
 
     def choose_output_mode(self) -> bool:
         """Ask user to create new or replace existing selection. Returns True to continue."""
@@ -357,7 +365,7 @@ Reply with just the percentage and one sentence explanation. Example: "85% - Rev
     async def run_auto_mode(self) -> None:
         """Auto mode: batch estimate with early stopping, save ALL estimated."""
         scored = self.compute_richness_scores()
-        target = 10
+        target = 4
         threshold = 70
         batch_size = 20
 
