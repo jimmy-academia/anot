@@ -16,22 +16,36 @@ Usage:
 
 import argparse
 import ast
+import asyncio
 import json
 import re
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from enum import Enum
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from rich.console import Console
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
+from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn, TimeElapsedColumn
 from rich.table import Table
 from data.loader import YELP_DIR
 from utils.llm import call_llm
 from utils.utils import loadjl
 
 console = Console()
+
+# --- Async Infrastructure ---
+
+_executor: ThreadPoolExecutor = None
+_llm_semaphore: asyncio.Semaphore = None
+
+
+def init_async_executor(max_workers: int = 50):
+    """Initialize thread pool executor and semaphore for async LLM calls."""
+    global _executor, _llm_semaphore
+    _executor = ThreadPoolExecutor(max_workers=max_workers)
+    _llm_semaphore = asyncio.Semaphore(max_workers)
 
 
 # --- Incremental Update Helpers ---
@@ -205,6 +219,42 @@ Answer with exactly one of: +1 (positive), 0 (neutral/not mentioned), -1 (negati
         judgment = -1
     else:
         judgment = 0
+
+    # Cache result
+    set_cached_judgment(review_id, aspect, judgment)
+    return judgment
+
+
+def _sync_llm_judge(text: str, aspect: str) -> int:
+    """Synchronous LLM call for use in executor (no caching here)."""
+    prompt = f"""Does this review indicate "{aspect}"?
+
+Review: {text}
+
+Answer with exactly one of: +1 (positive), 0 (neutral/not mentioned), -1 (negative)"""
+
+    response = call_llm(prompt)
+    if "+1" in response or response.strip() == "1":
+        return 1
+    elif "-1" in response:
+        return -1
+    return 0
+
+
+async def llm_judge_review_async(review_id: str, text: str, aspect: str) -> int:
+    """Async LLM judgment with rate limiting and caching.
+
+    Returns: 1 (positive), 0 (neutral/unknown), -1 (negative)
+    """
+    # Check cache first (sync, fast)
+    cached = get_cached_judgment(review_id, aspect)
+    if cached is not None:
+        return cached
+
+    # Async LLM call with semaphore for rate limiting
+    async with _llm_semaphore:
+        loop = asyncio.get_event_loop()
+        judgment = await loop.run_in_executor(_executor, _sync_llm_judge, text, aspect)
 
     # Cache result
     set_cached_judgment(review_id, aspect, judgment)
@@ -508,6 +558,143 @@ def evaluate_structure(item: dict, structure: dict, reviews: list = None) -> tup
     return final.value, all_evidence
 
 
+# --- Async Evaluation (parallel LLM calls) ---
+
+async def evaluate_condition_async(item: dict, condition: dict, reviews: list = None, review_weights: list[float] = None) -> tuple[int, dict]:
+    """Async version of evaluate_condition - parallelizes LLM calls for review_text."""
+    aspect = condition.get("aspect", "")
+    evidence_spec = condition.get("evidence", {})
+    kind = evidence_spec.get("kind", "item_meta")
+    path = evidence_spec.get("path", [])
+    match_list = evidence_spec.get("match_list", None)
+
+    if kind == "item_meta":
+        # Sync - no LLM calls
+        value = get_nested_value(item, path)
+        if value is None:
+            return 0, {"kind": kind, "value": None, "satisfied": 0}
+        satisfied = evaluate_aspect(aspect, value)
+        return satisfied, {"kind": kind, "value": value, "satisfied": satisfied}
+
+    elif kind == "review_text":
+        # Async - parallel LLM calls for all reviews
+        if not reviews:
+            return 0, {"kind": kind, "value": None, "satisfied": 0}
+        tasks = [llm_judge_review_async(r.get("review_id", ""), r.get("text", ""), aspect) for r in reviews]
+        judgments = await asyncio.gather(*tasks)
+        satisfied = aggregate_judgments(list(judgments), review_weights)
+        value = {"judgments": list(judgments), "weights": review_weights}
+        return satisfied, {"kind": kind, "value": value, "satisfied": satisfied}
+
+    elif kind == "review_meta":
+        # Sync - no LLM calls
+        if not reviews:
+            return 0, {"kind": kind, "value": None, "satisfied": 0}
+        satisfied, per_review_weights = evaluate_review_meta(reviews, path, match_list, aspect)
+        value = {"path": path, "match_list": match_list, "weights": per_review_weights}
+        return satisfied, {"kind": kind, "value": value, "satisfied": satisfied}
+
+    return 0, {"kind": kind, "value": None, "satisfied": 0}
+
+
+async def evaluate_structure_async(item: dict, structure: dict, reviews: list = None) -> tuple[int, dict]:
+    """Async version of evaluate_structure - parallelizes condition evaluation."""
+    op = structure.get("op", "AND")
+    args = structure.get("args", [])
+
+    all_evidence = {}
+    results = []
+
+    # Evaluate all conditions in parallel
+    async def eval_arg(arg):
+        if "op" in arg:
+            return await evaluate_structure_async(item, arg, reviews)
+        else:
+            return await evaluate_condition_async(item, arg, reviews)
+
+    eval_results = await asyncio.gather(*[eval_arg(arg) for arg in args])
+
+    for arg, (result, evidence) in zip(args, eval_results):
+        if "op" in arg:
+            all_evidence.update(evidence)
+        else:
+            aspect = arg.get("aspect", "unknown")
+            all_evidence[aspect] = evidence
+        results.append(TV(result))
+
+    final = reduce_tv(op, results)
+    return final.value, all_evidence
+
+
+# --- Parallel Restaurant Processing ---
+
+async def process_restaurant(
+    item_id: str,
+    requests_for_item: list,
+    restaurants: dict,
+    reviews_by_item: dict,
+    progress: Progress,
+    task_id
+) -> list[dict]:
+    """Process specified requests for one restaurant asynchronously."""
+    item = restaurants.get(item_id, {})
+    reviews = reviews_by_item.get(item_id, [])
+    entries = []
+
+    for req in requests_for_item:
+        structure = req.get("structure", {})
+        gold_label, evidence = await evaluate_structure_async(item, structure, reviews)
+        entries.append({
+            "item_id": item_id,
+            "request_id": req["id"],
+            "gold_label": gold_label,
+            "evidence": evidence
+        })
+        progress.update(task_id, advance=1)
+
+    return entries
+
+
+async def process_all_parallel(
+    missing_by_item: dict,
+    restaurants: dict,
+    reviews_by_item: dict,
+    progress: Progress,
+    max_workers: int = 20
+) -> list[dict]:
+    """Process all restaurants in parallel with worker pool.
+
+    Args:
+        missing_by_item: {item_id: [list of requests to process]}
+    """
+    worker_semaphore = asyncio.Semaphore(max_workers)
+
+    async def worker(item_id, requests_for_item):
+        async with worker_semaphore:
+            task_id = progress.add_task(
+                f"[cyan]{item_id[:14]}[/cyan]",
+                total=len(requests_for_item),
+            )
+            try:
+                result = await process_restaurant(
+                    item_id, requests_for_item, restaurants, reviews_by_item, progress, task_id
+                )
+                progress.update(task_id, description=f"[green]✓ {item_id[:14]}[/green]")
+                return result
+            finally:
+                # Remove task line after a short delay
+                await asyncio.sleep(0.1)
+                progress.remove_task(task_id)
+
+    # Run all workers
+    results = await asyncio.gather(*[
+        worker(item_id, reqs) for item_id, reqs in missing_by_item.items()
+    ])
+
+    # Flatten results
+    return [entry for batch in results for entry in batch]
+
+
 def generate_groundtruth(selection_name: str, limit: int = 10, force: bool = False):
     """Generate ground truth labels for a selection.
 
@@ -541,27 +728,34 @@ def generate_groundtruth(selection_name: str, limit: int = 10, force: bool = Fal
     request_ids = [r["id"] for r in requests]
     requests_lookup = {r["id"]: r for r in requests}
 
-    # Load reviews (optional - only needed for review_text/review_meta kinds)
-    reviews_by_item = {}
-    if rev_selection_path.exists() and reviews_cache_path.exists():
-        rev_selection = {r["item_id"]: r["review_ids"] for r in loadjl(rev_selection_path)}
-        reviews_cache = {r["review_id"]: r for r in loadjl(reviews_cache_path)}
-        for item_id, review_ids in rev_selection.items():
-            reviews_by_item[item_id] = [reviews_cache[rid] for rid in review_ids if rid in reviews_cache]
-        console.print(f"  Reviews loaded: {sum(len(v) for v in reviews_by_item.values())} total")
-    else:
-        console.print(f"  [yellow]No review files found - review_text/review_meta will return unknown[/yellow]")
-
-    # Load LLM judgment cache (shared across datasets)
-    load_judgment_cache()
-
-    # Sort by llm_percent and apply limit
+    # Sort by llm_percent and apply limit FIRST (before loading reviews)
     sorted_ids = sorted(selection.keys(), key=lambda x: -selection[x].get("llm_percent", 0))
     if limit > 0:
         sorted_ids = sorted_ids[:limit]
+    sorted_ids_set = set(sorted_ids)
 
     console.print(f"  Restaurants: {len(sorted_ids)}")
+
+    # Load reviews ONLY for restaurants being processed
+    reviews_by_item = {}
+    if rev_selection_path.exists() and reviews_cache_path.exists():
+        rev_selection = {r["item_id"]: r["review_ids"] for r in loadjl(rev_selection_path) if r["item_id"] in sorted_ids_set}
+        # Collect only needed review IDs
+        needed_review_ids = set()
+        for review_ids in rev_selection.values():
+            needed_review_ids.update(review_ids)
+        # Load only needed reviews from cache
+        reviews_cache = {r["review_id"]: r for r in loadjl(reviews_cache_path) if r["review_id"] in needed_review_ids}
+        for item_id, review_ids in rev_selection.items():
+            reviews_by_item[item_id] = [reviews_cache[rid] for rid in review_ids if rid in reviews_cache]
+        console.print(f"  Reviews loaded: {sum(len(v) for v in reviews_by_item.values())} for {len(sorted_ids)} restaurants")
+    else:
+        console.print(f"  [yellow]No review files found - review_text/review_meta will return unknown[/yellow]")
+
     console.print(f"  Requests: {len(requests)}")
+
+    # Load LLM judgment cache (shared across datasets)
+    load_judgment_cache()
 
     # Load existing groundtruth (unless --force)
     existing = {} if force else load_existing_groundtruth(output_path)
@@ -588,38 +782,46 @@ def generate_groundtruth(selection_name: str, limit: int = 10, force: bool = Fal
         print_statistics(stats, per_request)
         return
 
-    # Generate ground truth for missing pairs with progress bar
-    console.print(f"[cyan]Computing ground truth...[/cyan]")
-    new_entries = []
-    stats = {1: 0, 0: 0, -1: 0}
-    per_request = {rid: {1: 0, 0: 0, -1: 0} for rid in request_ids}
+    # Initialize async executor for parallel LLM calls (conservative limit)
+    init_async_executor(max_workers=50)
+
+    # Group missing pairs by item_id -> list of requests to process
+    missing_by_item = {}
+    for item_id, req in missing_pairs:
+        if item_id not in missing_by_item:
+            missing_by_item[item_id] = []
+        missing_by_item[item_id].append(req)
+
+    items_to_process = list(missing_by_item.keys())
+
+    # Generate ground truth with parallel processing
+    console.print(f"[cyan]Computing ground truth ({len(items_to_process)} restaurants, {len(missing_pairs)} pairs)...[/cyan]")
 
     with Progress(
         SpinnerColumn(),
         TextColumn("[progress.description]{task.description}"),
         BarColumn(),
         TaskProgressColumn(),
+        TimeElapsedColumn(),
         console=console,
     ) as progress:
-        task = progress.add_task("Processing...", total=len(missing_pairs))
+        # Run async processing
+        new_entries = asyncio.run(process_all_parallel(
+            missing_by_item,
+            restaurants,
+            reviews_by_item,
+            progress,
+            max_workers=10
+        ))
 
-        for item_id, req in missing_pairs:
-            item = restaurants.get(item_id, {})
-            reviews = reviews_by_item.get(item_id, [])
-            structure = req.get("structure", {})
-
-            gold_label, evidence = evaluate_structure(item, structure, reviews)
-
-            new_entries.append({
-                "item_id": item_id,
-                "request_id": req["id"],
-                "gold_label": gold_label,
-                "evidence": evidence
-            })
-            stats[gold_label] += 1
-            per_request[req["id"]][gold_label] += 1
-
-            progress.update(task, advance=1, description=f"{item_id[:12]}.. × {req['id']}")
+    # Compute stats for new entries
+    stats = {1: 0, 0: 0, -1: 0}
+    per_request = {rid: {1: 0, 0: 0, -1: 0} for rid in request_ids}
+    for entry in new_entries:
+        label = entry["gold_label"]
+        stats[label] += 1
+        if entry["request_id"] in per_request:
+            per_request[entry["request_id"]][label] += 1
 
     # Save LLM judgment cache
     save_judgment_cache()
