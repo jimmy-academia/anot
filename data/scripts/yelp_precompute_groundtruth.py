@@ -278,29 +278,27 @@ async def llm_judge_review_async(review_id: str, text: str, aspect: str) -> int:
 
 
 def aggregate_judgments(judgments: list[int], weights: list[float] = None) -> int:
-    """Aggregate LLM judgments with optional weights.
+    """Aggregate LLM judgments using sparse logic.
 
-    Uses weighted voting: sum(judgment * weight) / sum(weights)
-    Then maps to {-1, 0, 1} based on thresholds.
+    Ignores neutral (0) judgments. Uses simple presence rules:
+    - True (1):  pos >= 1 AND neg = 0  (one positive is enough)
+    - False (-1): neg >= 1 AND pos = 0  (one negative vetoes)
+    - Mixed (0): otherwise (conflict or no evidence)
+
+    Note: weights parameter kept for API compatibility but not used.
     """
     if not judgments:
         return 0
 
-    if weights is None:
-        weights = [1.0] * len(judgments)
+    pos = sum(1 for j in judgments if j == 1)
+    neg = sum(1 for j in judgments if j == -1)
 
-    weighted_sum = sum(j * w for j, w in zip(judgments, weights))
-    total_weight = sum(weights)
-
-    if total_weight == 0:
-        return 0
-
-    avg = weighted_sum / total_weight
-    if avg >= 0.5:
-        return 1
-    elif avg <= -0.5:
-        return -1
-    return 0
+    if pos >= 1 and neg == 0:
+        return 1   # One strong positive is enough
+    elif neg >= 1 and pos == 0:
+        return -1  # One strong negative vetoes
+    else:
+        return 0   # Conflict or no evidence → Mixed
 
 
 def evaluate_review_meta(reviews: list, path: list, match_list: list = None, aspect: str = "") -> tuple[int, list[float]]:
