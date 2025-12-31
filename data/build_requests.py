@@ -40,7 +40,7 @@ def convert_json_to_jsonl(n: str):
         # Decode next object
         obj, end_idx = decoder.raw_decode(content, idx)
         requests.append(obj)
-        idx += end_idx
+        idx = end_idx
 
     # Write JSONL
     with open(jsonl_path, 'w') as f:

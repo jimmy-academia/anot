@@ -17,6 +17,7 @@ Usage:
 import argparse
 import ast
 import asyncio
+import hashlib
 import json
 import re
 import sys
@@ -50,6 +51,12 @@ def init_async_executor(max_workers: int = 50):
 
 # --- Incremental Update Helpers ---
 
+def hash_request(req: dict) -> str:
+    """Hash the request structure for change detection."""
+    structure_str = json.dumps(req.get("structure", {}), sort_keys=True)
+    return hashlib.md5(structure_str.encode()).hexdigest()[:8]
+
+
 def load_existing_groundtruth(output_path: Path) -> dict:
     """Load existing groundtruth as {(item_id, request_id): entry}."""
     if not output_path.exists():
@@ -62,11 +69,20 @@ def load_existing_groundtruth(output_path: Path) -> dict:
 
 
 def find_missing_pairs(item_ids: list, requests: list, existing: dict) -> list[tuple]:
-    """Find (item_id, request_id) pairs not in existing groundtruth."""
+    """Find (item_id, request) pairs needing computation.
+
+    A pair needs computation if:
+    - It doesn't exist in groundtruth, OR
+    - The request structure hash changed (request was modified)
+    """
     missing = []
     for item_id in item_ids:
         for req in requests:
-            if (item_id, req["id"]) not in existing:
+            key = (item_id, req["id"])
+            if key not in existing:
+                missing.append((item_id, req))
+            elif existing[key].get("request_hash") != hash_request(req):
+                # Request definition changed - needs recomputation
                 missing.append((item_id, req))
     return missing
 
@@ -400,6 +416,73 @@ def get_nested_value(item: dict, path: list):
     return current
 
 
+# --- Declarative item_meta Evaluation ---
+
+def match_value(actual, expected) -> bool:
+    """Normalized string matching (case-insensitive contains)."""
+    if expected is None:
+        return False
+    if isinstance(expected, bool):
+        return actual == expected
+    if isinstance(expected, list):
+        return any(match_value(actual, e) for e in expected)
+    # String: case-insensitive contains
+    return str(expected).lower() in str(actual).lower()
+
+
+def evaluate_item_meta_rule(value, evidence_spec) -> int:
+    """Evaluate item_meta using declarative rules from evidence_spec.
+
+    Rules:
+    - Missing value → use "missing" field (default 0=neutral)
+    - Dict of booleans → OR across children (e.g., BusinessParking)
+    - None given → default boolean check (True→1, False→-1, else→0)
+    - Only "true" given → match→1, no match→-1
+    - Only "false" given → match→-1, no match→1 (negative logic)
+    - Multiple given → check each, none matched→0
+    """
+    true_cond = evidence_spec.get("true")
+    false_cond = evidence_spec.get("false")
+    neutral_cond = evidence_spec.get("neutral")
+    missing_val = evidence_spec.get("missing", 0)  # default: neutral
+
+    # Missing value → use "missing" field (default 0=neutral)
+    if value is None:
+        return missing_val
+
+    # Dict of booleans → OR across children (e.g., BusinessParking)
+    if isinstance(value, dict) and value and all(isinstance(v, bool) for v in value.values()):
+        has_true = any(v for v in value.values())
+        return 1 if has_true else -1
+
+    # Case 1: None given → default boolean check
+    if true_cond is None and false_cond is None and neutral_cond is None:
+        if value is True:
+            return 1
+        if value is False:
+            return -1
+        return 0
+
+    # Case 2: Only "false" given → negative logic (no match = true)
+    if false_cond is not None and true_cond is None and neutral_cond is None:
+        return -1 if match_value(value, false_cond) else 1
+
+    # Case 3: Only "true" given → no match = false
+    if true_cond is not None and false_cond is None and neutral_cond is None:
+        return 1 if match_value(value, true_cond) else -1
+
+    # Case 4: Multiple conditions given → check each explicitly
+    if true_cond is not None and match_value(value, true_cond):
+        return 1
+    if false_cond is not None and match_value(value, false_cond):
+        return -1
+    if neutral_cond is not None and match_value(value, neutral_cond):
+        return 0
+
+    # None matched → neutral
+    return 0
+
+
 def evaluate_condition(item: dict, condition: dict, reviews: list = None, review_weights: list[float] = None) -> tuple[int, dict]:
     """Evaluate a single condition against an item.
 
@@ -421,11 +504,9 @@ def evaluate_condition(item: dict, condition: dict, reviews: list = None, review
     match_list = evidence_spec.get("match_list", None)
 
     if kind == "item_meta":
-        # Original behavior: lookup in item attributes
+        # Declarative rule-based evaluation
         value = get_nested_value(item, path)
-        if value is None:
-            return 0, {"kind": kind, "value": None, "satisfied": 0}
-        satisfied = evaluate_aspect(aspect, value)
+        satisfied = evaluate_item_meta_rule(value, evidence_spec)
 
     elif kind == "review_text":
         # LLM judges each review, then aggregate with weights
@@ -446,80 +527,6 @@ def evaluate_condition(item: dict, condition: dict, reviews: list = None, review
         return 0, {"kind": kind, "value": None, "satisfied": 0}
 
     return satisfied, {"kind": kind, "value": value, "satisfied": satisfied}
-
-
-def evaluate_aspect(aspect: str, value) -> int:
-    """Evaluate if an aspect is satisfied given a value.
-
-    Returns: 1 (satisfied), -1 (not satisfied), 0 (unknown)
-    """
-    if value is None:
-        return 0
-
-    # Boolean aspects (value should be True)
-    boolean_true_aspects = {
-        "takes_reservations", "has_outdoor_seating", "dogs_allowed",
-        "has_bike_parking", "good_for_groups", "wheelchair_accessible",
-        "offers_takeout", "accepts_credit_cards", "good_for_breakfast",
-        "good_for_lunch", "good_for_dinner", "good_for_brunch",
-        "good_for_dessert", "good_for_latenight", "romantic_ambience",
-        "intimate_ambience", "trendy_ambience", "casual_ambience",
-        "classy_ambience", "hipster_ambience", "touristy_ambience",
-        "upscale_ambience", "divey_ambience"
-    }
-
-    # Boolean aspects (value should be False)
-    boolean_false_aspects = {
-        "no_tv"
-    }
-
-    # String contains aspects
-    if aspect == "has_free_wifi":
-        if isinstance(value, str):
-            return 1 if "free" in value.lower() else -1
-        return -1
-
-    if aspect == "quiet_ambience":
-        if isinstance(value, str):
-            return 1 if "quiet" in value.lower() else -1
-        return -1
-
-    if aspect == "serves_alcohol":
-        if isinstance(value, str):
-            return 1 if value.lower() not in ("none", "no") else -1
-        if isinstance(value, bool):
-            return 1 if value else -1
-        return 0
-
-    if aspect == "has_business_parking":
-        # BusinessParking is a dict, check if any parking type is True
-        if isinstance(value, dict):
-            has_parking = any(v for v in value.values() if v is True)
-            return 1 if has_parking else -1
-        if isinstance(value, bool):
-            return 1 if value else -1
-        return 0
-
-    # Generic boolean True aspects
-    if aspect in boolean_true_aspects:
-        if isinstance(value, bool):
-            return 1 if value else -1
-        if isinstance(value, str):
-            return 1 if value.lower() == "true" else -1
-        return 0
-
-    # Generic boolean False aspects (satisfied when value is False)
-    if aspect in boolean_false_aspects:
-        if isinstance(value, bool):
-            return 1 if not value else -1
-        if isinstance(value, str):
-            return 1 if value.lower() == "false" else -1
-        return 0
-
-    # Default: if we have a truthy value, consider it satisfied
-    if value:
-        return 1
-    return -1
 
 
 def evaluate_structure(item: dict, structure: dict, reviews: list = None) -> tuple[int, dict]:
@@ -569,11 +576,9 @@ async def evaluate_condition_async(item: dict, condition: dict, reviews: list = 
     match_list = evidence_spec.get("match_list", None)
 
     if kind == "item_meta":
-        # Sync - no LLM calls
+        # Sync - no LLM calls, use declarative rule-based evaluation
         value = get_nested_value(item, path)
-        if value is None:
-            return 0, {"kind": kind, "value": None, "satisfied": 0}
-        satisfied = evaluate_aspect(aspect, value)
+        satisfied = evaluate_item_meta_rule(value, evidence_spec)
         return satisfied, {"kind": kind, "value": value, "satisfied": satisfied}
 
     elif kind == "review_text":
@@ -647,6 +652,7 @@ async def process_restaurant(
         entries.append({
             "item_id": item_id,
             "request_id": req["id"],
+            "request_hash": hash_request(req),
             "gold_label": gold_label,
             "evidence": evidence
         })
@@ -854,7 +860,7 @@ def generate_groundtruth(selection_name: str, limit: int = 10, force: bool = Fal
 def main():
     parser = argparse.ArgumentParser(description="Precompute ground truth labels")
     parser.add_argument("selection", help="Selection name (e.g., selection_1)")
-    parser.add_argument("--limit", type=int, default=10,
+    parser.add_argument("--limit", type=int, default=20,
                         help="Max items to process (0 for all, default: 10)")
     parser.add_argument("--force", action="store_true",
                         help="Force recompute all entries (ignore existing)")

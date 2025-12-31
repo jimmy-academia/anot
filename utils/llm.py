@@ -24,10 +24,10 @@ import httpx
 # Global rate limiter
 # -----------------------------
 _api_semaphore: Optional[threading.Semaphore] = None
-_max_concurrent = 50  # safer default than 500 (override via init_rate_limiter)
+_max_concurrent = 200  # safer default than 500 (override via init_rate_limiter)
 
 
-def init_rate_limiter(max_concurrent: int = 50):
+def init_rate_limiter(max_concurrent: int = 200):
     """Initialize global rate limiter. Call from main() before evaluation."""
     global _api_semaphore, _max_concurrent
     _max_concurrent = int(max_concurrent)

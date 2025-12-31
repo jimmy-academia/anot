@@ -7,11 +7,11 @@
     "args": [
       {
         "aspect": "has_free_wifi",
-        "evidence": { "kind": "item_meta", "path": ["attributes", "WiFi"] }
+        "evidence": { "kind": "item_meta", "path": ["attributes", "WiFi"], "true" : "free" }
       },
       {
         "aspect": "quiet_ambience",
-        "evidence": { "kind": "item_meta", "path": ["attributes", "NoiseLevel"] }
+        "evidence": { "kind": "item_meta", "path": ["attributes", "NoiseLevel"], "true": "quiet", "neutral": "average", "false": "loud" }
       },
       {
         "aspect": "no_tv",
@@ -37,7 +37,7 @@
       },
       {
         "aspect": "serves_alcohol",
-        "evidence": { "kind": "item_meta", "path": ["attributes", "Alcohol"] }
+        "evidence": { "kind": "item_meta", "path": ["attributes", "Alcohol"] , "false": "none" }
       }
     ]
   }
@@ -81,7 +81,7 @@
       },
       {
         "aspect": "wheelchair_accessible",
-        "evidence": { "kind": "item_meta", "path": ["attributes", "WheelchairAccessible"] }
+        "evidence": { "kind": "item_meta", "path": ["attributes", "WheelchairAccessible"] , "missing" : -1 }
       }
     ]
   }
@@ -95,15 +95,15 @@
     "args": [
       {
         "aspect": "offers_takeout",
-        "evidence": { "kind": "item_meta", "path": ["attributes", "RestaurantsTakeOut"] }
+        "evidence": { "kind": "item_meta", "path": ["attributes", "RestaurantsTakeOut"], "missing" : -1  }
       },
       {
         "aspect": "accepts_credit_cards",
-        "evidence": { "kind": "item_meta", "path": ["attributes", "BusinessAcceptsCreditCards"] }
+        "evidence": { "kind": "item_meta", "path": ["attributes", "BusinessAcceptsCreditCards"], "missing" : -1  }
       },
       {
         "aspect": "good_for_breakfast",
-        "evidence": { "kind": "item_meta", "path": ["attributes", "GoodForMeal", "breakfast"] }
+        "evidence": { "kind": "item_meta", "path": ["attributes", "GoodForMeal", "breakfast"], "missing" : -1  }
       }
     ]
   }
