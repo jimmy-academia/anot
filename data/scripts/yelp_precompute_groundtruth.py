@@ -853,8 +853,13 @@ def evaluate_review_meta(reviews: list, path: list = None, match_list: list = No
         has_match = any(w > 1.0 for w in weights)
         result = 1 if has_match else 0
         score = result
-    elif weight_fields or filter_spec or min_stars:
-        # For weighted/filtered review_meta, compute weighted average of stars
+    elif weight_fields and not filter_spec and min_stars is None:
+        # Weight-only: just provides weights for review_text, doesn't affect AND result
+        # Return result=1, score=1.0 so it doesn't drag down the AND aggregation
+        result = 1
+        score = 1.0
+    elif filter_spec or min_stars:
+        # For filtered review_meta, compute weighted average of stars
         total_weight = sum(weights)
         if total_weight > 0:
             weighted_stars = sum(r.get("stars", 3) * w for r, w in zip(reviews, weights)) / total_weight
