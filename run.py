@@ -200,7 +200,7 @@ def save_final_config(args, stats, experiment):
         "approach": getattr(args, 'knot_approach', None) if args.method == "knot" else None,
         "defense": args.defense,
         "data": args.data,
-        "requests": args.requests,
+        "selection": args.selection_name,
         "limit": args.limit,
         "attack": args.attack,
         "llm_config": {

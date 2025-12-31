@@ -35,7 +35,6 @@ def main():
     # Select method
     method = get_method(args, run_dir)
     print(method)
-    input()
     
     # Run evaluation (handles both parallel and sequential)
     stats = run_evaluation_loop(args, dataset.items, dataset.requests, method, experiment)
