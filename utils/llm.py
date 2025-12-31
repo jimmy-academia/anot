@@ -249,11 +249,145 @@ def _should_retry_openai_exc(e: Exception) -> bool:
     return False
 
 
-def _retry_sleep(attempt: int):
-    # Exponential backoff with jitter
+def _retry_delay(attempt: int) -> float:
+    """Calculate retry delay with exponential backoff and jitter."""
     base = 1.0 * (2 ** attempt)
     jitter = random.random()
-    time.sleep(min(30.0, base + jitter))
+    return min(30.0, base + jitter)
+
+
+def _build_messages(prompt: str, system: str) -> list:
+    """Build messages list for chat completions."""
+    messages = []
+    if system:
+        messages.append({"role": "system", "content": system})
+    messages.append({"role": "user", "content": prompt})
+    return messages
+
+
+# -----------------------------
+# Provider-specific implementations
+# -----------------------------
+def _call_openai_sync(client, messages: list, model: str) -> str:
+    """Call OpenAI API with retry logic (sync)."""
+    is_new_model = ("gpt-5" in model) or ("o1" in model) or ("o3" in model)
+
+    last_err = None
+    for attempt in range(max(1, _config["max_retries"])):
+        try:
+            if is_new_model:
+                resp = client.chat.completions.create(
+                    model=model,
+                    messages=messages,
+                    max_completion_tokens=_config["max_tokens_reasoning"],
+                )
+            else:
+                resp = client.chat.completions.create(
+                    model=model,
+                    messages=messages,
+                    temperature=_config["temperature"],
+                    max_tokens=_config["max_tokens"],
+                )
+            return resp.choices[0].message.content
+        except Exception as e:
+            last_err = e
+            if _should_retry_openai_exc(e) and attempt < _config["max_retries"] - 1:
+                time.sleep(_retry_delay(attempt))
+                continue
+            raise
+
+    raise last_err
+
+
+async def _call_openai_async(client, messages: list, model: str) -> str:
+    """Call OpenAI API with retry logic (async)."""
+    import asyncio
+
+    is_new_model = ("gpt-5" in model) or ("o1" in model) or ("o3" in model)
+
+    last_err = None
+    for attempt in range(max(1, _config["max_retries"])):
+        try:
+            if is_new_model:
+                resp = await client.chat.completions.create(
+                    model=model,
+                    messages=messages,
+                    max_completion_tokens=_config["max_tokens_reasoning"],
+                )
+            else:
+                resp = await client.chat.completions.create(
+                    model=model,
+                    messages=messages,
+                    temperature=_config["temperature"],
+                    max_tokens=_config["max_tokens"],
+                )
+            return resp.choices[0].message.content
+        except Exception as e:
+            last_err = e
+            if _should_retry_openai_exc(e) and attempt < _config["max_retries"] - 1:
+                await asyncio.sleep(_retry_delay(attempt))
+                continue
+            raise
+
+    raise last_err
+
+
+def _call_anthropic_sync(prompt: str, system: str, model: str) -> str:
+    """Call Anthropic API (sync)."""
+    client = _get_anthropic_client()
+    if "claude" not in model.lower():
+        model = "claude-sonnet-4-20250514"
+
+    resp = client.messages.create(
+        model=model,
+        max_tokens=_config["max_tokens"],
+        system=system or "",
+        messages=[{"role": "user", "content": prompt}],
+    )
+    return resp.content[0].text
+
+
+async def _call_anthropic_async(prompt: str, system: str, model: str) -> str:
+    """Call Anthropic API (async)."""
+    client = _get_async_anthropic_client()
+    if "claude" not in model.lower():
+        model = "claude-sonnet-4-20250514"
+
+    resp = await client.messages.create(
+        model=model,
+        max_tokens=_config["max_tokens"],
+        system=system or "",
+        messages=[{"role": "user", "content": prompt}],
+    )
+    return resp.content[0].text
+
+
+def _call_local(prompt: str, system: str, model: str) -> str:
+    """Call local/custom endpoint."""
+    import urllib.request
+
+    base_url = (_config["base_url"] or "").strip()
+    if not base_url:
+        raise ValueError("provider='local' requires base_url to be set via configure(..., base_url=...)")
+
+    url = base_url.rstrip("/") + "/v1/chat/completions"
+    messages = _build_messages(prompt, system)
+
+    payload = {
+        "model": model,
+        "messages": messages,
+        "temperature": _config["temperature"],
+        "max_tokens": _config["max_tokens"],
+    }
+
+    req = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode(),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=int(_config["request_timeout"])) as resp:
+        return json.loads(resp.read())["choices"][0]["message"]["content"]
 
 
 # -----------------------------
@@ -268,90 +402,16 @@ def call_llm(prompt: str, system: str = "", provider: str = None, model: str = N
 
     sem = _get_semaphore()
     with sem:
-        return _call_llm_impl(prompt, system, provider, model)
-
-
-def _call_llm_impl(prompt: str, system: str, provider: str, model: str) -> str:
-    """Internal implementation of LLM call (called within semaphore)."""
-    if provider == "openai":
-        client = _get_openai_client()
-
-        messages = []
-        if system:
-            messages.append({"role": "system", "content": system})
-        messages.append({"role": "user", "content": prompt})
-
-        is_new_model = ("gpt-5" in model) or ("o1" in model) or ("o3" in model)
-
-        last_err = None
-        for attempt in range(max(1, _config["max_retries"])):
-            try:
-                if is_new_model:
-                    resp = client.chat.completions.create(
-                        model=model,
-                        messages=messages,
-                        max_completion_tokens=_config["max_tokens_reasoning"],
-                    )
-                else:
-                    resp = client.chat.completions.create(
-                        model=model,
-                        messages=messages,
-                        temperature=_config["temperature"],
-                        max_tokens=_config["max_tokens"],
-                    )
-                return resp.choices[0].message.content
-            except Exception as e:
-                last_err = e
-                if _should_retry_openai_exc(e) and attempt < _config["max_retries"] - 1:
-                    _retry_sleep(attempt)
-                    continue
-                raise
-
-        raise last_err  # should not reach
-
-    elif provider == "anthropic":
-        client = _get_anthropic_client()
-        if "claude" not in model.lower():
-            model = "claude-sonnet-4-20250514"
-
-        resp = client.messages.create(
-            model=model,
-            max_tokens=_config["max_tokens"],
-            system=system or "",
-            messages=[{"role": "user", "content": prompt}],
-        )
-        return resp.content[0].text
-
-    elif provider == "local":
-        import urllib.request
-
-        base_url = (_config["base_url"] or "").strip()
-        if not base_url:
-            raise ValueError("provider='local' requires base_url to be set via configure(..., base_url=...)")
-
-        url = base_url.rstrip("/") + "/v1/chat/completions"
-        messages = []
-        if system:
-            messages.append({"role": "system", "content": system})
-        messages.append({"role": "user", "content": prompt})
-
-        payload = {
-            "model": model,
-            "messages": messages,
-            "temperature": _config["temperature"],
-            "max_tokens": _config["max_tokens"],
-        }
-
-        req = urllib.request.Request(
-            url,
-            data=json.dumps(payload).encode(),
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=int(_config["request_timeout"])) as resp:
-            return json.loads(resp.read())["choices"][0]["message"]["content"]
-
-    raise ValueError(f"Unknown provider: {provider}")
+        if provider == "openai":
+            client = _get_openai_client()
+            messages = _build_messages(prompt, system)
+            return _call_openai_sync(client, messages, model)
+        elif provider == "anthropic":
+            return _call_anthropic_sync(prompt, system, model)
+        elif provider == "local":
+            return _call_local(prompt, system, model)
+        else:
+            raise ValueError(f"Unknown provider: {provider}")
 
 
 # -----------------------------
@@ -366,56 +426,12 @@ async def call_llm_async(prompt: str, system: str = "", provider: str = None, mo
 
     if provider == "openai":
         client = _get_async_openai_client()
-
-        messages = []
-        if system:
-            messages.append({"role": "system", "content": system})
-        messages.append({"role": "user", "content": prompt})
-
-        is_new_model = ("gpt-5" in model) or ("o1" in model) or ("o3" in model)
-
-        last_err = None
-        for attempt in range(max(1, _config["max_retries"])):
-            try:
-                if is_new_model:
-                    resp = await client.chat.completions.create(
-                        model=model,
-                        messages=messages,
-                        max_completion_tokens=_config["max_tokens_reasoning"],
-                    )
-                else:
-                    resp = await client.chat.completions.create(
-                        model=model,
-                        messages=messages,
-                        temperature=_config["temperature"],
-                        max_tokens=_config["max_tokens"],
-                    )
-                return resp.choices[0].message.content
-            except Exception as e:
-                last_err = e
-                if _should_retry_openai_exc(e) and attempt < _config["max_retries"] - 1:
-                    # async sleep
-                    import asyncio
-                    await asyncio.sleep(min(30.0, (2 ** attempt) + random.random()))
-                    continue
-                raise
-
-        raise last_err  # should not reach
-
+        messages = _build_messages(prompt, system)
+        return await _call_openai_async(client, messages, model)
     elif provider == "anthropic":
-        client = _get_async_anthropic_client()
-        if "claude" not in model.lower():
-            model = "claude-sonnet-4-20250514"
-
-        resp = await client.messages.create(
-            model=model,
-            max_tokens=_config["max_tokens"],
-            system=system or "",
-            messages=[{"role": "user", "content": prompt}],
-        )
-        return resp.content[0].text
-
-    raise ValueError(f"Unknown provider for async: {provider}")
+        return await _call_anthropic_async(prompt, system, model)
+    else:
+        raise ValueError(f"Unknown provider for async: {provider}")
 
 
 # -----------------------------

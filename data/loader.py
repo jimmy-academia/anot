@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Union
 
 from utils.io import loadjl
+from methods.shared import parse_final_answer
 
 DATA_DIR = Path("data")
 ATTACKED_DIR = DATA_DIR / "attacked"
@@ -239,7 +240,11 @@ def format_ranking_query(items: list[dict], mode: str = "string") -> tuple:
 
 
 def normalize_pred(raw: Any) -> int:
-    """Normalize prediction to {-1, 0, 1}."""
+    """Normalize prediction to {-1, 0, 1}.
+
+    Handles int, bool, float, and str inputs.
+    For strings, delegates to parse_final_answer() from methods.shared.
+    """
     if raw is None:
         raise ValueError("Prediction is None")
     if isinstance(raw, int) and not isinstance(raw, bool):
@@ -251,19 +256,8 @@ def normalize_pred(raw: Any) -> int:
     if isinstance(raw, float):
         return -1 if raw <= -0.5 else (1 if raw >= 0.5 else 0)
     if isinstance(raw, str):
-        s = raw.strip().lower()
-        if s in {"-1", "0", "1"}:
-            return int(s)
-        if any(p in s for p in ["not recommend", "don't recommend", "avoid", "reject"]):
-            return -1
-        if any(p in s for p in ["recommend", "yes", "suitable", "good", "great"]):
-            return 1
-        if any(p in s for p in ["neutral", "uncertain", "maybe", "mixed"]):
-            return 0
-        for tok in s.replace(",", " ").replace(":", " ").split():
-            tok = tok.strip("()[]{}.,;:")
-            if tok in {"-1", "0", "1"}:
-                return int(tok)
+        # Delegate string parsing to shared implementation
+        return parse_final_answer(raw)
     raise ValueError(f"Cannot normalize: {repr(raw)}")
 
 def load_dataset(data: str, selection_name: str = None, limit: int = None, attack: str = "none") -> Dataset:
