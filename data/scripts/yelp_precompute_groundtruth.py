@@ -137,6 +137,57 @@ def print_statistics(stats: dict, per_request: dict = None):
                 console.print(f"  {req_id}: [green]+1:{req_stats[1]:2d}[/green] [yellow]0:{req_stats[0]:2d}[/yellow] [red]-1:{req_stats[-1]:2d}[/red]  ({pct_pos:.0f}%//{pct_neg:.0f}%)")
 
 
+def print_hits_at_k(entries: list, request_ids: list, item_ids: list, k: int = 1):
+    """Print Hits@K ranking summary with item indices.
+
+    Gold selection: First filter to gold_label=+1 items, then rank by total_score.
+    This ensures the gold item is definitively good, not just high-scoring.
+
+    Args:
+        entries: List of groundtruth entries
+        request_ids: List of request IDs to display
+        item_ids: Ordered list of item IDs (for index lookup)
+        k: Number of top items to check (default 1)
+    """
+    console.print(f"\n[bold]Hits@{k} Summary:[/bold]")
+    hits = 0
+    valid_requests = 0
+
+    # Build index lookup (1-based)
+    item_id_to_index = {item_id: i + 1 for i, item_id in enumerate(item_ids)}
+
+    for req_id in request_ids:
+        req_entries = [e for e in entries if e["request_id"] == req_id]
+        if not req_entries:
+            continue
+
+        # Filter to only gold_label=+1 items first
+        positive_entries = [e for e in req_entries if e["gold_label"] == 1]
+
+        if not positive_entries:
+            # No valid gold item for this request
+            console.print(f"  {req_id}: [yellow]⚠[/yellow] No gold_label=+1 items")
+            continue
+
+        valid_requests += 1
+
+        # Rank by total_score within gold_label=+1 items
+        ranked = sorted(positive_entries, key=lambda x: -x.get("total_score", 0))
+        top_item = ranked[0]
+
+        # Always a hit since we filtered to gold_label=+1
+        hits += 1
+
+        score = top_item.get("total_score", 0)
+        index = item_id_to_index.get(top_item["item_id"], 0)
+        console.print(f"  {req_id}: [green]✓[/green] gold=[{index}] {top_item['item_id'][:16]} (score={score}, [green]+1[/green])")
+
+    pct = hits / valid_requests * 100 if valid_requests else 0
+    console.print(f"\n[bold]Hits@{k}: {hits}/{valid_requests} = {pct:.0f}%[/bold]")
+    if valid_requests < len(request_ids):
+        console.print(f"[yellow]({len(request_ids) - valid_requests} requests skipped - no gold_label=+1 items)[/yellow]")
+
+
 # --- Three-Value Logic ---
 
 class TV(Enum):
@@ -165,13 +216,27 @@ def tv_or(a: TV, b: TV) -> TV:
 
 
 def reduce_tv(op: str, values: list[TV]) -> TV:
-    """Reduce list of TV values using AND or OR."""
+    """Reduce list of TV values using AND, OR, or ANY.
+
+    - AND: False dominates, then Unknown, then True
+    - OR/ANY: True dominates, then Unknown, then False
+    """
     if not values:
         return TV.U
-    result = values[0]
-    for v in values[1:]:
-        result = tv_and(result, v) if op == "AND" else tv_or(result, v)
-    return result
+
+    if op == "AND":
+        # False dominates
+        if any(v is TV.F for v in values):
+            return TV.F
+        if any(v is TV.U for v in values):
+            return TV.U
+        return TV.T
+    else:  # OR or ANY - both use True dominates
+        if any(v is TV.T for v in values):
+            return TV.T
+        if any(v is TV.U for v in values):
+            return TV.U
+        return TV.F
 
 
 # --- LLM Judgment Cache (shared across all datasets) ---
@@ -277,28 +342,50 @@ async def llm_judge_review_async(review_id: str, text: str, aspect: str) -> int:
     return judgment
 
 
-def aggregate_judgments(judgments: list[int], weights: list[float] = None) -> int:
-    """Aggregate LLM judgments using sparse logic.
+def aggregate_judgments(judgments: list[int], weights: list[float] = None) -> tuple[int, float]:
+    """Aggregate LLM judgments using symmetric strong consensus (75% threshold).
 
-    Ignores neutral (0) judgments. Uses simple presence rules:
-    - True (1):  pos >= 1 AND neg = 0  (one positive is enough)
-    - False (-1): neg >= 1 AND pos = 0  (one negative vetoes)
-    - Mixed (0): otherwise (conflict or no evidence)
+    Returns (result, score) where:
+    - result: 1 (positive consensus), 0 (mixed/no consensus), -1 (negative consensus)
+    - score: depends on result:
+        - If satisfied (+1): positive ratio (0.75 to 1.0)
+        - If neutral (0): 0
+        - If not satisfied (-1): -1
+
+    Result rules (symmetric 75% threshold):
+    - Positive (+1): pos_ratio >= 75% (strong positive consensus)
+    - Negative (-1): neg_ratio >= 75% (strong negative consensus)
+    - Mixed (0): otherwise (no clear consensus)
+
+    This removes the "strict veto" logic - outliers don't override majority sentiment.
 
     Note: weights parameter kept for API compatibility but not used.
     """
     if not judgments:
-        return 0
+        return 0, 0.0
 
     pos = sum(1 for j in judgments if j == 1)
     neg = sum(1 for j in judgments if j == -1)
+    total_opinions = pos + neg
 
-    if pos >= 1 and neg == 0:
-        return 1   # One strong positive is enough
-    elif neg >= 1 and pos == 0:
-        return -1  # One strong negative vetoes
+    if total_opinions == 0:
+        return 0, 0.0
+
+    pos_ratio = pos / total_opinions
+    neg_ratio = neg / total_opinions
+
+    # Symmetric 75% threshold for consensus
+    if pos >= 1 and pos_ratio >= 0.75:
+        result = 1   # Strong Consensus Positive
+        score = pos_ratio  # Score = positive ratio for satisfied aspects
+    elif neg >= 1 and neg_ratio >= 0.75:
+        result = -1  # Strong Consensus Negative
+        score = -1.0
     else:
-        return 0   # Conflict or no evidence → Mixed
+        result = 0   # Mixed / No Consensus
+        score = 0.0
+
+    return result, score
 
 
 def evaluate_review_meta(reviews: list, path: list, match_list: list = None, aspect: str = "") -> tuple[int, list[float]]:
@@ -481,7 +568,7 @@ def evaluate_item_meta_rule(value, evidence_spec) -> int:
     return 0
 
 
-def evaluate_condition(item: dict, condition: dict, reviews: list = None, review_weights: list[float] = None) -> tuple[int, dict]:
+def evaluate_condition(item: dict, condition: dict, reviews: list = None, review_weights: list[float] = None) -> tuple[int, int, dict]:
     """Evaluate a single condition against an item.
 
     Args:
@@ -491,9 +578,10 @@ def evaluate_condition(item: dict, condition: dict, reviews: list = None, review
         review_weights: Optional per-review weights for weighted aggregation
 
     Returns:
-        (result, evidence) where:
+        (result, score, evidence) where:
         - result: 1 (satisfied), -1 (not satisfied), 0 (unknown)
-        - evidence: {"kind": ..., "value": ..., "satisfied": ...}
+        - score: numeric score for ranking
+        - evidence: {"kind": ..., "value": ..., "satisfied": ..., "score": ...}
     """
     aspect = condition.get("aspect", "")
     evidence_spec = condition.get("evidence", {})
@@ -505,29 +593,31 @@ def evaluate_condition(item: dict, condition: dict, reviews: list = None, review
         # Declarative rule-based evaluation
         value = get_nested_value(item, path)
         satisfied = evaluate_item_meta_rule(value, evidence_spec)
+        score = satisfied
 
     elif kind == "review_text":
         # LLM judges each review, then aggregate with weights
         if not reviews:
-            return 0, {"kind": kind, "value": None, "satisfied": 0}
+            return 0, 0, {"kind": kind, "value": None, "satisfied": 0, "score": 0}
         judgments = [llm_judge_review(r.get("review_id", ""), r.get("text", ""), aspect) for r in reviews]
-        satisfied = aggregate_judgments(judgments, review_weights)
+        satisfied, score = aggregate_judgments(judgments, review_weights)
         value = {"judgments": judgments, "weights": review_weights}
 
     elif kind == "review_meta":
         # Lookup or list match - returns per-review weights for later use
         if not reviews:
-            return 0, {"kind": kind, "value": None, "satisfied": 0}
+            return 0, 0, {"kind": kind, "value": None, "satisfied": 0, "score": 0}
         satisfied, per_review_weights = evaluate_review_meta(reviews, path, match_list, aspect)
+        score = satisfied
         value = {"path": path, "match_list": match_list, "weights": per_review_weights}
 
     else:
-        return 0, {"kind": kind, "value": None, "satisfied": 0}
+        return 0, 0, {"kind": kind, "value": None, "satisfied": 0, "score": 0}
 
-    return satisfied, {"kind": kind, "value": value, "satisfied": satisfied}
+    return satisfied, score, {"kind": kind, "value": value, "satisfied": satisfied, "score": score}
 
 
-def evaluate_structure(item: dict, structure: dict, reviews: list = None) -> tuple[int, dict]:
+def evaluate_structure(item: dict, structure: dict, reviews: list = None) -> tuple[int, int, dict]:
     """Evaluate full AND/OR structure with three-value logic.
 
     Args:
@@ -536,37 +626,56 @@ def evaluate_structure(item: dict, structure: dict, reviews: list = None) -> tup
         reviews: List of review dicts (for review_text/review_meta kinds)
 
     Returns:
-        (result, evidence) where:
+        (result, score, evidence) where:
         - result: 1 (recommend), -1 (not recommend), 0 (unknown)
-        - evidence: dict of aspect → {value, satisfied}
+        - score: aggregated score based on operator
+        - evidence: dict of aspect → {value, satisfied, score}
     """
     op = structure.get("op", "AND")
     args = structure.get("args", [])
 
     all_evidence = {}
-    results = []
+    child_results = []  # list of (TV, score)
 
     for arg in args:
         if "op" in arg:
             # Nested structure
-            result, nested_evidence = evaluate_structure(item, arg, reviews)
+            result, score, nested_evidence = evaluate_structure(item, arg, reviews)
             all_evidence.update(nested_evidence)
         else:
             # Single condition
-            result, evidence = evaluate_condition(item, arg, reviews)
+            result, score, evidence = evaluate_condition(item, arg, reviews)
             aspect = arg.get("aspect", "unknown")
             all_evidence[aspect] = evidence
-        results.append(TV(result))
+        child_results.append((TV(result), score))
 
-    # Apply three-value logic using explicit TV operations
-    final = reduce_tv(op, results)
-    return final.value, all_evidence
+    # Boolean logic
+    final_tv = reduce_tv(op, [r for r, s in child_results])
+
+    # Score logic
+    scores = [s for r, s in child_results]
+    positive_scores = [s for s in scores if s > 0]
+
+    if op == "AND":
+        final_score = min(scores) if scores else 0
+    elif op == "OR":
+        final_score = max(positive_scores) if positive_scores else 0
+    else:  # ANY
+        final_score = sum(positive_scores)
+
+    return final_tv.value, final_score, all_evidence
 
 
 # --- Async Evaluation (parallel LLM calls) ---
 
-async def evaluate_condition_async(item: dict, condition: dict, reviews: list = None, review_weights: list[float] = None) -> tuple[int, dict]:
-    """Async version of evaluate_condition - parallelizes LLM calls for review_text."""
+async def evaluate_condition_async(item: dict, condition: dict, reviews: list = None, review_weights: list[float] = None) -> tuple[int, float, dict]:
+    """Async version of evaluate_condition - parallelizes LLM calls for review_text.
+
+    Returns (result, score, evidence) where:
+    - result: 1 (satisfied), 0 (unknown), -1 (not satisfied)
+    - score: positive ratio (0.0-1.0) for review_text, result value for others
+    - evidence: dict with kind, value, satisfied, score
+    """
     aspect = condition.get("aspect", "")
     evidence_spec = condition.get("evidence", {})
     kind = evidence_spec.get("kind", "item_meta")
@@ -577,36 +686,44 @@ async def evaluate_condition_async(item: dict, condition: dict, reviews: list = 
         # Sync - no LLM calls, use declarative rule-based evaluation
         value = get_nested_value(item, path)
         satisfied = evaluate_item_meta_rule(value, evidence_spec)
-        return satisfied, {"kind": kind, "value": value, "satisfied": satisfied}
+        score = satisfied  # item_meta score = its result value
+        return satisfied, score, {"kind": kind, "value": value, "satisfied": satisfied, "score": score}
 
     elif kind == "review_text":
         # Async - parallel LLM calls for all reviews
         if not reviews:
-            return 0, {"kind": kind, "value": None, "satisfied": 0}
+            return 0, 0, {"kind": kind, "value": None, "satisfied": 0, "score": 0}
         tasks = [llm_judge_review_async(r.get("review_id", ""), r.get("text", ""), aspect) for r in reviews]
         judgments = await asyncio.gather(*tasks)
-        satisfied = aggregate_judgments(list(judgments), review_weights)
+        satisfied, score = aggregate_judgments(list(judgments), review_weights)
         value = {"judgments": list(judgments), "weights": review_weights}
-        return satisfied, {"kind": kind, "value": value, "satisfied": satisfied}
+        return satisfied, score, {"kind": kind, "value": value, "satisfied": satisfied, "score": score}
 
     elif kind == "review_meta":
         # Sync - no LLM calls
         if not reviews:
-            return 0, {"kind": kind, "value": None, "satisfied": 0}
+            return 0, 0, {"kind": kind, "value": None, "satisfied": 0, "score": 0}
         satisfied, per_review_weights = evaluate_review_meta(reviews, path, match_list, aspect)
+        score = satisfied  # review_meta score = its result value
         value = {"path": path, "match_list": match_list, "weights": per_review_weights}
-        return satisfied, {"kind": kind, "value": value, "satisfied": satisfied}
+        return satisfied, score, {"kind": kind, "value": value, "satisfied": satisfied, "score": score}
 
-    return 0, {"kind": kind, "value": None, "satisfied": 0}
+    return 0, 0, {"kind": kind, "value": None, "satisfied": 0, "score": 0}
 
 
-async def evaluate_structure_async(item: dict, structure: dict, reviews: list = None) -> tuple[int, dict]:
-    """Async version of evaluate_structure - parallelizes condition evaluation."""
+async def evaluate_structure_async(item: dict, structure: dict, reviews: list = None) -> tuple[int, float, dict]:
+    """Async version of evaluate_structure - parallelizes condition evaluation.
+
+    Returns (result, score, evidence) where:
+    - result: 1 (satisfied), 0 (unknown), -1 (not satisfied)
+    - score: aggregated ratio based on operator (AND=min, OR=max(positive), ANY=sum(positive ratios))
+    - evidence: dict of aspect → {kind, value, satisfied, score}
+    """
     op = structure.get("op", "AND")
     args = structure.get("args", [])
 
     all_evidence = {}
-    results = []
+    child_results = []  # list of (TV, score)
 
     # Evaluate all conditions in parallel
     async def eval_arg(arg):
@@ -617,16 +734,29 @@ async def evaluate_structure_async(item: dict, structure: dict, reviews: list = 
 
     eval_results = await asyncio.gather(*[eval_arg(arg) for arg in args])
 
-    for arg, (result, evidence) in zip(args, eval_results):
+    for arg, (result, score, evidence) in zip(args, eval_results):
         if "op" in arg:
             all_evidence.update(evidence)
         else:
             aspect = arg.get("aspect", "unknown")
             all_evidence[aspect] = evidence
-        results.append(TV(result))
+        child_results.append((TV(result), score))
 
-    final = reduce_tv(op, results)
-    return final.value, all_evidence
+    # Boolean logic
+    final_tv = reduce_tv(op, [r for r, s in child_results])
+
+    # Score logic
+    scores = [s for r, s in child_results]
+    positive_scores = [s for s in scores if s > 0]
+
+    if op == "AND":
+        final_score = min(scores) if scores else 0
+    elif op == "OR":
+        final_score = max(positive_scores) if positive_scores else 0
+    else:  # ANY
+        final_score = sum(positive_scores)
+
+    return final_tv.value, final_score, all_evidence
 
 
 # --- Parallel Restaurant Processing ---
@@ -646,12 +776,13 @@ async def process_restaurant(
 
     for req in requests_for_item:
         structure = req.get("structure", {})
-        gold_label, evidence = await evaluate_structure_async(item, structure, reviews)
+        gold_label, total_score, evidence = await evaluate_structure_async(item, structure, reviews)
         entries.append({
             "item_id": item_id,
             "request_id": req["id"],
             "request_hash": hash_request(req),
             "gold_label": gold_label,
+            "total_score": total_score,
             "evidence": evidence
         })
         progress.update(task_id, advance=1)
@@ -850,9 +981,23 @@ def generate_groundtruth(selection_name: str, limit: int = 10, force: bool = Fal
     console.print(f"[green]Saved {len(all_entries)} entries to {output_path}[/green]")
     console.print(f"  (New: {len(new_entries)}, Existing: {len(existing)})")
 
+    # Save metadata file for data loader to use
+    from datetime import datetime
+    meta_path = YELP_DIR / f"groundtruth_{n}_meta.json"
+    metadata = {
+        "item_count": len(sorted_ids),
+        "item_ids": sorted_ids,
+        "selection_name": selection_name,
+        "created_at": datetime.now().isoformat()
+    }
+    with open(meta_path, "w") as f:
+        json.dump(metadata, f, indent=2)
+    console.print(f"[green]Saved metadata to {meta_path}[/green]")
+
     # Show visualization
     print_groundtruth_matrix(all_entries, sorted_ids, request_ids)
     print_statistics(stats, per_request)
+    print_hits_at_k(all_entries, request_ids, sorted_ids)
 
 
 def main():

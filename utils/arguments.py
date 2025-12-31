@@ -47,6 +47,10 @@ def parse_args():
     parser.add_argument("--base-url", default="",
                         help="Base URL for local provider")
 
+    # Ranking/evaluation arguments
+    parser.add_argument("--k", type=int, default=5,
+                        help="Number of predictions for Hits@K evaluation (default: 5)")
+
     # Execution arguments
     parser.add_argument("--max-concurrent", type=int, default=500,
                         help="Max concurrent API calls (default=500, safe for Tier 5)")

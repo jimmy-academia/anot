@@ -238,6 +238,45 @@ class ExperimentManager:
     def __repr__(self) -> str:
         return self.__str__()
 
+    def find_previous_run(self, method: str, data: str) -> tuple[Path, dict] | None:
+        """Find most recent dev run matching method and data.
+
+        Args:
+            method: Method name (cot, knot, etc.)
+            data: Data name (yelp, etc.)
+
+        Returns:
+            Tuple of (run_dir, config) if found, None otherwise
+        """
+        if self.benchmark_mode:
+            return None  # Only for dev mode
+
+        if not DEV_DIR.exists():
+            return None
+
+        candidates = []
+        for d in DEV_DIR.iterdir():
+            if not d.is_dir():
+                continue
+            config_path = d / "config.json"
+            results_path = d / "results.jsonl"
+            if not config_path.exists() or not results_path.exists():
+                continue
+
+            with open(config_path) as f:
+                config = json.load(f)
+
+            # Match method and data
+            if config.get("method") == method and config.get("data") == data:
+                candidates.append((d, config, config.get("timestamp", "")))
+
+        if not candidates:
+            return None
+
+        # Return most recent (by timestamp)
+        candidates.sort(key=lambda x: x[2], reverse=True)
+        return (candidates[0][0], candidates[0][1])
+
 
 def create_experiment(args) -> ExperimentManager:
     """

@@ -31,7 +31,12 @@ def get_method(args, run_dir: str = None) -> Callable:
 
     if name == "cot":
         from .cot import ChainOfThought
-        return ChainOfThought(defense=defense, run_dir=run_dir)
+        cot_instance = ChainOfThought(defense=defense, run_dir=run_dir)
+        # Return ranking callable if ranking mode is enabled (default: True)
+        if getattr(args, 'ranking', True):
+            k = getattr(args, 'k', 1)
+            return lambda q, c: cot_instance.evaluate_ranking(q, c, k)
+        return cot_instance
 
     elif name == "not":
         from .rnot import method

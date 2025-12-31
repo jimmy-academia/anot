@@ -242,6 +242,59 @@ def format_query(item: dict, mode: str = "string"):
     return "\n".join(parts), len(reviews)
 
 
+def format_ranking_query(items: list[dict], mode: str = "string") -> tuple:
+    """Format all items with indices for ranking task.
+
+    Args:
+        items: List of item dicts (all restaurants to rank)
+        mode: "string" for text format, "dict" for structured format
+
+    Returns:
+        (query, item_count) where query has items indexed 1 to N
+    """
+    if mode == "dict":
+        return {
+            "items": [
+                {
+                    "index": i + 1,
+                    "item_id": item.get("item_id"),
+                    "item_name": item.get("item_name", "Unknown"),
+                    "city": item.get("city", "Unknown"),
+                    "attributes": item.get("attributes", {}),
+                    "categories": item.get("categories", []),
+                    "hours": item.get("hours"),
+                    "item_data": [
+                        {
+                            "review_id": r.get("review_id", ""),
+                            "review": r.get("review", ""),
+                            "stars": r.get("stars", 0),
+                            "date": r.get("date", ""),
+                            "user": r.get("user", {})
+                        }
+                        for r in item.get("item_data", [])
+                    ]
+                }
+                for i, item in enumerate(items)
+            ]
+        }, len(items)
+
+    # String mode
+    parts = ["Restaurants:\n"]
+    for i, item in enumerate(items, 1):
+        reviews = item.get("item_data", [])
+        parts.append(f"[{i}] {item.get('item_name', 'Unknown')} ({item.get('city', 'Unknown')})")
+        parts.append(f"    Reviews: {len(reviews)}")
+        # Include brief review excerpts (first 2 reviews, truncated)
+        for r in reviews[:2]:
+            excerpt = r.get("review", "")[:150]
+            if len(r.get("review", "")) > 150:
+                excerpt += "..."
+            parts.append(f"      - {excerpt}")
+        parts.append("")
+
+    return "\n".join(parts), len(items)
+
+
 def normalize_pred(raw: Any) -> int:
     """Normalize prediction to {-1, 0, 1}."""
     if raw is None:
@@ -383,6 +436,19 @@ def load_yelp_dataset(selection_name: str, limit: int = None) -> tuple[list[dict
 
     # Sort by llm_percent descending
     sorted_ids = sorted(selection.keys(), key=lambda x: -selection[x].get("llm_percent", 0))
+
+    # Load groundtruth metadata for item filtering (if exists)
+    meta_path = YELP_DIR / f"groundtruth_{n}_meta.json"
+    if meta_path.exists():
+        with open(meta_path) as f:
+            gt_meta = json.load(f)
+        gt_item_ids = set(gt_meta.get("item_ids", []))
+        original_count = len(sorted_ids)
+        # Filter to only items in groundtruth (preserving llm_percent order)
+        sorted_ids = [sid for sid in sorted_ids if sid in gt_item_ids]
+        print(f"Filtered {original_count} → {len(sorted_ids)} items (from groundtruth metadata)")
+
+    # Apply user limit on top of groundtruth filter
     if limit:
         sorted_ids = sorted_ids[:limit]
 
@@ -445,3 +511,40 @@ def load_yelp_dataset(selection_name: str, limit: int = None) -> tuple[list[dict
     return items, requests
 
 
+def load_groundtruth_scores(selection_name: str) -> dict:
+    """Load groundtruth scores for ranking evaluation.
+
+    Gold selection policy: Only items with gold_label=+1 are candidates.
+    The gold item per request is the one with highest total_score among these.
+    This matches the logic in yelp_precompute_groundtruth.py's print_hits_at_k().
+
+    Args:
+        selection_name: e.g., "selection_1"
+
+    Returns:
+        Dict of {request_id: {item_id: total_score}} for gold_label=+1 items only
+    """
+    n = selection_name.replace("selection_", "")
+    groundtruth_path = YELP_DIR / f"groundtruth_{n}.jsonl"
+
+    if not groundtruth_path.exists():
+        raise FileNotFoundError(f"Groundtruth file not found: {groundtruth_path}")
+
+    # Build lookup: {request_id: {item_id: total_score}}
+    # Only include items with gold_label=+1 (definitively good matches)
+    scores = {}
+    for gt in loadjl(groundtruth_path):
+        req_id = gt["request_id"]
+        item_id = gt["item_id"]
+        gold_label = gt.get("gold_label", 0)
+
+        # Gold selection: only items with gold_label=+1 are candidates
+        if gold_label != 1:
+            continue
+
+        score = gt.get("total_score", 0)
+        if req_id not in scores:
+            scores[req_id] = {}
+        scores[req_id][item_id] = score
+
+    return scores
