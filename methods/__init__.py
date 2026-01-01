@@ -11,6 +11,7 @@ from .prp import PairwiseRankingPrompting
 from .listwise import ListwiseRanker
 from .rnot import method as rnot
 from .anot import AdaptiveNetworkOfThought, create_method as create_method_anot
+from .anot_v2 import AdaptiveNetworkOfThoughtV2, create_method as create_method_anot_v2
 
 
 def get_method(args, run_dir: str = None) -> Callable:
@@ -46,6 +47,16 @@ def get_method(args, run_dir: str = None) -> Callable:
         import os
         debug = os.environ.get("KNOT_DEBUG", "0") == "1"
         return create_anot(run_dir=run_dir, debug=debug)
+
+    elif name == "anot_v2":
+        from .anot_v2 import create_method as create_anot_v2
+        import os
+        debug = os.environ.get("KNOT_DEBUG", "0") == "1"
+        anot_instance = create_anot_v2(run_dir=run_dir, defense=defense, debug=debug)
+        if getattr(args, 'ranking', True):
+            k = getattr(args, 'k', 1)
+            return lambda q, c: anot_instance.evaluate_ranking(q, c, k)
+        return anot_instance
 
     elif name == "react":
         from .react import ReAct

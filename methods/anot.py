@@ -48,70 +48,37 @@ console = Console(theme=ANOT_THEME, force_terminal=True)
 # Prompts
 # =============================================================================
 
-CONTEXT_ANALYSIS_PROMPT = """Analyze this user request to understand what they need.
+CONTEXT_ANALYSIS_PROMPT = """What conditions must a restaurant satisfy for this request?
 
-Request: {context}
+Request: "{context}"
 
-Identify:
-1. What conditions must be satisfied? (list each one)
-2. For each condition, where would you find evidence?
-   - METADATA: attributes like WiFi, NoiseLevel, OutdoorSeating, Alcohol, RestaurantsPriceRange2, DogsAllowed, BikeParking, Ambience, HasTV
-   - HOURS: time-based constraints (open on specific day, available during specific hours)
-   - REVIEWS: subjective qualities mentioned in customer reviews (good matcha, aesthetic, cozy, latte art, books)
+List each condition and where to find evidence:
+- METADATA: WiFi, NoiseLevel, OutdoorSeating, Alcohol, RestaurantsPriceRange2, DogsAllowed, BikeParking, HasTV
+- HOURS: open on specific day/time
+- REVIEWS: subjective qualities (matcha, aesthetic, cozy, books)
 
-Output format:
+Example output for "quiet cafe with free Wi-Fi and no TV":
 CONDITIONS:
-- [condition 1]: [METADATA/HOURS/REVIEWS] - [what to check]
-- [condition 2]: [METADATA/HOURS/REVIEWS] - [what to check]
-...
+- quiet: METADATA - NoiseLevel should be 'quiet' or 'low'
+- free WiFi: METADATA - WiFi should be 'free'
+- no TV: METADATA - HasTV should be False
 
-LOGIC: AND (all must be satisfied)
+Now list conditions for the request above:
 """
 
-SCRIPT_GENERATION_PROMPT = """Generate an LWT script to evaluate this restaurant.
+SCRIPT_GENERATION_PROMPT = """Write a script to check: {context}
 
-USER REQUEST ANALYSIS:
-{context_analysis}
+Conditions: {context_analysis}
 
-AVAILABLE DATA:
-- Attributes: {attribute_keys}
-- Hours: {available_days}
-- Reviews: {review_count} reviews (avg {avg_review_length:.0f} chars)
+IMPORTANT: Use {{(input)}}[attributes][Key] to access attributes like WiFi, NoiseLevel, HasTV.
+Use {{(N)}} to reference step N result.
 
-RESTAURANT DATA STRUCTURE:
-{{(input)}}[attributes][<key>] - for metadata (values are strings like "'free'", "u'quiet'", "True", "False")
-{{(input)}}[hours][<Day>] - for hours (format: "7:0-19:0" means 7am-7pm)
-{{(input)}}[item_data][<i>][review] - for review text (i is 0-indexed)
+Example for "quiet with WiFi":
+(0)=LLM("{{(input)}}[attributes][NoiseLevel] is 'quiet'? 1=yes -1=no 0=unclear")
+(1)=LLM("{{(input)}}[attributes][WiFi] is 'free'? 1=yes -1=no 0=unclear")
+(2)=LLM("noise={{(0)}}, wifi={{(1)}}. All 1 means match: output 1. Any -1: output -1. Else 0")
 
-Generate an LWT script with these rules:
-1. Each line: (N)=LLM("instruction")
-2. Use {{(input)}} for restaurant data, {{(context)}} for user request
-3. Use {{(N)}} to reference previous step results
-4. For METADATA conditions: check {{(input)}}[attributes][<key>] directly
-5. For HOURS conditions: check {{(input)}}[hours][<Day>] and parse time ranges
-6. For REVIEWS conditions: analyze {{(input)}}[item_data][i][review] for EACH review, then aggregate
-7. Final step must combine all results and output exactly: -1, 0, or 1
-
-Example for "quiet cafe with WiFi open Monday 10am":
-(0)=LLM("Value is {{(input)}}[attributes][NoiseLevel]. Is it quiet? Output: 1 if quiet/average, -1 if loud, 0 if missing")
-(1)=LLM("Value is {{(input)}}[attributes][WiFi]. Is it free? Output: 1 if free, 0 if paid/unclear, -1 if none")
-(2)=LLM("Hours are {{(input)}}[hours][Monday]. Is 10:00 within these hours? Output: 1 if yes, -1 if no/closed, 0 if unclear")
-(3)=LLM("Combine: noise={{(0)}}, wifi={{(1)}}, hours={{(2)}}. If any -1: output -1. If all 1: output 1. Else: 0")
-
-Example for "cafe with good matcha in reviews" (3 reviews):
-(0)=LLM("Review: {{(input)}}[item_data][0][review]. Mentions good matcha? Output: POSITIVE, NEGATIVE, or NONE")
-(1)=LLM("Review: {{(input)}}[item_data][1][review]. Mentions good matcha? Output: POSITIVE, NEGATIVE, or NONE")
-(2)=LLM("Review: {{(input)}}[item_data][2][review]. Mentions good matcha? Output: POSITIVE, NEGATIVE, or NONE")
-(3)=LLM("Aggregate {{(0)}}, {{(1)}}, {{(2)}}: Count POSITIVE vs NEGATIVE. More positive=1, more negative=-1, mixed/none=0")
-
-Example for "outdoor seating + aesthetic in reviews" (2 reviews):
-(0)=LLM("Value is {{(input)}}[attributes][OutdoorSeating]. Is it True? Output: 1 if True, -1 if False, 0 if missing")
-(1)=LLM("Review: {{(input)}}[item_data][0][review]. Describes aesthetic/instagram-worthy? POSITIVE/NEGATIVE/NONE")
-(2)=LLM("Review: {{(input)}}[item_data][1][review]. Describes aesthetic/instagram-worthy? POSITIVE/NEGATIVE/NONE")
-(3)=LLM("Aggregate {{(1)}}, {{(2)}}: More POSITIVE=1, more NEGATIVE=-1, else=0")
-(4)=LLM("Combine: outdoor={{(0)}}, aesthetic={{(3)}}. If any -1: output -1. If all 1: output 1. Else: 0")
-
-Now generate the script for this request. Output ONLY the script lines, nothing else:
+Now write script for the conditions above:
 """
 
 
@@ -182,16 +149,20 @@ class AdaptiveNetworkOfThought:
     def phase2_generate_script(self, context_analysis: str, query_info: dict,
                                 query: dict, context: str) -> str:
         """Phase 2: Generate LWT script tailored to evidence types."""
+        # Fallback if context_analysis is empty
+        if not context_analysis or not context_analysis.strip():
+            context_analysis = f"(extract conditions from the user request)"
+
         prompt = SCRIPT_GENERATION_PROMPT.format(
+            context=context,
             context_analysis=context_analysis,
             attribute_keys=", ".join(query_info["attribute_keys"]) or "(none)",
-            available_days=", ".join(query_info["available_days"]) or "(none)",
-            review_count=query_info["review_count"],
-            avg_review_length=query_info["avg_review_length"],
         )
 
         if self.debug:
             console.print(Panel("PHASE 2: Script Generation", style="phase"))
+            console.print("[dim]Prompt being sent:[/dim]")
+            console.print(f"[dim]{prompt[:1000]}...[/dim]")
 
         start = time.time()
         script = call_llm(prompt, system=SYSTEM_PROMPT, role="planner")
@@ -199,8 +170,8 @@ class AdaptiveNetworkOfThought:
 
         if self.debug:
             console.print(f"[time]Duration: {duration:.2f}s[/time]")
-            console.print("[subphase]Generated Script:[/subphase]")
-            console.print(Syntax(script, "python", theme="monokai", line_numbers=True))
+            console.print(f"[subphase]Generated Script (len={len(script)}):[/subphase]")
+            console.print(f"[dim]>>>{repr(script)}<<<[/dim]")
             console.rule()
 
         return script

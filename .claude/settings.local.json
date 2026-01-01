@@ -30,7 +30,10 @@
       "WebSearch",
       "WebFetch(domain:arxiv.org)",
       "Bash(stat:*)",
-      "Bash(git -C /Users/jimmyyeh/Documents/Station/xnot log --oneline -20)"
+      "Bash(git -C /Users/jimmyyeh/Documents/Station/xnot log --oneline -20)",
+      "Bash(KNOT_DEBUG=1 timeout 300 python:*)",
+      "Bash(git -C /Users/jimmyyeh/Documents/Station/xnot log --oneline -5)",
+      "Bash(git add:*)"
     ]
   }
 }
