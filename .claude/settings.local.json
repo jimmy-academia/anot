@@ -55,7 +55,11 @@
       "Bash(do basename \"$dir\")",
       "Bash(python:*)",
       "Bash(git -C /Users/jimmyyeh/Documents/Station/xnot ls-files:*)",
-      "Bash(KNOT_DEBUG=1 python:*)"
+      "Bash(KNOT_DEBUG=1 python:*)",
+      "Bash(git -C /Users/jimmyyeh/Documents/Station/xnot check-ignore:*)",
+      "Bash(git -C /Users/jimmyyeh/Documents/Station/xnot log --all --pretty=format:\"%h %s\" --name-only)",
+      "Bash(while read f)",
+      "Bash(do grep \"name = \" \"$f\")"
     ]
   }
 }
