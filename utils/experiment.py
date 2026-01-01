@@ -4,6 +4,7 @@ Handles directory creation, logging setup, and result saving.
 """
 
 import json
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, Dict, Any, List
@@ -26,19 +27,26 @@ class ExperimentManager:
     - Config and results saving
     """
 
-    def __init__(self, run_name: str, benchmark_mode: bool = False):
+    def __init__(self, run_name: str, benchmark_mode: bool = False,
+                 method: str = None, data: str = None, selection_name: str = None):
         """
         Initialize experiment manager.
 
         Args:
-            run_name: Name for this run
+            run_name: Name for this run (used in dev mode)
             benchmark_mode: If True, use benchmark directory (tracked in git)
+            method: Method name (for benchmark directory naming)
+            data: Data name (for benchmark directory naming)
+            selection_name: Selection name (for benchmark subdirectory naming)
 
         Raises:
             ExperimentError: If benchmark directory exists
         """
         self.run_name = run_name
         self.benchmark_mode = benchmark_mode
+        self.method = method
+        self.data = data
+        self.selection_name = selection_name
         self.run_dir: Optional[Path] = None
         self.config: Dict[str, Any] = {}
         self._created = False
@@ -116,25 +124,57 @@ class ExperimentManager:
 
     def _setup_benchmark_dir(self) -> Path:
         """
-        Create benchmark directory (no numbering).
+        Create benchmark directory with two-level structure.
 
-        Pattern: results/benchmarks/{run_name}/
+        Pattern: results/benchmarks/{method}_{data}/{selection_name}_run_{N}/
 
         Raises:
-            ExperimentError: If directory already exists
+            ExperimentError: If specific run directory already exists
         """
-        BENCHMARK_DIR.mkdir(parents=True, exist_ok=True)
+        # Parent directory: results/benchmarks/{method}_{data}/
+        parent_name = f"{self.method}_{self.data}"
+        parent_dir = BENCHMARK_DIR / parent_name
+        parent_dir.mkdir(parents=True, exist_ok=True)
 
-        run_dir = BENCHMARK_DIR / self.run_name
+        # Subdir: {selection_name}_run_{N}
+        run_num = self._get_next_benchmark_run()
+        subdir_name = f"{self.selection_name}_run_{run_num}"
+        run_dir = parent_dir / subdir_name
 
         if run_dir.exists():
             raise ExperimentError(
-                f"Benchmark already exists: {run_dir}\n"
-                f"Delete it manually or choose different --run-name"
+                f"Run already exists: {run_dir}\n"
+                f"Delete manually to replace"
             )
 
-        run_dir.mkdir(exist_ok=True)
+        run_dir.mkdir()
         return run_dir
+
+    def _get_next_benchmark_run(self) -> int:
+        """Find next run number for current selection in benchmark mode."""
+        parent = BENCHMARK_DIR / f"{self.method}_{self.data}"
+        if not parent.exists():
+            return 1
+
+        existing = list(parent.glob(f"{self.selection_name}_run_*/"))
+        if not existing:
+            return 1
+
+        nums = []
+        for p in existing:
+            match = re.search(r'_run_(\d+)$', p.name)
+            if match:
+                nums.append(int(match.group(1)))
+        return max(nums) + 1 if nums else 1
+
+    def get_completed_runs(self) -> int:
+        """Return count of completed runs for current benchmark config."""
+        if not self.benchmark_mode:
+            return 0
+        parent = BENCHMARK_DIR / f"{self.method}_{self.data}"
+        if not parent.exists():
+            return 0
+        return len(list(parent.glob(f"{self.selection_name}_run_*/")))
 
     def _get_next_run_number(self) -> int:
         """Scan dev directory and find next available run number."""
@@ -283,7 +323,7 @@ def create_experiment(args) -> ExperimentManager:
     Factory function to create ExperimentManager from parsed arguments.
 
     Args:
-        args: Parsed argparse namespace with run_name, benchmark
+        args: Parsed argparse namespace with run_name, benchmark, method, data, selection_name
 
     Returns:
         Configured ExperimentManager instance (not yet setup)
@@ -291,5 +331,8 @@ def create_experiment(args) -> ExperimentManager:
     run_name = args.run_name or args.method or "unnamed"
     return ExperimentManager(
         run_name=run_name,
-        benchmark_mode=getattr(args, 'benchmark', False)
+        benchmark_mode=getattr(args, 'benchmark', False),
+        method=getattr(args, 'method', None),
+        data=getattr(args, 'data', None),
+        selection_name=getattr(args, 'selection_name', None),
     )

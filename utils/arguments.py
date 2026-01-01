@@ -2,7 +2,7 @@ import argparse
 from attack import ATTACK_CHOICES
 
 PARALLEL_MODE = True
-BENCHMARK_MODE = False
+BENCHMARK_MODE = True
 
 # Default selection number for each dataset
 DEFAULT_SELECTIONS = {
@@ -53,6 +53,8 @@ def parse_args():
                         help="Max concurrent API calls (default=200)")
     parser.add_argument("--sequential", action="store_true",
                         help="Disable parallel execution (run sequentially instead)")
+    parser.add_argument("--auto", type=int, default=None,
+                        help="Auto-run N times for benchmark averaging (benchmark mode only)")
     # Verbose
     parser.add_argument("--verbose", "-v", action="store_true",
                         help="Enable verbose/debug output")

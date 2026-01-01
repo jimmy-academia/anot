@@ -399,8 +399,8 @@ def run_evaluation_loop(args, data, requests, method, experiment):
         print_ranking_results({"results": cached["results"], "stats": cached["stats"]})
         return {"clean": cached["stats"]}  # Return stats dict for consistency
 
-    # Evaluation mode (always string for current methods)
-    eval_mode = "string"
+    # Evaluation mode: dict for anot, string for others
+    eval_mode = "dict" if args.method == "anot" else "string"
 
     # Check if ranking mode is enabled (default: True for top-1 accuracy)
     ranking_mode = getattr(args, 'ranking', True)

@@ -10,6 +10,12 @@ import json
 import time
 from typing import Optional
 
+from rich.console import Console
+from rich.panel import Panel
+from rich.syntax import Syntax
+from rich.table import Table
+from rich.theme import Theme
+
 from .shared import (
     DEBUG,
     SYSTEM_PROMPT,
@@ -18,6 +24,24 @@ from .shared import (
     parse_script,
     parse_final_answer,
 )
+
+# =============================================================================
+# Rich Console for Debug Output
+# =============================================================================
+
+ANOT_THEME = Theme({
+    "phase": "bold magenta",
+    "subphase": "bold cyan",
+    "context": "yellow",
+    "script": "green",
+    "step": "bold blue",
+    "output": "white",
+    "time": "dim",
+    "success": "bold green",
+    "error": "bold red",
+    "warning": "bold yellow",
+})
+console = Console(theme=ANOT_THEME, force_terminal=True)
 
 
 # =============================================================================
@@ -108,17 +132,19 @@ class AdaptiveNetworkOfThought:
         prompt = CONTEXT_ANALYSIS_PROMPT.format(context=context)
 
         if self.debug:
-            print("=" * 50)
-            print("PHASE 1: Context Analysis")
+            console.print(Panel("PHASE 1: Context Analysis", style="phase"))
+            console.print("[dim]Prompt:[/dim]")
+            console.print(prompt, style="dim")
 
         start = time.time()
         analysis = call_llm(prompt, system=SYSTEM_PROMPT, role="planner")
         duration = time.time() - start
 
         if self.debug:
-            print(f"Duration: {duration:.2f}s")
-            print(f"Analysis:\n{analysis}")
-            print("=" * 50)
+            console.print(f"\n[time]Duration: {duration:.2f}s[/time]")
+            console.print("[subphase]Analysis Result:[/subphase]")
+            console.print(analysis)
+            console.rule()
 
         return analysis
 
@@ -141,11 +167,15 @@ class AdaptiveNetworkOfThought:
         }
 
         if self.debug:
-            print("PHASE 1b: Query Analysis")
-            print(f"Attributes: {info['attribute_keys']}")
-            print(f"Hours: {info['available_days']}")
-            print(f"Reviews: {info['review_count']} (avg {info['avg_review_length']:.0f} chars)")
-            print("=" * 50)
+            console.print(Panel("PHASE 1b: Query Structure", style="phase"))
+            table = Table(show_header=True)
+            table.add_column("Type", style="cyan")
+            table.add_column("Available Data", style="white")
+            table.add_row("Attributes", ", ".join(info['attribute_keys']) or "(none)")
+            table.add_row("Hours", ", ".join(info['available_days']) or "(none)")
+            table.add_row("Reviews", f"{info['review_count']} reviews (avg {info['avg_review_length']:.0f} chars)")
+            console.print(table)
+            console.rule()
 
         return info
 
@@ -161,16 +191,17 @@ class AdaptiveNetworkOfThought:
         )
 
         if self.debug:
-            print("PHASE 2: Script Generation")
+            console.print(Panel("PHASE 2: Script Generation", style="phase"))
 
         start = time.time()
         script = call_llm(prompt, system=SYSTEM_PROMPT, role="planner")
         duration = time.time() - start
 
         if self.debug:
-            print(f"Duration: {duration:.2f}s")
-            print(f"Script:\n{script}")
-            print("=" * 50)
+            console.print(f"[time]Duration: {duration:.2f}s[/time]")
+            console.print("[subphase]Generated Script:[/subphase]")
+            console.print(Syntax(script, "python", theme="monokai", line_numbers=True))
+            console.rule()
 
         return script
 
@@ -179,7 +210,9 @@ class AdaptiveNetworkOfThought:
         filled = substitute_variables(instr, query, context, self.cache)
 
         if self.debug:
-            print(f"Step ({idx}): {filled[:100]}...")
+            console.print(f"\n[step]Step ({idx})[/step]")
+            console.print(f"  [dim]Instruction:[/dim] {instr}")
+            console.print(f"  [dim]Filled:[/dim] {filled[:300]}{'...' if len(filled) > 300 else ''}")
 
         try:
             start = time.time()
@@ -189,10 +222,10 @@ class AdaptiveNetworkOfThought:
             output = "0"
             duration = 0
             if self.debug:
-                print(f"  Error: {e}")
+                console.print(f"  [error]Error: {e}[/error]")
 
         if self.debug:
-            print(f"  -> {output[:100]}... ({duration:.2f}s)")
+            console.print(f"  [output]→ {output}[/output] [time]({duration:.2f}s)[/time]")
 
         return output
 
@@ -204,12 +237,11 @@ class AdaptiveNetworkOfThought:
         if not steps:
             # Fallback to direct LLM call
             if self.debug:
-                print("No steps parsed, using fallback")
+                console.print("[warning]No steps parsed, using fallback[/warning]")
             return self._fallback_direct(query, context)
 
         if self.debug:
-            print("PHASE 3: Execution")
-            print(f"Parsed {len(steps)} steps")
+            console.print(Panel(f"PHASE 3: Execution ({len(steps)} steps)", style="phase"))
 
         final = ""
         for idx, instr in steps:
@@ -218,7 +250,7 @@ class AdaptiveNetworkOfThought:
             final = output
 
         if self.debug:
-            print("=" * 50)
+            console.rule()
 
         return final
 
@@ -237,9 +269,11 @@ Output ONLY: -1 (no), 0 (unclear), or 1 (yes)"""
     def solve(self, query, context: str) -> int:
         """Full pipeline: analyze → generate script → execute."""
         if self.debug:
-            print("\n" + "=" * 60)
-            print("ANoT SOLVE")
-            print("=" * 60)
+            console.print()
+            console.print(Panel.fit("[bold white]ANoT SOLVE[/bold white]", style="on blue"))
+            console.print(f"[context]Context:[/context] {context}")
+            console.print(f"[context]Item:[/context] {query.get('item_name', 'Unknown')}")
+            console.rule()
 
         # Phase 1: Analyze context (what to check)
         context_analysis = self.phase1_analyze_context(context)
@@ -257,8 +291,13 @@ Output ONLY: -1 (no), 0 (unclear), or 1 (yes)"""
         answer = parse_final_answer(output)
 
         if self.debug:
-            print(f"Final answer: {answer}")
-            print("=" * 60 + "\n")
+            if answer == 1:
+                console.print(Panel(f"[success]Final Answer: {answer} (RECOMMEND)[/success]", style="green"))
+            elif answer == -1:
+                console.print(Panel(f"[error]Final Answer: {answer} (NOT RECOMMEND)[/error]", style="red"))
+            else:
+                console.print(Panel(f"[warning]Final Answer: {answer} (UNCLEAR)[/warning]", style="yellow"))
+            console.print()
 
         return answer
 
@@ -280,7 +319,7 @@ def create_method(run_dir: str = None, debug: bool = False):
             return _executor.solve(query, context)
         except Exception as e:
             if debug or DEBUG:
-                print(f"Error: {e}")
+                console.print(f"[error]Error: {e}[/error]")
             return 0
     return method_fn
 
