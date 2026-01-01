@@ -10,8 +10,8 @@ from run import format_query
 # Initialize method
 method = ChainOfThought()
 
-# Load data
-items, requests = load_yelp_dataset("selection_1", limit=3)
+# Load data - use 5 items for reasonable test
+items, requests = load_yelp_dataset("selection_1", limit=5)
 g01_requests = [r for r in requests if r["id"] in ["R00", "R01", "R02", "R03", "R04"]]
 
 print("=== Comparing Clean vs Sarcastic Attack on G01 Requests ===")
@@ -29,25 +29,21 @@ with open(gt_file) as f:
 # Apply sarcastic attack
 items_attacked = apply_attack(items, "sarcastic", target_attributes=None)
 
-# Test on a subset
+# Test on all items
 results = {"clean_correct": 0, "attacked_correct": 0, "total": 0, "changed": 0}
 
-for item_idx in range(min(2, len(items))):
+for item_idx in range(len(items)):
     item_clean = items[item_idx]
     item_attacked = items_attacked[item_idx]
     item_id = item_clean["item_id"]
     item_name = item_clean.get("item_name", "N/A")
 
-    print(f"=== {item_name} ===")
-
-    # Show injected reviews
+    # Show injected reviews (condensed)
     injected = [r for r in item_attacked["item_data"] if r["review_id"].startswith("sarcastic_")]
-    print(f"  Injected sarcastic reviews: {len(injected)}")
-    for r in injected:
-        print(f"    [{r['review_id']}] {r['review'][:60]}...")
-    print()
+    injected_ids = [r['review_id'].replace('sarcastic_', '') for r in injected]
+    print(f"=== {item_name} === (injected: {', '.join(injected_ids) or 'none'})")
 
-    for req in g01_requests[:3]:  # Test on first 3 requests
+    for req in g01_requests:  # Test on all G01 requests
         req_id = req["id"]
         scenario = req.get("scenario", "")
         gold = gt_labels.get((item_id, req_id), None)
@@ -61,8 +57,8 @@ for item_idx in range(min(2, len(items))):
 
         # Get predictions
         try:
-            pred_clean = cot(req["text"], query_clean)
-            pred_attacked = cot(req["text"], query_attacked)
+            pred_clean = method.evaluate(req["text"], query_clean)
+            pred_attacked = method.evaluate(req["text"], query_attacked)
 
             results["total"] += 1
             if pred_clean == gold:
@@ -75,15 +71,10 @@ for item_idx in range(min(2, len(items))):
             match_clean = "✓" if pred_clean == gold else "✗"
             match_attacked = "✓" if pred_attacked == gold else "✗"
 
-            print(f"  {req_id} ({scenario}): gold={gold}")
-            print(f"    Clean:     pred={pred_clean} {match_clean}")
-            print(f"    Sarcastic: pred={pred_attacked} {match_attacked}")
-
-            if pred_clean != pred_attacked:
-                print(f"    *** PREDICTION CHANGED ***")
+            changed = "CHANGED" if pred_clean != pred_attacked else ""
+            print(f"  {req_id}: gold={gold:2d} | clean={pred_clean:2d}{match_clean} | sarcastic={pred_attacked:2d}{match_attacked} {changed}")
         except Exception as e:
             print(f"  {req_id}: Error - {e}")
-        print()
 
 # Summary
 print("=" * 50)

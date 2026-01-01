@@ -10,9 +10,8 @@ from .finegrained import FineGrainedRanker
 from .prp import PairwiseRankingPrompting
 from .listwise import ListwiseRanker
 from .rnot import method as rnot
-from .anot import AdaptiveNetworkOfThought, create_method as create_method_anot
-from .anot_v2 import AdaptiveNetworkOfThoughtV2, create_method as create_method_anot_v2
 from .anot_v3 import AdaptiveNetworkOfThoughtV3, create_method as create_method_anot_v3
+from .anot_origin import AdaptiveNetworkOfThoughtOrigin, create_method as create_method_anot_origin
 
 
 def get_method(args, run_dir: str = None) -> Callable:
@@ -43,32 +42,22 @@ def get_method(args, run_dir: str = None) -> Callable:
         from .rnot import method
         return method
 
-    elif name == "anot":
-        from .anot import create_method as create_anot
-        import os
-        debug = os.environ.get("KNOT_DEBUG", "0") == "1"
-        anot_instance = create_anot(run_dir=run_dir, debug=debug)
-        if getattr(args, 'ranking', True):
-            k = getattr(args, 'k', 1)
-            return lambda q, c: anot_instance.evaluate_ranking(q, c, k)
-        return lambda q, c: anot_instance.solve(q, c)
-
-    elif name == "anot_v2":
-        from .anot_v2 import create_method as create_anot_v2
-        import os
-        debug = os.environ.get("KNOT_DEBUG", "0") == "1"
-        anot_instance = create_anot_v2(run_dir=run_dir, defense=defense, debug=debug)
-        if getattr(args, 'ranking', True):
-            k = getattr(args, 'k', 1)
-            return lambda q, c: anot_instance.evaluate_ranking(q, c, k)
-        return anot_instance
-
-    elif name == "anot_v3":
+    elif name == "anot" or name == "anot_v3":
         from .anot_v3 import create_method as create_anot_v3
         import os
         debug = os.environ.get("KNOT_DEBUG", "0") == "1"
         anot_instance = create_anot_v3(run_dir=run_dir, defense=defense, debug=debug)
         # anot_v3 only supports per-item evaluation (no ranking mode yet)
+        return anot_instance
+
+    elif name == "anot_origin":
+        from .anot_origin import create_method as create_anot_origin
+        import os
+        debug = os.environ.get("KNOT_DEBUG", "0") == "1"
+        anot_instance = create_anot_origin(run_dir=run_dir, defense=defense, debug=debug)
+        if getattr(args, 'ranking', True):
+            k = getattr(args, 'k', 1)
+            return lambda q, c: anot_instance.evaluate_ranking(q, c, k)
         return anot_instance
 
     elif name == "react":
@@ -184,10 +173,8 @@ __all__ = [
     'ListwiseRanker',
     'rnot',
     'get_method',
-    'AdaptiveNetworkOfThought',
-    'create_method_anot',
-    'AdaptiveNetworkOfThoughtV2',
-    'create_method_anot_v2',
     'AdaptiveNetworkOfThoughtV3',
     'create_method_anot_v3',
+    'AdaptiveNetworkOfThoughtOrigin',
+    'create_method_anot_origin',
 ]
