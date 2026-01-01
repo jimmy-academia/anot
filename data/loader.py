@@ -157,17 +157,25 @@ def format_query(item: dict, mode: str = "string"):
     reviews = item.get("item_data", [])
 
     if mode == "dict":
-        # Return clean dict for structured access
+        # Return clean dict for structured access (includes attributes, hours, user for ANoT)
         return {
-            "item_name": item.get("item_name", "Unknown"),
             "item_id": item.get("item_id", "unknown"),
+            "item_name": item.get("item_name", "Unknown"),
             "city": item.get("city", "Unknown"),
             "neighborhood": item.get("neighborhood", "Unknown"),
-            "price_range": item.get("price_range", "Unknown"),
-            "cuisine": item.get("cuisine", []),
-            "item_data": [{"review_id": r.get("review_id", ""), "review": r.get("review", ""),
-                          "stars": r.get("stars", 0)}
-                          for r in reviews]
+            "attributes": item.get("attributes", {}),
+            "hours": item.get("hours"),
+            "categories": item.get("categories", []),
+            "item_data": [
+                {
+                    "review_id": r.get("review_id", ""),
+                    "review": r.get("review", ""),
+                    "stars": r.get("stars", 0),
+                    "date": r.get("date", ""),
+                    "user": r.get("user", {})
+                }
+                for r in reviews
+            ]
         }, len(reviews)
 
     # String mode (default)

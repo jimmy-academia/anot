@@ -5,6 +5,8 @@ from typing import Callable
 from .base import BaseMethod
 from .cot import ChainOfThought
 from .react import ReAct
+from .decomp import DecomposedPrompting
+from .finegrained import FineGrainedRanker
 from .rnot import method as rnot
 from .knot import create_method, method as knot, set_output_dir, set_defense_mode, set_current_ids
 from .knot_v4 import KnowledgeNetworkOfThoughtV4
@@ -81,6 +83,38 @@ def get_method(args, run_dir: str = None) -> Callable:
             return lambda q, c: l2m_instance.evaluate_ranking(q, c, k)
         return l2m_instance
 
+    elif name == "ps":
+        from .ps import PlanAndSolve
+        ps_instance = PlanAndSolve(run_dir=run_dir)
+        if getattr(args, 'ranking', True):
+            k = getattr(args, 'k', 1)
+            return lambda q, c: ps_instance.evaluate_ranking(q, c, k)
+        return ps_instance
+
+    elif name == "selfask":
+        from .selfask import SelfAsk
+        selfask_instance = SelfAsk(run_dir=run_dir)
+        if getattr(args, 'ranking', True):
+            k = getattr(args, 'k', 1)
+            return lambda q, c: selfask_instance.evaluate_ranking(q, c, k)
+        return selfask_instance
+
+    elif name == "decomp":
+        from .decomp import DecomposedPrompting
+        decomp_instance = DecomposedPrompting(defense=defense, run_dir=run_dir)
+        if getattr(args, 'ranking', True):
+            k = getattr(args, 'k', 1)
+            return lambda q, c: decomp_instance.evaluate_ranking(q, c, k)
+        return decomp_instance
+
+    elif name == "finegrained":
+        from .finegrained import FineGrainedRanker
+        fg_instance = FineGrainedRanker(defense=defense, run_dir=run_dir)
+        if getattr(args, 'ranking', True):
+            k = getattr(args, 'k', 1)
+            return lambda q, c: fg_instance.evaluate_ranking(q, c, k)
+        return fg_instance
+
     elif name == "dummy":
         return lambda query, context: 0
 
@@ -92,6 +126,8 @@ __all__ = [
     'BaseMethod',
     'ChainOfThought',
     'ReAct',
+    'DecomposedPrompting',
+    'FineGrainedRanker',
     'rnot',
     'knot',
     'get_method',
