@@ -70,15 +70,24 @@ SCRIPT_GENERATION_PROMPT = """Write a script to check: {context}
 
 Conditions: {context_analysis}
 
-IMPORTANT: Use {{(input)}}[attributes][Key] to access attributes like WiFi, NoiseLevel, HasTV.
-Use {{(N)}} to reference step N result.
+CRITICAL FORMAT RULES:
+1. Access attributes: {{(input)}}[attributes][WiFi], {{(input)}}[attributes][NoiseLevel], etc.
+2. Access hours: {{(input)}}[hours][Monday], {{(input)}}[hours][Tuesday], etc.
+3. Access reviews: {{(input)}}[item_data][0][review], {{(input)}}[item_data][1][review], etc.
+4. Every instruction MUST end with: Output ONLY -1, 0, or 1
+5. Reference previous: {{(0)}}, {{(1)}}, etc.
 
-Example for "quiet with WiFi":
-(0)=LLM("{{(input)}}[attributes][NoiseLevel] is 'quiet'? 1=yes -1=no 0=unclear")
-(1)=LLM("{{(input)}}[attributes][WiFi] is 'free'? 1=yes -1=no 0=unclear")
-(2)=LLM("noise={{(0)}}, wifi={{(1)}}. All 1 means match: output 1. Any -1: output -1. Else 0")
+VALUE INTERPRETATION:
+- NoiseLevel: 'quiet'=good, 'average'=bad, 'loud'=bad
+- WiFi: 'free'=good, anything else=bad
+- Boolean attributes: True=yes, False=no
 
-Now write script for the conditions above:
+Example:
+(0)=LLM("{{(input)}}[attributes][NoiseLevel]. If 'quiet' output 1. If 'average' or 'loud' output -1. Output ONLY -1, 0, or 1")
+(1)=LLM("{{(input)}}[attributes][WiFi]. If 'free' output 1. Else output -1. Output ONLY -1, 0, or 1")
+(2)=LLM("{{(0)}}={{(0)}}, {{(1)}}={{(1)}}. If any -1 then output -1. If all 1 then output 1. Else output 0. Output ONLY -1, 0, or 1")
+
+Script:
 """
 
 
