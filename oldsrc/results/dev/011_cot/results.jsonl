@@ -1,0 +1,15 @@
+{"request_id": "R00", "pred_indices": [4], "gold_index": 2, "gold_item_id": "C5MdSiVtZKirRghyh08C0g", "gold_score": 1}
+{"request_id": "R01", "pred_indices": [11, 15, 6, 10, 3], "gold_index": 8, "gold_item_id": "htO_nlxkEsYHzDrtbiUxew", "gold_score": 1}
+{"request_id": "R02", "pred_indices": [13, 14, 19, 12, 8], "gold_index": 6, "gold_item_id": "iUZEGx29miZObLd6_lt7Vg", "gold_score": 1}
+{"request_id": "R03", "pred_indices": [4, 14, 7, 18, 2], "gold_index": 5, "gold_item_id": "3yW8-dUi1wwCEf0URxUA7A", "gold_score": 1}
+{"request_id": "R04", "pred_indices": [19, 14, 4, 18, 12], "gold_index": 10, "gold_item_id": "1vPSY4EA-fTRIZYz1Ruzow", "gold_score": 1}
+{"request_id": "R05", "pred_indices": [4, 1, 8, 12, 14], "gold_index": 11, "gold_item_id": "EreYgrQPuR7Sk_FKeZZg9g", "gold_score": 1.0}
+{"request_id": "R06", "pred_indices": [4, 8, 2, 13, 18], "gold_index": 19, "gold_item_id": "w9_EQB0SuAFYxPMcfY_P_g", "gold_score": 2.5}
+{"request_id": "R07", "pred_indices": [3, 16, 4, 14, 2], "gold_index": 14, "gold_item_id": "q9Pupuw6Z2b8WaYK-MGt4g", "gold_score": 2.0}
+{"request_id": "R08", "pred_indices": [8, 9, 2, 4, 17], "gold_index": 9, "gold_item_id": "MlXH9dWYDFEBbwuGStlfZg", "gold_score": 2.0}
+{"request_id": "R09", "pred_indices": [4], "gold_index": 1, "gold_item_id": "ZForVw2ZTiwDGfZ0XvZsXQ", "gold_score": 1.75}
+{"request_id": "R10", "pred_indices": [4, 14, 8, 2, 18], "gold_index": 2, "gold_item_id": "C5MdSiVtZKirRghyh08C0g", "gold_score": 1}
+{"request_id": "R11", "pred_indices": [4, 14, 8, 7, 2], "gold_index": 16, "gold_item_id": "e4MoozYGqe_rb4_ZC1rYMQ", "gold_score": 1}
+{"request_id": "R12", "pred_indices": [14, 8, 9, 19, 16], "gold_index": 17, "gold_item_id": "qtg5d6UmDVFeUw5ZKVBl4Q", "gold_score": 1}
+{"request_id": "R13", "pred_indices": [14, 4, 12, 8, 9], "gold_index": 6, "gold_item_id": "iUZEGx29miZObLd6_lt7Vg", "gold_score": 1}
+{"request_id": "R14", "pred_indices": [4], "gold_index": 8, "gold_item_id": "htO_nlxkEsYHzDrtbiUxew", "gold_score": 1}

@@ -1,0 +1,83 @@
+{
+  "method": "cot",
+  "mode": null,
+  "approach": null,
+  "defense": false,
+  "data": "yelp",
+  "selection": "selection_1",
+  "limit": null,
+  "attack": "none",
+  "llm_config": {
+    "provider": "openai",
+    "model": null,
+    "temperature": 0.0,
+    "max_tokens": 1024
+  },
+  "stats": {
+    "total": 100,
+    "correct": 44,
+    "errors": 0,
+    "per_request": {
+      "R00": {
+        "total": 10,
+        "correct": 9
+      },
+      "R01": {
+        "total": 10,
+        "correct": 9
+      },
+      "R02": {
+        "total": 10,
+        "correct": 4
+      },
+      "R03": {
+        "total": 10,
+        "correct": 4
+      },
+      "R04": {
+        "total": 10,
+        "correct": 3
+      },
+      "R05": {
+        "total": 10,
+        "correct": 3
+      },
+      "R06": {
+        "total": 10,
+        "correct": 3
+      },
+      "R07": {
+        "total": 10,
+        "correct": 3
+      },
+      "R08": {
+        "total": 10,
+        "correct": 5
+      },
+      "R09": {
+        "total": 10,
+        "correct": 1
+      }
+    },
+    "confusion": {
+      "-1": {
+        "-1": 24,
+        "0": 3,
+        "1": 1
+      },
+      "0": {
+        "-1": 18,
+        "0": 14,
+        "1": 25
+      },
+      "1": {
+        "-1": 6,
+        "0": 3,
+        "1": 6
+      }
+    }
+  },
+  "timestamp": "2025-12-30T21:54:54.235856",
+  "benchmark_mode": false,
+  "run_name": "cot"
+}
