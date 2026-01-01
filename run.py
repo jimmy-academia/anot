@@ -403,7 +403,8 @@ def run_evaluation_loop(args, data, requests, method, experiment):
     eval_mode = "dict" if args.method == "anot" else "string"
 
     # Check if ranking mode is enabled (default: True for top-1 accuracy)
-    ranking_mode = getattr(args, 'ranking', True)
+    # ANoT uses per-item evaluation, not ranking
+    ranking_mode = getattr(args, 'ranking', True) and args.method != "anot"
     k = getattr(args, 'k', 1)
 
     # Single attack case - wrap in dict for uniform handling
