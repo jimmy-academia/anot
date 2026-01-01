@@ -26,7 +26,9 @@
       "WebFetch(domain:raw.githubusercontent.com)",
       "Bash(mv:*)",
       "Bash(source:*)",
-      "Bash(sort:*)"
+      "Bash(sort:*)",
+      "WebSearch",
+      "WebFetch(domain:arxiv.org)"
     ]
   }
 }

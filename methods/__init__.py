@@ -7,10 +7,9 @@ from .cot import ChainOfThought
 from .react import ReAct
 from .decomp import DecomposedPrompting
 from .finegrained import FineGrainedRanker
+from .prp import PairwiseRankingPrompting
 from .rnot import method as rnot
-from .knot import create_method, method as knot, set_output_dir, set_defense_mode, set_current_ids
-from .knot_v4 import KnowledgeNetworkOfThoughtV4
-from .knot_v5 import KnowledgeNetworkOfThoughtV5, create_method as create_method_v5
+from .anot import AdaptiveNetworkOfThought, create_method as create_method_anot
 
 
 def get_method(args, run_dir: str = None) -> Callable:
@@ -18,9 +17,7 @@ def get_method(args, run_dir: str = None) -> Callable:
 
     Args:
         args: Parsed command-line arguments with:
-            - args.method: "cot", "not", "knot", "dummy"
-            - args.mode: "string" or "dict"
-            - args.knot_approach: "base", "voting", "iterative", "divide", "v4", "v5"
+            - args.method: "cot", "not", "anot", "react", "decomp", etc.
             - args.defense: bool
         run_dir: Run directory for logging
 
@@ -28,8 +25,6 @@ def get_method(args, run_dir: str = None) -> Callable:
         Callable that takes (query, context) and returns int (-1, 0, 1)
     """
     name = args.method
-    mode = args.mode
-    approach = getattr(args, 'knot_approach', 'base')
     defense = args.defense
 
     if name == "cot":
@@ -45,19 +40,11 @@ def get_method(args, run_dir: str = None) -> Callable:
         from .rnot import method
         return method
 
-    elif name == "knot":
-        # v5 is a separate implementation with built-in defense
-        if approach == "v5":
-            from .knot_v5 import create_method as create_v5
-            import os
-            debug = os.environ.get("KNOT_DEBUG", "0") == "1"
-            return create_v5(run_dir=run_dir, debug=debug)
-
-        from .knot import create_method, set_output_dir, set_defense_mode as knot_set_defense
-        if run_dir:
-            set_output_dir(run_dir)
-        knot_set_defense(defense)
-        return create_method(mode=mode, approach=approach, run_dir=run_dir)
+    elif name == "anot":
+        from .anot import create_method as create_anot
+        import os
+        debug = os.environ.get("KNOT_DEBUG", "0") == "1"
+        return create_anot(run_dir=run_dir, debug=debug)
 
     elif name == "react":
         from .react import ReAct
@@ -99,6 +86,14 @@ def get_method(args, run_dir: str = None) -> Callable:
             return lambda q, c: selfask_instance.evaluate_ranking(q, c, k)
         return selfask_instance
 
+    elif name == "parade":
+        from .parade import PaRaDe
+        parade_instance = PaRaDe(run_dir=run_dir)
+        if getattr(args, 'ranking', True):
+            k = getattr(args, 'k', 1)
+            return lambda q, c: parade_instance.evaluate_ranking(q, c, k)
+        return parade_instance
+
     elif name == "decomp":
         from .decomp import DecomposedPrompting
         decomp_instance = DecomposedPrompting(defense=defense, run_dir=run_dir)
@@ -115,6 +110,22 @@ def get_method(args, run_dir: str = None) -> Callable:
             return lambda q, c: fg_instance.evaluate_ranking(q, c, k)
         return fg_instance
 
+    elif name == "rankgpt":
+        from .rankgpt import RankGPT
+        rankgpt_instance = RankGPT(run_dir=run_dir)
+        if getattr(args, 'ranking', True):
+            k = getattr(args, 'k', 1)
+            return lambda q, c: rankgpt_instance.evaluate_ranking(q, c, k)
+        return rankgpt_instance
+
+    elif name == "prp":
+        from .prp import PairwiseRankingPrompting
+        prp_instance = PairwiseRankingPrompting(defense=defense, run_dir=run_dir)
+        if getattr(args, 'ranking', True):
+            k = getattr(args, 'k', 1)
+            return lambda q, c: prp_instance.evaluate_ranking(q, c, k)
+        return prp_instance
+
     elif name == "dummy":
         return lambda query, context: 0
 
@@ -128,13 +139,9 @@ __all__ = [
     'ReAct',
     'DecomposedPrompting',
     'FineGrainedRanker',
+    'PairwiseRankingPrompting',
     'rnot',
-    'knot',
     'get_method',
-    'create_method',
-    'set_output_dir',
-    'set_defense_mode',
-    'set_current_ids',
-    'KnowledgeNetworkOfThoughtV4',
-    'KnowledgeNetworkOfThoughtV5',
+    'AdaptiveNetworkOfThought',
+    'create_method_anot',
 ]

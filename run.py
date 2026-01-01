@@ -48,13 +48,6 @@ def evaluate(items: list[dict], method: Callable, requests: list[dict], mode: st
                     continue
                 gold = int(gold)
 
-                # Set IDs for knot logging (if enabled)
-                try:
-                    from methods.knot import set_current_ids
-                    set_current_ids(item_id, req_id)
-                except ImportError:
-                    pass
-
                 try:
                     pred = normalize_pred(method(query, context))
                 except Exception as e:
@@ -406,12 +399,8 @@ def run_evaluation_loop(args, data, requests, method, experiment):
         print_ranking_results({"results": cached["results"], "stats": cached["stats"]})
         return {"clean": cached["stats"]}  # Return stats dict for consistency
 
-    # Determine eval_mode for variable substitution
-    approach = getattr(args, 'knot_approach', 'base')
-    if args.method == "knot" and approach in ("v4", "v5"):
-        eval_mode = "dict"
-    else:
-        eval_mode = args.mode if args.method == "knot" else "string"
+    # Evaluation mode (always string for current methods)
+    eval_mode = "string"
 
     # Check if ranking mode is enabled (default: True for top-1 accuracy)
     ranking_mode = getattr(args, 'ranking', True)
@@ -461,8 +450,6 @@ def save_final_config(args, stats, experiment):
 
     config = {
         "method": args.method,
-        "mode": args.mode if args.method == "knot" else None,
-        "approach": getattr(args, 'knot_approach', None) if args.method == "knot" else None,
         "defense": args.defense,
         "data": args.data,
         "selection": args.selection_name,
