@@ -10,6 +10,8 @@ Few-shot demonstration-based ranking where the model learns
 the evaluation pattern from explicit examples.
 """
 
+import re
+
 from .base import BaseMethod
 from utils.llm import call_llm
 from utils.parsing import parse_final_answer
@@ -117,6 +119,11 @@ class PaRaDe(BaseMethod):
 
     def evaluate_ranking(self, query: str, context: str, k: int = 1) -> str:
         """Ranking with demonstration-based evaluation."""
+        if k == 1:
+            instruction = "select the BEST matching restaurant"
+        else:
+            instruction = f"rank the TOP {k} restaurants from best to worst"
+
         prompt = f"""{DEMONSTRATIONS}
 === Your Task ===
 [USER REQUEST]
@@ -125,8 +132,29 @@ class PaRaDe(BaseMethod):
 [RESTAURANTS]
 {query}
 
-Evaluate each restaurant using the demonstrated pattern, then select the best match.
+Evaluate each restaurant using the demonstrated pattern, then {instruction}.
+Output your ranking as numbers: [best], [second], [third], etc.
 
-[ANALYSIS]"""
+[RANKING]"""
 
-        return call_llm(prompt, system=SYSTEM_PROMPT_RANKING)
+        response = call_llm(prompt, system=SYSTEM_PROMPT_RANKING)
+        return self._parse_ranking(response, k)
+
+    def _parse_ranking(self, response: str, k: int) -> str:
+        """Parse ranking indices from response."""
+        # Extract bracketed numbers [N] or plain numbers
+        indices = re.findall(r'\[?(\d+)\]?', response)
+        if indices:
+            # Dedupe and take top k
+            seen = set()
+            result = []
+            for idx in indices:
+                idx_int = int(idx)
+                if idx_int not in seen and idx_int > 0:
+                    seen.add(idx_int)
+                    result.append(str(idx_int))
+                    if len(result) >= k:
+                        break
+            if result:
+                return ", ".join(result)
+        return "1"  # Fallback

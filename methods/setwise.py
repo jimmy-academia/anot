@@ -18,6 +18,8 @@ Key difference from other approaches:
 - Setwise: Select best from set (single selection)
 """
 
+import re
+
 from .base import BaseMethod
 from utils.llm import call_llm
 from utils.parsing import parse_final_answer
@@ -63,15 +65,41 @@ Analyze whether this restaurant matches the user's request."""
     # --- Ranking Methods ---
 
     def evaluate_ranking(self, query: str, context: str, k: int = 1) -> str:
-        """Setwise selection: pick the best restaurant from the set."""
+        """Setwise selection: pick the best restaurant(s) from the set."""
+        if k == 1:
+            instruction = "select the ONE restaurant that BEST matches the user's request"
+        else:
+            instruction = f"select the TOP {k} restaurants in order from best to worst match"
+
         prompt = f"""[USER REQUEST]
 {context}
 
 [RESTAURANTS]
 {query}
 
-From the set of restaurants above, select the ONE that BEST matches the user's request.
+From the restaurants above, {instruction}.
+Output your selection as numbers: [best], [second], [third], etc.
 
 [SELECTION]"""
 
-        return call_llm(prompt, system=SYSTEM_PROMPT_RANKING)
+        response = call_llm(prompt, system=SYSTEM_PROMPT_RANKING)
+        return self._parse_selection(response, k)
+
+    def _parse_selection(self, response: str, k: int) -> str:
+        """Parse selection indices from response."""
+        # Extract bracketed numbers [N] or plain numbers
+        indices = re.findall(r'\[?(\d+)\]?', response)
+        if indices:
+            # Dedupe and take top k
+            seen = set()
+            result = []
+            for idx in indices:
+                idx_int = int(idx)
+                if idx_int not in seen and idx_int > 0:
+                    seen.add(idx_int)
+                    result.append(str(idx_int))
+                    if len(result) >= k:
+                        break
+            if result:
+                return ", ".join(result)
+        return "1"  # Fallback

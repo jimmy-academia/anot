@@ -306,7 +306,8 @@ def run_evaluation_loop(args, items_clean, requests, method, experiment):
     ranking_mode = getattr(args, 'ranking', True)
 
     # Use dict mode for methods that need schema access
-    dict_mode_methods = {"anot", "anot_v2", "anot_v3", "anot_origin", "pal", "pot", "cot_table"}
+    # Note: pal, pot, cot_table removed - they work with string mode for ranking
+    dict_mode_methods = {"anot", "anot_v2", "anot_v3", "anot_origin"}
     eval_mode = "dict" if args.method in dict_mode_methods else "string"
     k = getattr(args, 'k', 1)
 

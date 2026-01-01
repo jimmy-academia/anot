@@ -50,7 +50,12 @@
       "Bash(do sleep 10)",
       "Bash(while ps aux)",
       "Bash(do echo \"prp still running...\")",
-      "WebFetch(domain:api.github.com)"
+      "WebFetch(domain:api.github.com)",
+      "Bash(for:*)",
+      "Bash(do basename \"$dir\")",
+      "Bash(python:*)",
+      "Bash(git -C /Users/jimmyyeh/Documents/Station/xnot ls-files:*)",
+      "Bash(KNOT_DEBUG=1 python:*)"
     ]
   }
 }
