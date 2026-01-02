@@ -19,6 +19,10 @@ from pathlib import Path
 from typing import Optional
 
 import httpx
+import logging
+
+# Suppress verbose httpx INFO logs (e.g., "HTTP Request: POST ...")
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 # -----------------------------
 # Global rate limiter

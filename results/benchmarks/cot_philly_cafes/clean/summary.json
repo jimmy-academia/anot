@@ -3,38 +3,38 @@
   "k": 5,
   "hits_at": {
     "1": {
-      "mean": 0.18,
+      "mean": 0.32,
       "std": 0.0,
       "values": [
-        0.18
+        0.32
       ]
     },
     "2": {
-      "mean": 0.2,
+      "mean": 0.4,
       "std": 0.0,
       "values": [
-        0.2
+        0.4
       ]
     },
     "3": {
-      "mean": 0.22,
+      "mean": 0.4,
       "std": 0.0,
       "values": [
-        0.22
+        0.4
       ]
     },
     "4": {
-      "mean": 0.22,
+      "mean": 0.46,
       "std": 0.0,
       "values": [
-        0.22
+        0.46
       ]
     },
     "5": {
-      "mean": 0.22,
+      "mean": 0.54,
       "std": 0.0,
       "values": [
-        0.22
+        0.54
       ]
     }
   },
@@ -44,24 +44,24 @@
       "k": 5,
       "hits_at": {
         "1": {
-          "hits": 9,
-          "accuracy": 0.18
+          "hits": 16,
+          "accuracy": 0.32
         },
         "2": {
-          "hits": 10,
-          "accuracy": 0.2
+          "hits": 20,
+          "accuracy": 0.4
         },
         "3": {
-          "hits": 11,
-          "accuracy": 0.22
+          "hits": 20,
+          "accuracy": 0.4
         },
         "4": {
-          "hits": 11,
-          "accuracy": 0.22
+          "hits": 23,
+          "accuracy": 0.46
         },
         "5": {
-          "hits": 11,
-          "accuracy": 0.22
+          "hits": 27,
+          "accuracy": 0.54
         }
       }
     }

@@ -294,8 +294,13 @@ def print_results(stats: Dict[str, Any]):
             print(f"{gold:<12} {row.get('-1', 0):<8} {row.get('0', 0):<8} {row.get('1', 0):<8}")
 
 
-def print_ranking_results(stats: Dict[str, Any]):
-    """Print single-run ranking results (Hits@K mode)."""
+def print_ranking_results(stats: Dict[str, Any], results: List[Dict] = None):
+    """Print single-run ranking results (Hits@K mode).
+
+    Args:
+        stats: Stats dict with total, k, hits_at
+        results: Optional list of per-request results for detailed output
+    """
     total = stats.get("total", 0)
     k = stats.get("k", 5)
 
@@ -314,6 +319,18 @@ def print_ranking_results(stats: Dict[str, Any]):
             acc = hit_data.get("accuracy", 0)
             table.add_row(str(j), str(hits), f"{acc:.4f}")
         console.print(table)
+
+        # Per-request details
+        if results:
+            console.print("\n[bold]Per-request:[/bold]")
+            for r in sorted(results, key=lambda x: x.get("request_id", "")):
+                gold_idx = r.get("gold_idx", -1)
+                pred_indices = r.get("pred_indices", [])
+                # Convert 0-indexed gold_idx to 1-indexed for comparison
+                hit = (gold_idx + 1) in pred_indices
+                symbol = "[green]✓[/green]" if hit else "[red]✗[/red]"
+                pred_str = ",".join(str(i) for i in pred_indices) if pred_indices else "none"
+                console.print(f"  {r['request_id']}: {symbol} pred=[{pred_str}] gold={gold_idx + 1}")
     else:
         print(f"{'K':<5} {'Hits':<8} {'Accuracy'}")
         print("-" * 25)
@@ -322,3 +339,14 @@ def print_ranking_results(stats: Dict[str, Any]):
             hits = hit_data.get("hits", 0)
             acc = hit_data.get("accuracy", 0)
             print(f"{j:<5} {hits:<8} {acc:.4f}")
+
+        # Per-request details (plain text)
+        if results:
+            print("\nPer-request:")
+            for r in sorted(results, key=lambda x: x.get("request_id", "")):
+                gold_idx = r.get("gold_idx", -1)
+                pred_indices = r.get("pred_indices", [])
+                hit = (gold_idx + 1) in pred_indices
+                symbol = "✓" if hit else "✗"
+                pred_str = ",".join(str(i) for i in pred_indices) if pred_indices else "none"
+                print(f"  {r['request_id']}: {symbol} pred=[{pred_str}] gold={gold_idx + 1}")

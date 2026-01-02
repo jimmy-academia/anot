@@ -42,8 +42,44 @@ def compute_multi_k_stats(results: list[dict], k: int) -> dict:
     }
 
 
+def evaluate_ranking_single(method, query, context: str, k: int,
+                            req: dict, groundtruth: dict, item_count: int) -> dict | None:
+    """Evaluate a single request (thread-safe helper).
+
+    Args:
+        method: LLM method instance
+        query: Formatted query (all items)
+        context: Request context/text
+        k: Number of top predictions
+        req: Request dict with 'id'
+        groundtruth: {request_id: {"gold_restaurant": str, "gold_idx": int}}
+        item_count: Total number of items for parsing
+
+    Returns:
+        Result dict or None if no ground truth
+    """
+    req_id = req["id"]
+    gt = groundtruth.get(req_id)
+    if not gt:
+        return None
+
+    try:
+        response = method.evaluate_ranking(query, context, k=k)
+        pred_indices = parse_indices(response, item_count, k)
+    except Exception as e:
+        pred_indices = []
+
+    return {
+        "request_id": req_id,
+        "pred_indices": pred_indices,
+        "gold_idx": gt["gold_idx"],
+        "gold_restaurant": gt["gold_restaurant"],
+    }
+
+
 def evaluate_ranking(items: list[dict], method: Callable, requests: list[dict],
-                     groundtruth: dict, mode: str = "string", k: int = 5) -> dict:
+                     groundtruth: dict, mode: str = "string", k: int = 5,
+                     parallel: bool = True, max_workers: int = 40) -> dict:
     """Evaluate using ranking (Hits@K accuracy).
 
     Args:
@@ -53,53 +89,63 @@ def evaluate_ranking(items: list[dict], method: Callable, requests: list[dict],
         groundtruth: {request_id: {"gold_restaurant": str, "gold_idx": int}}
         mode: "string" or "dict" for formatting
         k: Number of top predictions to check (default 5 for Hits@5)
+        parallel: Whether to use parallel execution (default True)
+        max_workers: Maximum number of worker threads (default 40)
 
     Returns:
         Dict with results and accuracy stats
     """
-    results = []
     req_ids = [r["id"] for r in requests]
 
     # Format all items as a single query
     query, item_count = format_ranking_query(items, mode)
 
-    with Progress(
-        SpinnerColumn(),
-        TextColumn("[progress.description]{task.description}"),
-        BarColumn(),
-        TaskProgressColumn(),
-    ) as progress:
-        task = progress.add_task("Ranking evaluation...", total=len(requests))
+    if parallel:
+        # Parallel execution with ThreadPoolExecutor
+        results = []
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            TaskProgressColumn(),
+        ) as progress:
+            task = progress.add_task(f"Ranking evaluation (parallel, {max_workers} workers)...", total=len(requests))
 
-        for req in requests:
-            req_id = req["id"]
-            context = req.get("context") or req.get("text", "")
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                futures = {
+                    executor.submit(
+                        evaluate_ranking_single,
+                        method, query,
+                        req.get("context") or req.get("text", ""),
+                        k, req, groundtruth, item_count
+                    ): req
+                    for req in requests
+                }
 
-            # Get gold answer from groundtruth
-            gt = groundtruth.get(req_id)
-            if not gt:
+                for future in as_completed(futures):
+                    result = future.result()
+                    if result:
+                        results.append(result)
+                    progress.update(task, advance=1)
+    else:
+        # Sequential execution
+        results = []
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            TaskProgressColumn(),
+        ) as progress:
+            task = progress.add_task("Ranking evaluation (sequential)...", total=len(requests))
+
+            for req in requests:
+                context = req.get("context") or req.get("text", "")
+                result = evaluate_ranking_single(
+                    method, query, context, k, req, groundtruth, item_count
+                )
+                if result:
+                    results.append(result)
                 progress.update(task, advance=1)
-                continue
-
-            gold_idx = gt["gold_idx"]  # 0-indexed
-            gold_restaurant = gt["gold_restaurant"]
-
-            # Get prediction from LLM method
-            try:
-                # Method should have evaluate_ranking(query, context, k)
-                response = method.evaluate_ranking(query, context, k=k)
-                pred_indices = parse_indices(response, item_count, k)
-            except Exception as e:
-                print(f"Error evaluating {req_id}: {e}")
-                pred_indices = []
-
-            results.append({
-                "request_id": req_id,
-                "pred_indices": pred_indices,
-                "gold_idx": gold_idx,
-                "gold_restaurant": gold_restaurant,
-            })
-            progress.update(task, advance=1)
 
     # Compute multi-K stats
     stats = compute_multi_k_stats(results, k)
@@ -109,73 +155,6 @@ def evaluate_ranking(items: list[dict], method: Callable, requests: list[dict],
         "req_ids": req_ids,
         "stats": stats,
     }
-
-
-# --- Per-Item Evaluation (legacy) ---
-
-def evaluate_single(item: dict, req: dict, method: Callable, mode: str = "string") -> dict:
-    """Evaluate a single item-request pair (thread-safe)."""
-    item_id = item.get("item_id", "unknown")
-    req_id = req["id"]
-    context = req.get("context") or req.get("text", "")
-
-    query, _ = format_query(item, mode)
-    try:
-        pred = normalize_pred(method.evaluate(query, context))
-        error = False
-    except Exception:
-        pred = 0
-        error = True
-
-    return {
-        "item_id": item_id,
-        "request_id": req_id,
-        "pred": pred,
-        "correct": None,  # No gold label in ranking mode
-        "error": error,
-    }
-
-
-def compute_stats(results: list[dict], req_ids: list[str]) -> dict:
-    """Aggregate stats from results list."""
-    stats = {
-        "total": len(results),
-        "errors": sum(1 for r in results if r.get("error", False)),
-        "per_request": {rid: {"total": 0} for rid in req_ids},
-    }
-    for r in results:
-        rid = r["request_id"]
-        if rid in stats["per_request"]:
-            stats["per_request"][rid]["total"] += 1
-    return stats
-
-
-def evaluate_parallel(items: list[dict], method: Callable, requests: list[dict],
-                      mode: str = "string", max_workers: int = 40) -> dict:
-    """Parallel version of per-item evaluation."""
-    req_ids = [r["id"] for r in requests]
-    pairs = [(item, req) for item in items for req in requests]
-    results = []
-
-    with Progress(
-        SpinnerColumn(),
-        TextColumn("[progress.description]{task.description}"),
-        BarColumn(),
-        TaskProgressColumn(),
-    ) as progress:
-        task = progress.add_task("Evaluating...", total=len(pairs))
-
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            futures = [executor.submit(evaluate_single, item, req, method, mode)
-                       for item, req in pairs]
-            for future in as_completed(futures):
-                result = future.result()
-                if result:
-                    results.append(result)
-                progress.update(task, advance=1)
-
-    stats = compute_stats(results, req_ids)
-    return {"results": results, "stats": stats, "req_ids": req_ids}
 
 
 # --- Orchestration ---
@@ -196,18 +175,23 @@ def run_evaluation_loop(args, dataset, method, experiment):
     dict_mode_methods = {"anot", "weaver"}
     eval_mode = "dict" if args.method in dict_mode_methods else "string"
     k = getattr(args, 'k', 5)
+    parallel = getattr(args, 'parallel', True)
+    max_workers = getattr(args, 'max_concurrent', 40)
 
     # Ranking evaluation (default)
-    print(f"\nRunning ranking evaluation (k={k})...")
+    mode_str = "parallel" if parallel else "sequential"
+    print(f"\nRunning ranking evaluation (k={k}, {mode_str})...")
     eval_out = evaluate_ranking(
         dataset.items,
         method,
         dataset.requests,
         dataset.groundtruth,
         mode=eval_mode,
-        k=k
+        k=k,
+        parallel=parallel,
+        max_workers=max_workers
     )
-    print_ranking_results(eval_out["stats"])
+    print_ranking_results(eval_out["stats"], eval_out["results"])
 
     # Save results
     result_path = experiment.save_results(eval_out["results"], "results.jsonl")
@@ -224,6 +208,7 @@ def save_final_config(args, all_results, experiment):
         "data": args.data,
         "limit": args.limit,
         "k": getattr(args, "k", 5),
+        "parallel": getattr(args, "parallel", True),
         "llm_config": {
             "provider": getattr(args, "provider", "openai"),
             "model": getattr(args, "model", None),
