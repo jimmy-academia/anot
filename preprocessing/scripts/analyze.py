@@ -2,15 +2,18 @@
 """Analyze Yelp data to identify unique attributes for ground truth filtering.
 
 Usage:
-    python preprocessing/scripts/analyze.py [restaurants_cache] [reviews_cache]
+    python preprocessing/scripts/analyze.py [selection_name]
+    python preprocessing/scripts/analyze.py philly_cafes
 
-Output: Prints analysis to stdout, saves JSON to preprocessing/output/analysis_results.json
+Output: Prints analysis to stdout, saves JSON to preprocessing/output/{selection_name}/analysis.json
 """
 
 import json
 import sys
 from collections import Counter
 from pathlib import Path
+
+OUTPUT_DIR = Path("preprocessing/output")
 
 
 def load_jsonl(path):
@@ -242,10 +245,19 @@ def print_summary(rest_results, rev_results):
 
 
 def main():
-    # Default paths (can be overridden via args)
-    rest_path = sys.argv[1] if len(sys.argv) > 1 else 'preprocessing/output/restaurants_cache_1.jsonl'
-    rev_path = sys.argv[2] if len(sys.argv) > 2 else 'preprocessing/output/reviews_cache_1.jsonl'
+    # Get selection name (default: philly_cafes)
+    selection_name = sys.argv[1] if len(sys.argv) > 1 else 'philly_cafes'
+    selection_dir = OUTPUT_DIR / selection_name
 
+    if not selection_dir.exists():
+        print(f"Error: Selection directory not found: {selection_dir}")
+        print(f"Available selections: {[d.name for d in OUTPUT_DIR.iterdir() if d.is_dir()]}")
+        sys.exit(1)
+
+    rest_path = selection_dir / 'restaurants.jsonl'
+    rev_path = selection_dir / 'reviews.jsonl'
+
+    print(f"Analyzing selection: {selection_name}")
     print(f"Loading {rest_path}...")
     restaurants = load_jsonl(rest_path)
 
@@ -261,8 +273,7 @@ def main():
 
     # Save full results as JSON
     output = {'restaurants': rest_results, 'reviews': rev_results}
-    out_path = Path('preprocessing/output/analysis_results.json')
-    out_path.parent.mkdir(exist_ok=True)
+    out_path = selection_dir / 'analysis.json'
     with open(out_path, 'w') as f:
         json.dump(output, f, indent=2)
     print(f"\n\nFull results saved to {out_path}")
