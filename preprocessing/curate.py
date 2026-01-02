@@ -25,9 +25,22 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from rich.console import Console
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
-from rich.prompt import Prompt
+from rich.prompt import Prompt, DefaultType
 from rich.table import Table
 from rich.text import Text
+
+
+class DimPrompt(Prompt):
+    """Prompt with dim default value instead of cyan."""
+
+    def make_prompt(self, default: DefaultType) -> Text:
+        prompt = self.prompt.copy()
+        prompt.end = ""
+        if default != ... and self.show_default:
+            prompt.append(" ")
+            prompt.append(f"({default})", style="dim")
+        prompt.append(self.prompt_suffix)
+        return prompt
 
 from utils.llm import call_llm, call_llm_async
 
@@ -40,13 +53,51 @@ USER_FILE = RAW_DIR / "yelp_academic_dataset_user.json"
 
 console = Console()
 
+# Common abbreviations for selection names
+CITY_ABBREV = {
+    "philadelphia": "philly",
+    "new york": "nyc",
+    "los angeles": "la",
+    "san francisco": "sf",
+    "las vegas": "vegas",
+}
+
+CAT_ABBREV = {
+    "coffee & tea": "cafes",
+    "cafes": "cafes",
+    "bars": "bars",
+    "nightlife": "nightlife",
+    "italian": "italian",
+    "mexican": "mexican",
+    "chinese": "chinese",
+    "japanese": "japanese",
+}
+
+
+def generate_selection_name(city: str, categories: List[str]) -> str:
+    """Generate a short selection name using hardcoded abbreviations."""
+    city_lower = city.lower()
+    city_part = CITY_ABBREV.get(city_lower, city_lower.replace(" ", "_")[:10])
+
+    # Find first matching category abbreviation
+    cat_part = None
+    for cat in categories:
+        cat_lower = cat.lower()
+        if cat_lower in CAT_ABBREV:
+            cat_part = CAT_ABBREV[cat_lower]
+            break
+    if not cat_part:
+        cat_part = categories[0].lower().replace(" ", "_").replace("&", "")[:10]
+
+    return f"{city_part}_{cat_part}"
+
 
 class Curator:
     """Interactive Yelp data curation tool."""
 
     def __init__(self, name: str = None, city: str = None, categories: List[str] = None,
                  target: int = 100, threshold: int = 70, batch_size: int = 20,
-                 skip_llm: bool = False):
+                 mode: str = "a"):
         self.name = name
         self.city = city
         self.categories = categories or []
@@ -55,7 +106,7 @@ class Curator:
         self.target = target
         self.threshold = threshold
         self.batch_size = batch_size
-        self.skip_llm = skip_llm
+        self.mode = mode  # 'a' = auto (LLM), 'm' = manual
 
         self.businesses: Dict[str, dict] = {}
         self.reviews_by_biz: Dict[str, List[dict]] = defaultdict(list)
@@ -79,9 +130,9 @@ class Curator:
                 for line in f:
                     biz = json.loads(line)
                     cats = biz.get("categories", "") or ""
-                    if "Restaurant" in cats or "Bars" in cats or "Nightlife" in cats or "Cafes" in cats or "Coffee" in cats:
+                    if "Restaurant" in cats:
                         self.businesses[biz["business_id"]] = biz
-        console.print(f"[green]Loaded {len(self.businesses):,} restaurants/bars/cafes[/green]")
+        console.print(f"[green]Loaded {len(self.businesses):,} restaurants[/green]")
 
     def load_reviews(self, business_ids: set) -> None:
         """Load reviews for specified businesses."""
@@ -158,21 +209,38 @@ class Curator:
             end = min(start + page_size, len(items))
             displayed = items[start:end]
 
+            # Double-column table
             table = Table(title=f"{title} {start + 1}-{end} of {len(items)} (Page {page + 1}/{total_pages})")
-            table.add_column("#", style="cyan", width=4)
-            table.add_column("Name", style="bold")
-            table.add_column("Count", justify="right")
+            table.add_column("#", style="dim", width=3)
+            table.add_column("Name", style="bold", min_width=20)
+            table.add_column("Cnt", justify="right", width=5)
+            table.add_column("#", style="dim", width=3)
+            table.add_column("Name", style="bold", min_width=20)
+            table.add_column("Cnt", justify="right", width=5)
 
-            for i, (name, count) in enumerate(displayed, start + 1):
-                table.add_row(str(i), name, str(count))
+            # Pair items into rows
+            half = (len(displayed) + 1) // 2
+            for i in range(half):
+                left_idx = start + i + 1
+                left = displayed[i]
+                row = [str(left_idx), left[0][:25], str(left[1])]
+
+                right_i = i + half
+                if right_i < len(displayed):
+                    right_idx = start + right_i + 1
+                    right = displayed[right_i]
+                    row += [str(right_idx), right[0][:25], str(right[1])]
+                else:
+                    row += ["", "", ""]
+                table.add_row(*row)
 
             console.print(table)
-            nav = "[n]ext | [p]rev | [number] | [text] search"
+            nav = r"\[n]ext | \[p]rev | \[#] select | \[text] search"
             if allow_back:
-                nav += " | [b]ack"
-            console.print(f"[dim]{nav} | [q]uit[/dim]\n")
+                nav += r" | \[b]ack"
+            nav += r" | \[q]uit"
 
-            choice = Prompt.ask(prompt_text, default="1")
+            choice = DimPrompt.ask(f"[dim]{nav}[/dim]  {prompt_text}", default="1")
             c = choice.lower().strip()
 
             if c in ("n", "next"):
@@ -199,7 +267,7 @@ class Curator:
                     console.print(f"\n[bold]Found {len(matches)} matches:[/bold]")
                     for i, (name, count) in enumerate(matches[:10], 1):
                         console.print(f"  {i}. {name} ({count})")
-                    sub = Prompt.ask("Select number, or Enter to go back", default="")
+                    sub = DimPrompt.ask("Select number, or Enter to go back", default="")
                     if sub.isdigit() and 1 <= int(sub) <= min(len(matches), 10):
                         return ("select", matches[int(sub) - 1][0], page)
 
@@ -210,17 +278,18 @@ class Curator:
         top_cats = list(cat_counts.items())[:5]
         samples = random.sample(city_businesses, min(5, len(city_businesses)))
 
-        content = Text()
-        content.append(f"Total Restaurants: ", style="bold")
-        content.append(f"{len(city_businesses)}\n\n")
-        content.append("Top Categories:\n", style="bold")
-        for cat, count in top_cats:
-            content.append(f"  - {cat}: {count}\n")
-        content.append("\nSample Restaurants:\n", style="bold")
-        for s in samples:
-            content.append(f"  - {s['name']} ({s.get('stars', '?')} stars)\n")
+        table = Table(title=f"[bold]Preview: {city}[/bold] ({len(city_businesses)} restaurants)",
+                      show_header=True, header_style="bold")
+        table.add_column("Top Categories", min_width=25)
+        table.add_column("Sample Restaurants", min_width=35)
 
-        console.print(Panel(content, title=f"[bold cyan]Preview: {city}[/bold cyan]"))
+        max_rows = max(len(top_cats), len(samples))
+        for i in range(max_rows):
+            left = f"{top_cats[i][0]} ({top_cats[i][1]})" if i < len(top_cats) else ""
+            right = f"{samples[i]['name'][:30]} ({samples[i].get('stars', '?')}★)" if i < len(samples) else ""
+            table.add_row(left, right)
+
+        console.print(table)
 
     def preview_categories(self, categories: List[str], cat_counts: dict) -> None:
         """Show preview of selected categories."""
@@ -230,28 +299,42 @@ class Curator:
 
         star_dist = Counter(int(b.get("stars", 0)) for b in filtered)
         samples = random.sample(filtered, min(5, len(filtered))) if filtered else []
-
-        content = Text()
-        content.append("Selected Categories:\n", style="bold")
-        for cat in categories:
-            content.append(f"  - {cat} ({cat_counts.get(cat, 0)})\n")
-        content.append(f"\nTotal Matching: ", style="bold")
-        content.append(f"{len(filtered)}\n\n")
-        content.append("Star Distribution:\n", style="bold")
         max_count = max(star_dist.values()) if star_dist else 1
+
+        # Build left column: categories + stars
+        left_rows = []
+        for cat in categories[:3]:
+            left_rows.append(f"{cat} ({cat_counts.get(cat, 0)})")
+        if len(categories) > 3:
+            left_rows.append(f"+{len(categories) - 3} more")
+        left_rows.append(f"[bold]Total: {len(filtered)}[/bold]")
+        left_rows.append("")  # spacer
         for star in range(1, 6):
             count = star_dist.get(star, 0)
-            bar_len = int((count / max_count) * 15) + 1 if count > 0 else 0
-            content.append(f"  {star}★: {'█' * bar_len} ({count})\n")
-        if samples:
-            content.append("\nSamples:\n", style="bold")
-            for s in samples:
-                content.append(f"  - {s['name']} ({s.get('stars', '?')}★)\n")
+            bar_len = int((count / max_count) * 10) + 1 if count > 0 else 0
+            left_rows.append(f"{star}★ {'█' * bar_len} ({count})")
+
+        # Build right column: samples
+        right_rows = []
+        for s in samples:
+            right_rows.append(f"{s['name'][:28]} ({s.get('stars', '?')}★)")
 
         cats_str = ", ".join(categories[:3])
         if len(categories) > 3:
             cats_str += f" +{len(categories) - 3}"
-        console.print(Panel(content, title=f"[bold cyan]{self.city} > {cats_str}[/bold cyan]"))
+
+        table = Table(title=f"[bold]{self.city} > {cats_str}[/bold]",
+                      show_header=True, header_style="bold")
+        table.add_column("Categories & Stars", min_width=28)
+        table.add_column("Sample Restaurants", min_width=35)
+
+        max_rows = max(len(left_rows), len(right_rows))
+        for i in range(max_rows):
+            left = left_rows[i] if i < len(left_rows) else ""
+            right = right_rows[i] if i < len(right_rows) else ""
+            table.add_row(left, right)
+
+        console.print(table)
 
     def select_city_interactive(self) -> bool:
         """Interactive city selection with preview."""
@@ -267,7 +350,7 @@ class Curator:
                 continue
 
             self.preview_city(selected)
-            confirm = Prompt.ask("[C]onfirm / [B]ack", default="c").lower()
+            confirm = DimPrompt.ask("[C]onfirm / [B]ack", default="c").lower()
             if confirm == "c":
                 self.city = selected
                 return True
@@ -304,18 +387,35 @@ class Curator:
             end = min(start + page_size, len(all_cats))
             displayed = all_cats[start:end]
 
+            # Double-column table
             table = Table(title=f"Categories in {self.city} {start + 1}-{end} of {len(all_cats)} (Page {page + 1}/{total_pages})")
-            table.add_column("#", style="cyan", width=4)
-            table.add_column("Category", style="bold")
-            table.add_column("Count", justify="right")
+            table.add_column("#", style="dim", width=3)
+            table.add_column("Category", style="bold", min_width=20)
+            table.add_column("Cnt", justify="right", width=5)
+            table.add_column("#", style="dim", width=3)
+            table.add_column("Category", style="bold", min_width=20)
+            table.add_column("Cnt", justify="right", width=5)
 
-            for i, (cat, count) in enumerate(displayed, start + 1):
-                table.add_row(str(i), cat, str(count))
+            # Pair items into rows
+            half = (len(displayed) + 1) // 2
+            for i in range(half):
+                left_idx = start + i + 1
+                left = displayed[i]
+                row = [str(left_idx), left[0][:25], str(left[1])]
+
+                right_i = i + half
+                if right_i < len(displayed):
+                    right_idx = start + right_i + 1
+                    right = displayed[right_i]
+                    row += [str(right_idx), right[0][:25], str(right[1])]
+                else:
+                    row += ["", "", ""]
+                table.add_row(*row)
 
             console.print(table)
-            console.print("[dim][n]ext | [p]rev | [numbers] 1,3,5 | [text] search | [b]ack | [q]uit[/dim]\n")
+            nav = r"\[n]ext | \[p]rev | \[#,#] 1,3,5 | \[text] search | \[b]ack | \[q]uit"
 
-            choice = Prompt.ask("Select categories", default="1")
+            choice = DimPrompt.ask(f"[dim]{nav}[/dim]  Select categories", default="1")
             c = choice.lower().strip()
 
             if c in ("n", "next"):
@@ -336,7 +436,7 @@ class Curator:
 
             self.preview_categories(selected_cats, cat_counts)
 
-            action = Prompt.ask("[C]onfirm / [B]ack", default="c").lower()
+            action = DimPrompt.ask("[C]onfirm / [B]ack", default="c").lower()
             if action == "c":
                 self.categories = selected_cats
                 return True
@@ -413,7 +513,7 @@ Return ONLY a comma-separated list of 10-15 lowercase keywords."""
         total_reviews = len(reviews)
 
         evidence_snippets, evidence_count, _ = self.get_keyword_evidence(biz, max_snippets=5)
-        evidence_texts = "\n---\n".join(evidence_snippets) if evidence_snippets else "(None)"
+        evidence_texts = "\n---\n".join(evidence_snippets) if evidence_snippets else "(None found)"
 
         first_5 = reviews[:5]
         remaining = reviews[5:]
@@ -422,19 +522,23 @@ Return ONLY a comma-separated list of 10-15 lowercase keywords."""
         review_texts = "\n---\n".join([r.get("text", "")[:500] for r in sample_reviews])
 
         cats = ", ".join(self.categories)
-        prompt = f"""Estimate probability (0-100%) this business belongs to "{cats}".
+        keywords_str = ", ".join(self.category_keywords[:10])
+        prompt = f"""Based on these reviews and evidence, estimate the probability (0-100%) that this restaurant truly belongs to the category "{cats}".
 
-Business: {biz.get('name')}
+Restaurant: {biz.get('name')}
 Listed categories: {biz.get('categories', 'Unknown')}
-Keyword matches: {evidence_count} / {total_reviews} reviews
 
-=== Evidence ===
+Keywords used for evidence: {keywords_str}...
+Keyword matches: {evidence_count} / {total_reviews} reviews contain category-related keywords
+
+=== Evidence snippets (reviews mentioning keywords) ===
 {evidence_texts}
 
-=== Sample reviews ===
+=== Sample reviews (first 5 + random 5) ===
 {review_texts}
 
-Reply: "XX% - reason"
+Consider both the keyword match ratio and the content of reviews.
+Reply with just the percentage and one sentence explanation. Example: "85% - Reviews consistently mention authentic coffee and cafe atmosphere."
 """
 
         try:
@@ -463,49 +567,51 @@ Reply: "XX% - reason"
         reason = f"{pct}% - {match_count}/{total_reviews} keyword matches, {stars}*"
         return (biz, pct, reason)
 
-    async def score_businesses(self) -> None:
-        """Score businesses by category fit."""
+    async def run_auto_mode(self) -> None:
+        """Auto mode: LLM batch scoring with early stopping."""
         scored = self.compute_richness_scores()
-        console.print(f"\n[bold]Scoring {len(scored)} businesses...[/bold]")
+        console.print(f"\n[bold]Auto mode: Scoring {len(scored)} restaurants...[/bold]")
 
         all_results = []
         above_threshold = 0
+        total_batches = (len(scored) + self.batch_size - 1) // self.batch_size
 
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            BarColumn(),
-            TaskProgressColumn(),
-            console=console
-        ) as progress:
-            total_batches = (len(scored) + self.batch_size - 1) // self.batch_size
-            task = progress.add_task("Processing batches...", total=total_batches)
+        for batch_start in range(0, len(scored), self.batch_size):
+            batch = scored[batch_start:batch_start + self.batch_size]
+            batch_num = batch_start // self.batch_size + 1
+            console.print(f"[dim]Batch {batch_num}/{total_batches} ({batch_start+1}-{batch_start+len(batch)})...[/dim]")
 
-            for batch_start in range(0, len(scored), self.batch_size):
-                batch = scored[batch_start:batch_start + self.batch_size]
-                batch_num = batch_start // self.batch_size + 1
-                progress.update(task, description=f"Batch {batch_num}/{total_batches}")
+            tasks = [self.estimate_category_fit_async(biz) for biz, _ in batch]
+            results = await asyncio.gather(*tasks)
 
-                if self.skip_llm:
-                    results = [self.estimate_simple(biz) for biz, _ in batch]
-                else:
-                    tasks = [self.estimate_category_fit_async(biz) for biz, _ in batch]
-                    results = await asyncio.gather(*tasks)
+            all_results.extend(results)
+            above_threshold = sum(1 for _, pct, _ in all_results if pct >= self.threshold)
 
-                all_results.extend(results)
-                above_threshold = sum(1 for _, pct, _ in all_results if pct >= self.threshold)
-
-                progress.advance(task)
-
-                if above_threshold >= self.target:
-                    console.print(f"\n[green]Reached {self.target} above {self.threshold}%. Stopping early.[/green]")
-                    break
+            if above_threshold >= self.target:
+                console.print(f"[green]Reached {self.target} above {self.threshold}%. Stopping early.[/green]")
+                break
 
         all_results.sort(key=lambda x: -x[1])
         self.scored_results = all_results
 
-        console.print(f"[green]Scored {len(all_results)} businesses[/green]")
-        console.print(f"[green]Above {self.threshold}%: {above_threshold}[/green]")
+        # Debug: show error count and sample responses
+        errors = [r for r in all_results if "[Error:" in r[2]]
+        if errors:
+            console.print(f"[red]Errors: {len(errors)}[/red]")
+            console.print(f"[dim]Sample error: {errors[0][2][:100]}[/dim]")
+        else:
+            # Show sample responses
+            console.print(f"[dim]Sample response: {all_results[0][2][:100] if all_results else 'None'}[/dim]")
+
+        console.print(f"[green]Scored {len(all_results)} restaurants[/green]")
+        console.print(f"[dim]Above {self.threshold}%: {above_threshold} | Below: {len(all_results) - above_threshold}[/dim]")
+
+    def run_manual_mode(self) -> None:
+        """Manual mode: review each restaurant one by one."""
+        scored = self.compute_richness_scores()
+        console.print(f"\n[bold]Manual mode: {len(scored)} restaurants to review[/bold]")
+        console.print("[yellow]Manual mode not yet implemented. Use auto mode.[/yellow]")
+        self.scored_results = [(biz, 50, "Manual review pending") for biz, _ in scored[:self.target]]
 
     # ─────────────────────────────────────────────────────────────────────────
     # Output
@@ -614,7 +720,7 @@ Reply: "XX% - reason"
             "params": {
                 "target": self.target,
                 "threshold": self.threshold,
-                "skip_llm": self.skip_llm
+                "mode": self.mode
             },
             "stats": {
                 "restaurants": len(selected),
@@ -634,7 +740,7 @@ Reply: "XX% - reason"
         console.print(Panel.fit(
             "[bold]Yelp Data Curation[/bold]\n"
             "Select city and categories to curate.",
-            border_style="cyan"
+            border_style="dim"
         ))
 
         self.load_business_data()
@@ -652,14 +758,16 @@ Reply: "XX% - reason"
             else:
                 break
 
-        # Get selection name
-        default_name = f"{self.city.lower().replace(' ', '_')}_{self.categories[0].lower().replace(' ', '_').replace('&', '')}"
-        self.name = Prompt.ask("Selection name", default=default_name)
+        # Get selection name (LLM-generated with cache)
+        default_name = generate_selection_name(self.city, self.categories)
+        self.name = DimPrompt.ask("Selection name", default=default_name)
         self.output_dir = OUTPUT_DIR / self.name
 
-        # Options
-        self.skip_llm = Prompt.ask("Use LLM for scoring? [Y/n]", default="y").lower() != "y"
-        self.target = int(Prompt.ask("Target restaurants", default="100"))
+        # Mode selection
+        console.print(f"\n[bold]Mode:[/bold]")
+        console.print(f"  [A]uto: LLM batch scoring, keep ≥{self.threshold}%, target {self.target}")
+        console.print(f"  [M]anual: Review each restaurant one by one")
+        self.mode = DimPrompt.ask("Choose mode", choices=["a", "m"], default="a").lower()
 
         return True
 
@@ -684,13 +792,16 @@ Reply: "XX% - reason"
         business_ids = {b["business_id"] for b in filtered}
         self.load_reviews(business_ids)
 
-        if not self.skip_llm:
+        if self.mode == "a":
+            # Auto mode: LLM batch scoring
             self.category_keywords = self.generate_category_keywords()
             console.print(f"[dim]Keywords: {', '.join(self.category_keywords[:10])}...[/dim]")
+            asyncio.run(self.run_auto_mode())
         else:
-            self.category_keywords = [cat.lower() for cat in self.categories]
-
-        asyncio.run(self.score_businesses())
+            # Manual mode: review one by one
+            self.category_keywords = self.generate_category_keywords()
+            console.print(f"[dim]Keywords: {', '.join(self.category_keywords[:10])}...[/dim]")
+            self.run_manual_mode()
 
         self.show_top_results()
         self.write_output()
@@ -709,7 +820,7 @@ def main():
     parser.add_argument("--target", type=int, default=100, help="Target restaurants")
     parser.add_argument("--threshold", type=int, default=70, help="Min score threshold")
     parser.add_argument("--batch-size", type=int, default=20, help="Batch size")
-    parser.add_argument("--skip-llm", action="store_true", help="Use heuristic")
+    parser.add_argument("--mode", choices=["a", "m"], default="a", help="Mode: a=auto, m=manual")
 
     args = parser.parse_args()
 
@@ -722,7 +833,7 @@ def main():
             target=args.target,
             threshold=args.threshold,
             batch_size=args.batch_size,
-            skip_llm=args.skip_llm
+            mode=args.mode
         )
         curator.run()
     else:
@@ -731,7 +842,7 @@ def main():
             target=args.target,
             threshold=args.threshold,
             batch_size=args.batch_size,
-            skip_llm=args.skip_llm
+            mode=args.mode
         )
         if curator.run_interactive():
             curator.run()

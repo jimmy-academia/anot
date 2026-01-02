@@ -1,15 +1,18 @@
 {
   "name": "philly_cafes",
   "city": "Philadelphia",
-  "categories": ["Coffee & Tea", "Cafes"],
-  "created": "2024-12-31",
-  "source": "oldsrc/data/yelp/selection_1",
+  "categories": [
+    "Coffee & Tea",
+    "Cafes"
+  ],
+  "created": "2026-01-01T20:23:44.550149",
   "params": {
     "target": 100,
-    "threshold": 70
+    "threshold": 70,
+    "mode": "a"
   },
   "stats": {
-    "restaurants": 220,
-    "reviews": 4302
+    "restaurants": 112,
+    "reviews": 34693
   }
 }
