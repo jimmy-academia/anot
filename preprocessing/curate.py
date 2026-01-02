@@ -22,6 +22,14 @@ from typing import Dict, List, Optional, Tuple
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+try:
+    from utils.llm import call_llm, call_llm_async
+except ImportError:
+    print("Error: Cannot import utils.llm")
+    print("Please run as module from project root:")
+    print("  python -m preprocessing.curate")
+    sys.exit(1)
+
 from rich.console import Console
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
@@ -42,7 +50,6 @@ class DimPrompt(Prompt):
         prompt.append(self.prompt_suffix)
         return prompt
 
-from utils.llm import call_llm, call_llm_async
 
 # File paths
 RAW_DIR = Path("preprocessing/raw")
