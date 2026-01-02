@@ -1,0 +1,41 @@
+{
+  "name": "philly_cafes",
+  "description": "Ground truth dataset for evaluating LLM prompting methods on cafe recommendation",
+  "created": "2026-01-01T21:42:17.242147",
+  "source": "Yelp Academic Dataset - Philadelphia Coffee & Tea, Cafes",
+  "restaurants": {
+    "count": 20,
+    "source_file": "preprocessing/output/philly_cafes/restaurants.jsonl",
+    "selection_criteria": "Diverse features (DriveThru, CoatCheck, BYOB, price range, noise level, alcohol, etc.)"
+  },
+  "reviews": {
+    "count": 400,
+    "per_restaurant": 20,
+    "selection_criteria": "Mix of recent and older reviews, diverse star ratings"
+  },
+  "requests": {
+    "count": 50,
+    "groups": {
+      "G01": "Simple Metadata (10) - single/double attribute filters",
+      "G02": "Review Text (10) - unique keyword patterns",
+      "G03": "Complex Metadata (10) - multi-attribute combinations",
+      "G04": "Social/Meta (10) - mixed evidence types",
+      "G05": "Nested Logic (10) - review text + metadata"
+    },
+    "design_principle": "Each request has exactly 1 correct answer"
+  },
+  "feature_coverage": [
+    "DriveThru",
+    "CoatCheck",
+    "BYOB",
+    "PriceRange (1-3)",
+    "NoiseLevel (quiet/average/loud)",
+    "Alcohol (none/beer_wine/full_bar)",
+    "HappyHour",
+    "DogsAllowed",
+    "OutdoorSeating",
+    "GoodForKids",
+    "WiFi (free/no)",
+    "Ambience (hipster/trendy/romantic)"
+  ]
+}
