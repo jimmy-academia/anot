@@ -23,8 +23,8 @@ def setup_logging(verbose: bool = False):
         level=level,
         format="%(levelname)s: %(message)s"
     )
-    # Suppress verbose HTTP client logs (must be after basicConfig)
-    for logger_name in ["httpx", "httpcore", "openai", "httpx._client"]:
+    # Suppress verbose logs (must be after basicConfig)
+    for logger_name in ["httpx", "httpcore", "openai", "httpx._client", "asyncio"]:
         logging.getLogger(logger_name).setLevel(logging.WARNING)
     return logging.getLogger(__name__)
 
@@ -51,33 +51,11 @@ def main():
             print(f"{'='*60}")
             run_single(args, experiment, log)
         else:
-            # Full benchmark mode: check existing runs first
-            # Load dataset to get total request count
-            dataset = load_dataset(args.data)
-            total_requests = len(dataset.requests)
-
+            # Full benchmark mode: run_single handles resume via results_{n}.jsonl
             experiment = create_experiment(args)
+            run_single(args, experiment, log)
 
-            # Check for missing requests in latest run
-            missing = experiment.get_missing_requests(total_requests)
-
-            if missing:
-                # Incomplete run - complete it first
-                completed_count = total_requests - len(missing)
-                print(f"Run incomplete ({completed_count}/{total_requests} requests). Completing {len(missing)} remaining...")
-                print(f"\n{'='*60}")
-                print(f"Completing run 1 of {args.auto}")
-                print(f"{'='*60}")
-
-                # Set limit to missing indices and run
-                args.limit = ",".join(str(i) for i in missing)
-                experiment = create_experiment(args)  # Re-create with partial=True
-                run_single(args, experiment, log)
-
-                # Reset limit for subsequent runs
-                args.limit = None
-
-            # Now check for additional runs needed
+            # Check for additional runs needed (args.auto)
             experiment = create_experiment(args)
             completed = experiment.get_completed_runs()
             needed = args.auto - completed

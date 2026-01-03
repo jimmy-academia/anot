@@ -19,8 +19,6 @@ from utils.parsing import parse_final_answer, parse_script, substitute_variables
 # Configuration and Global State
 # =============================================================================
 
-DEBUG = os.environ.get("KNOT_DEBUG", "0") == "1"
-
 # Defense support
 _defense = None
 _use_defense_prompt = False

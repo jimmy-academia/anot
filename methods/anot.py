@@ -74,21 +74,28 @@ RELEVANT_ATTR = <exact attribute name found, or "NONE" if checking reviews>
 (N) = aggregate scores, return top-5
 """
 
-ADAPT_LWT_PROMPT = """Expand this evaluation branch based on the item's local data.
+EXPAND_BRANCH_PROMPT = """Generate an LWT evaluation step for this restaurant.
 
-[BRANCH TO EXPAND]
-({idx}) = evaluate {item_name}: check [attributes][{attr}]
+[USER REQUEST]
+{context}
 
-[THIS ITEM'S DATA]
-item_name: {item_name}
-attributes: {attributes}
+[RESTAURANT {idx}]
+Name: {item_name}
+Attributes: {attributes}
+Sample Reviews: {reviews}
 
-[EXPANSION RULES]
-- If attribute exists AND is True → ({idx})=LLM("{item_name} has {attr}=True. Output: 1")
-- If attribute exists AND is False → ({idx})=LLM("{item_name} has {attr}=False. Output: -1")
-- If attribute does NOT exist → ({idx})=LLM("{item_name} has no {attr}. Output: -1")
+[LWT SYNTAX]
+({idx})=LLM("prompt text. Output: <score>")
+- Scores are 0-10 based on how well restaurant matches user request
+- Your prompt should evaluate the ACTUAL attribute values semantically
+- Example: For user wanting "quiet cafe", NoiseLevel="u'quiet'" → high score, NoiseLevel="u'loud'" → low score
+- Consider attribute values like: NoiseLevel, WiFi, OutdoorSeating, Ambience, etc.
+- Values are often strings like "u'quiet'", "u'free'", "True", "False", or dicts as strings
 
-Output ONLY the single line:
+[OUTPUT]
+Write a single LWT step that scores restaurant {idx}.
+Include key attribute values and review insights relevant to the user's request.
+Output ONLY the LWT step line (no explanation):
 """
 
 CONTENT_CONDITION_PROMPT = """Analyze these reviews for potential issues.
@@ -104,6 +111,38 @@ Output:
 ATTACK: YES/NO - [indices if YES]
 FAKE: YES/NO - [indices if YES]
 """
+
+
+# =============================================================================
+# Helper Functions
+# =============================================================================
+
+def parse_score(output: str) -> int:
+    """Parse LLM output to extract a 0-10 score.
+
+    Returns 0 if parsing fails.
+    """
+    output = output.strip()
+
+    # Direct number 0-10
+    if output.isdigit() and 0 <= int(output) <= 10:
+        return int(output)
+
+    # Pattern: Score: N or Output: N
+    match = re.search(r'(?:score|output)[:\s]*(\d+)', output, re.IGNORECASE)
+    if match:
+        score = int(match.group(1))
+        return min(10, max(0, score))
+
+    # Pattern: standalone number 0-10
+    match = re.search(r'\b(\d+)\b', output)
+    if match:
+        score = int(match.group(1))
+        if 0 <= score <= 10:
+            return score
+
+    # Fallback
+    return 0
 
 
 # =============================================================================
@@ -220,20 +259,21 @@ class AdaptiveNetworkOfThought(BaseMethod):
 
     def __init__(self, run_dir: str = None, defense: bool = False, verbose: bool = True, **kwargs):
         super().__init__(run_dir=run_dir, defense=defense, verbose=verbose, **kwargs)
-        self.cache = {}  # Step results cache
+        # Note: cache is now thread-local (use _get_cache() / _set_cache())
         self.schema_cache = {}  # Schema discovery cache (per structure hash)
         self.lwt_cache = {}  # LWT template cache (per context)
         self._log_buffer = []
-        self._current_item = None
         self._current_context = None
-        self._current_request_id = None
-        # Structured trace for debugging
-        self._trace = None  # Reset per evaluation
+        # Thread-local storage for per-thread request tracking
+        self._thread_local = threading.local()
+        # Structured trace for debugging (per-request to support threading)
+        self._traces = {}  # {request_id: trace_dict}
+        self._traces_lock = threading.Lock()
         # Rich display state
-        self._console = Console()
+        self._console = Console(force_terminal=True)
         self._live = None  # Rich Live context (set during evaluate_ranking)
         self._display_rows = {}  # {request_id: {context, phase, status}}
-        self._display_lock = threading.Lock()
+        self._display_lock = threading.RLock()  # Reentrant lock for nested calls
         self._display_title = ""
         self._display_stats = {"complete": 0, "total": 0, "tokens": 0, "cost": 0.0}
 
@@ -241,7 +281,8 @@ class AdaptiveNetworkOfThought(BaseMethod):
         """Log message to file (always) and terminal (only if no Live display active)."""
         from datetime import datetime
         timestamp = datetime.now().strftime("%H:%M:%S")
-        item_prefix = f"[{self._current_item}] " if self._current_item else ""
+        current_item = getattr(self._thread_local, 'current_item', None)
+        item_prefix = f"[{current_item}] " if current_item else ""
 
         if separator:
             entry = f"\n{'='*60}\n{msg}\n{'='*60}"
@@ -277,8 +318,8 @@ class AdaptiveNetworkOfThought(BaseMethod):
             self._log_buffer = []
 
     def _init_trace(self, request_id: str, context: str):
-        """Initialize a new trace for this evaluation."""
-        self._trace = {
+        """Initialize a new trace for this evaluation (thread-safe)."""
+        trace = {
             "request_id": request_id,
             "context": context,
             "phase1": {
@@ -297,17 +338,29 @@ class AdaptiveNetworkOfThought(BaseMethod):
                 "latency_ms": 0,
             },
         }
+        with self._traces_lock:
+            self._traces[request_id] = trace
 
-    def save_trace(self, filepath: str = None):
-        """Save structured trace to JSON file."""
-        if not self._trace:
+    def _get_trace(self, request_id: str = None) -> dict:
+        """Get trace for request_id (thread-safe). Uses thread-local request_id if not specified."""
+        rid = request_id or getattr(self._thread_local, 'request_id', None)
+        if not rid:
+            return None
+        with self._traces_lock:
+            return self._traces.get(rid)
+
+    def save_trace(self, filepath: str = None, request_id: str = None):
+        """Save structured trace to JSON file (thread-safe)."""
+        trace = self._get_trace(request_id)
+        if not trace:
             return
         if filepath is None and self.run_dir:
             os.makedirs(self.run_dir, exist_ok=True)
             filepath = os.path.join(self.run_dir, "anot_trace.jsonl")
         if filepath:
-            with open(filepath, "a") as f:
-                f.write(json.dumps(self._trace) + "\n")
+            with self._traces_lock:
+                with open(filepath, "a") as f:
+                    f.write(json.dumps(trace) + "\n")
 
     def _find_tokens_by_context(self, phase: int, step: str) -> dict:
         """Find usage record matching phase and step context (thread-safe).
@@ -330,15 +383,52 @@ class AdaptiveNetworkOfThought(BaseMethod):
         return {"prompt_tokens": 0, "completion_tokens": 0}
 
     # =========================================================================
+    # Thread-local Cache Helpers
+    # =========================================================================
+
+    def _get_cache(self) -> dict:
+        """Get thread-local step results cache."""
+        return getattr(self._thread_local, 'cache', {})
+
+    def _set_cache(self, value: dict):
+        """Set thread-local step results cache."""
+        self._thread_local.cache = value
+
+    def _cache_get(self, key: str, default=None):
+        """Get value from thread-local cache."""
+        return self._get_cache().get(key, default)
+
+    def _cache_set(self, key: str, value):
+        """Set value in thread-local cache."""
+        cache = self._get_cache()
+        cache[key] = value
+        self._thread_local.cache = cache
+
+    # =========================================================================
     # Rich Display Methods
     # =========================================================================
 
-    def start_display(self, title: str = "", total: int = 0):
+    def start_display(self, title: str = "", total: int = 0, requests: list = None):
         """Start the rich Live display."""
         self._display_title = title
         self._display_stats = {"complete": 0, "total": total, "tokens": 0, "cost": 0.0}
         self._display_rows = {}
-        self._live = Live(self._render_table(), console=self._console, refresh_per_second=4)
+        self._last_display_update = 0  # Throttle timestamp
+
+        # Pre-populate all rows to keep table height constant (fixes cursor repositioning)
+        if requests:
+            for req in requests:
+                rid = req.get("id", req.get("text", "")[:20])
+                ctx = req.get("context") or req.get("text", "")
+                self._display_rows[rid] = {"context": ctx, "phase": "---", "status": "pending"}
+
+        self._live = Live(
+            self._render_table(),
+            console=self._console,
+            auto_refresh=False,  # Disable auto-refresh, only update on manual update() calls
+            transient=False,  # Keep final display
+            vertical_overflow="visible",  # Don't crop content
+        )
         self._live.start()
 
     def stop_display(self):
@@ -359,13 +449,21 @@ class AdaptiveNetworkOfThought(BaseMethod):
                 if context:
                     self._display_rows[request_id]["context"] = context
 
-            # Track completions
+            # Track completions and update token counts
             if phase == "✓" and not was_complete:
                 self._display_stats["complete"] += 1
+                # Update token counts from usage tracker
+                from utils.usage import get_usage_tracker
+                summary = get_usage_tracker().get_summary()
+                self._display_stats["tokens"] = summary.get("total_tokens", 0)
+                self._display_stats["cost"] = summary.get("total_cost_usd", 0.0)
 
-        # Refresh live display if active
-        if self._live:
-            self._live.update(self._render_table())
+            # Throttled display update - only refresh if 100ms passed since last update
+            if self._live:
+                now = time.time()
+                if now - self._last_display_update >= 0.1:
+                    self._live.update(self._render_table())
+                    self._last_display_update = now
 
     def _render_table(self) -> Table:
         """Build current display table."""
@@ -473,8 +571,9 @@ class AdaptiveNetworkOfThought(BaseMethod):
         }
         """
         self._log("Phase 1: ReAct Exploration")
-        if self._current_request_id:
-            self._update_display(self._current_request_id, "P1", "exploring")
+        req_id = getattr(self._thread_local, 'request_id', None)
+        if req_id:
+            self._update_display(req_id, "P1", "exploring")
 
         # Initial structure summary (keys only, no values)
         initial = self._get_initial_structure(query)
@@ -495,8 +594,8 @@ class AdaptiveNetworkOfThought(BaseMethod):
 
         for round_num in range(max_rounds):
             # Update display with round progress
-            if self._current_request_id:
-                self._update_display(self._current_request_id, "P1", f"round {round_num + 1}/{max_rounds}")
+            if req_id:
+                self._update_display(req_id, "P1", f"round {round_num + 1}/{max_rounds}")
 
             # Build full prompt with conversation history
             if conversation_history:
@@ -525,13 +624,14 @@ class AdaptiveNetworkOfThought(BaseMethod):
                 self._log(f"Generated plan: N={plan.get('n_items')}, attr={plan.get('relevant_attr')}, branches={n_branches}", terminal=False)
 
                 # Record to trace
-                if self._trace:
-                    self._trace["phase1"]["plan"] = {
+                trace = self._get_trace()
+                if trace:
+                    trace["phase1"]["plan"] = {
                         "n_items": plan.get("n_items"),
                         "relevant_attr": plan.get("relevant_attr"),
                         "n_branches": n_branches,
                     }
-                    self._trace["phase1"]["latency_ms"] = elapsed * 1000
+                    trace["phase1"]["latency_ms"] = elapsed * 1000
 
                 return plan
 
@@ -546,8 +646,9 @@ class AdaptiveNetworkOfThought(BaseMethod):
                 self._log(f"  {tool}(\"{path}\") → {result[:100]}{'...' if len(result) > 100 else ''}", terminal=False)
 
                 # Record to trace
-                if self._trace:
-                    self._trace["phase1"]["exploration_rounds"].append({
+                trace = self._get_trace()
+                if trace:
+                    trace["phase1"]["exploration_rounds"].append({
                         "round": round_num,
                         "action": f'{tool}("{path}")',
                         "result": result[:200] if len(result) > 200 else result,
@@ -568,59 +669,88 @@ class AdaptiveNetworkOfThought(BaseMethod):
         # Failed to generate plan
         elapsed = time.time() - start
         self._log(f"WARNING: Exploration failed after {max_rounds} rounds ({elapsed:.1f}s)")
-        if self._trace:
-            self._trace["phase1"]["latency_ms"] = elapsed * 1000
+        trace = self._get_trace()
+        if trace:
+            trace["phase1"]["latency_ms"] = elapsed * 1000
         return {}
 
     # =========================================================================
     # Phase 2: Expand Global Plan
     # =========================================================================
 
-    def _expand_branch(self, idx: int, item: dict, relevant_attr: str) -> str:
-        """Expand a single branch based on item's local data.
+    def _expand_branch(self, idx: int, item: dict, context: str) -> str:
+        """Use LLM to generate intelligent evaluation step.
 
-        Returns expanded LWT step, e.g.:
-        (0)=LLM("Tria Cafe has DriveThru=False. Output: -1")
+        Args:
+            idx: Item index (0-based)
+            item: Item dict with item_name, attributes, reviews
+            context: User's request/query
+
+        Returns:
+            LWT step like: (0)=LLM("prompt. Output: score")
         """
         item_name = item.get("item_name", f"Item {idx}")
         attrs = item.get("attributes", {})
+        reviews = item.get("reviews", [])[:2]  # Sample 2 reviews
+        review_texts = [r.get("review", "")[:200] for r in reviews]
 
-        # Check if the relevant attribute exists
-        if relevant_attr in attrs:
-            value = attrs[relevant_attr]
-            if value is True or value == "True" or value == "true":
-                return f'({idx})=LLM("{item_name} has {relevant_attr}=True. Output: 1")'
-            else:
-                return f'({idx})=LLM("{item_name} has {relevant_attr}=False. Output: -1")'
+        prompt = EXPAND_BRANCH_PROMPT.format(
+            context=context,
+            idx=idx,
+            item_name=item_name,
+            attributes=json.dumps(attrs, indent=2),
+            reviews="\n".join(review_texts) if review_texts else "(no reviews)"
+        )
+
+        response = call_llm(
+            prompt,
+            system=SYSTEM_PROMPT,
+            role="expander",
+            context={"method": "anot", "phase": 2, "step": f"expand_{idx}"}
+        )
+
+        # Extract LWT step from response
+        # Match: (idx)=LLM("...") or (idx)=LLM('...')
+        match = re.search(r'\(\d+\)\s*=\s*LLM\s*\(["\'].*?["\']\)', response, re.DOTALL)
+        if match:
+            return match.group(0)
         else:
-            return f'({idx})=LLM("{item_name} has no {relevant_attr}. Output: -1")'
+            # Fallback to simple prompt
+            self._log(f"WARNING: Could not parse LWT from response, using fallback for item {idx}")
+            return f'({idx})=LLM("Rate {item_name} for: {context}. Score 0-10.")'
 
-    def phase2_expand(self, plan: dict, items: list) -> str:
+    def phase2_expand(self, plan: dict, items: list, context: str) -> str:
         """Expand global plan into executable LWT.
 
-        Takes plan from Phase 1 and expands all branches based on local item data.
-        Returns fully expanded LWT string.
+        Uses LLM to generate intelligent evaluation steps for each item.
+
+        Args:
+            plan: Plan from Phase 1 (used for logging only now)
+            items: List of item dicts
+            context: User's request/query
+
+        Returns:
+            Fully expanded LWT string.
         """
         start = time.time()
         self._log(f"Phase 2: Expanding global plan ({len(items)} items)")
-        if self._current_request_id:
-            self._update_display(self._current_request_id, "P2", "expanding")
+        req_id = getattr(self._thread_local, 'request_id', None)
+        if req_id:
+            self._update_display(req_id, "P2", "expanding")
 
-        relevant_attr = plan.get("relevant_attr", "")
-        if not relevant_attr or relevant_attr == "NONE":
-            self._log("WARNING: No relevant attribute found, using fallback")
-            relevant_attr = "DriveThru"  # Fallback
-
-        # Expand each item branch
+        # Expand each item branch using LLM
         expanded_steps = []
         for i, item in enumerate(items):
-            step = self._expand_branch(i, item, relevant_attr)
+            if req_id:
+                self._update_display(req_id, "P2", f"item {i+1}/{len(items)}")
+            step = self._expand_branch(i, item, context)
             expanded_steps.append(step)
+            self._log(f"  Branch {i}: {step[:80]}...", terminal=False)
 
-        # Add aggregation step
+        # Add aggregation step (0-10 scoring)
         n = len(items)
         refs = ", ".join(f"{{({i})}}" for i in range(n))
-        agg_step = f'({n})=LLM("Scores: {refs}. Return top-5 indices (comma-separated, highest scores first)")'
+        agg_step = f'({n})=LLM("Scores: {refs}. Return top-5 indices sorted by score (highest first, comma-separated)")'
         expanded_steps.append(agg_step)
 
         expanded_lwt = "\n".join(expanded_steps)
@@ -628,9 +758,10 @@ class AdaptiveNetworkOfThought(BaseMethod):
         self._log(f"Expanded LWT ({len(expanded_steps)} steps)", terminal=False)
 
         # Record to trace
-        if self._trace:
-            self._trace["phase2"]["expanded_lwt"] = expanded_steps
-            self._trace["phase2"]["latency_ms"] = elapsed * 1000
+        trace = self._get_trace()
+        if trace:
+            trace["phase2"]["expanded_lwt"] = expanded_steps
+            trace["phase2"]["latency_ms"] = elapsed * 1000
 
         return expanded_lwt
 
@@ -640,7 +771,7 @@ class AdaptiveNetworkOfThought(BaseMethod):
 
     def _execute_step(self, idx: str, instr: str, query: dict, context: str) -> str:
         """Execute a single LWT step."""
-        filled = substitute_variables(instr, query, context, self.cache)
+        filled = substitute_variables(instr, query, context, self._get_cache())
         self._log(f"Step ({idx}):", instr, terminal=False)
         self._log(f"Filled:", filled, terminal=False)
 
@@ -660,7 +791,7 @@ class AdaptiveNetworkOfThought(BaseMethod):
 
     async def _execute_step_async(self, idx: str, instr: str, query: dict, context: str) -> tuple:
         """Execute a single LWT step asynchronously."""
-        filled = substitute_variables(instr, query, context, self.cache)
+        filled = substitute_variables(instr, query, context, self._get_cache())
         self._log(f"Step ({idx}) [async]:", instr, terminal=False)
 
         start = time.time()
@@ -679,8 +810,9 @@ class AdaptiveNetworkOfThought(BaseMethod):
         self._log(f"Step ({idx}) result: {output}", terminal=False)
 
         # Record to trace
-        if self._trace:
-            self._trace["phase3"]["step_results"][idx] = {
+        trace = self._get_trace()
+        if trace:
+            trace["phase3"]["step_results"][idx] = {
                 "output": output[:100] if len(output) > 100 else output,
                 "latency_ms": latency,
             }
@@ -689,7 +821,7 @@ class AdaptiveNetworkOfThought(BaseMethod):
 
     async def _execute_parallel(self, lwt: str, query: dict, context: str) -> str:
         """Execute LWT with DAG parallel execution."""
-        self.cache = {}
+        self._set_cache({})
         steps = parse_script(lwt)
 
         if not steps:
@@ -704,27 +836,29 @@ class AdaptiveNetworkOfThought(BaseMethod):
             tasks = [self._execute_step_async(idx, instr, query, context) for idx, instr in layer]
             results = await asyncio.gather(*tasks)
             for idx, output in results:
-                self.cache[idx] = output
+                self._cache_set(idx, output)
                 final = output
 
         # After all parallel execution completes, add tokens to trace by context filtering
-        if self._trace:
-            for idx in self._trace["phase3"]["step_results"]:
+        trace = self._get_trace()
+        if trace:
+            for idx in trace["phase3"]["step_results"]:
                 tokens = self._find_tokens_by_context(3, str(idx))
-                self._trace["phase3"]["step_results"][idx]["prompt_tokens"] = tokens["prompt_tokens"]
-                self._trace["phase3"]["step_results"][idx]["completion_tokens"] = tokens["completion_tokens"]
+                trace["phase3"]["step_results"][idx]["prompt_tokens"] = tokens["prompt_tokens"]
+                trace["phase3"]["step_results"][idx]["completion_tokens"] = tokens["completion_tokens"]
 
         return final
 
     def phase3_execute(self, lwt: str, query: dict, context: str) -> str:
         """Execute the LWT script."""
-        if self._current_request_id:
-            self._update_display(self._current_request_id, "P3", "executing")
+        req_id = getattr(self._thread_local, 'request_id', None)
+        if req_id:
+            self._update_display(req_id, "P3", "executing")
         try:
             return asyncio.run(self._execute_parallel(lwt, query, context))
         except RuntimeError:
             # Already in async context, run sequentially
-            self.cache = {}
+            self._set_cache({})
             steps = parse_script(lwt)
             if not steps:
                 return "0"
@@ -732,7 +866,7 @@ class AdaptiveNetworkOfThought(BaseMethod):
             final = ""
             for idx, instr in steps:
                 output = self._execute_step(idx, instr, query, context)
-                self.cache[idx] = output
+                self._cache_set(idx, output)
                 final = output
             return final
 
@@ -747,10 +881,10 @@ class AdaptiveNetworkOfThought(BaseMethod):
         """
         if isinstance(item, dict):
             item_name = item.get("item_name", "Unknown")
-            self._current_item = item_name
+            self._thread_local.current_item = item_name
         else:
             item_name = "Unknown"
-            self._current_item = None
+            self._thread_local.current_item = None
 
         # Get cached LWT (Phase 1 already done)
         lwt_template = self.lwt_cache.get(context, "")
@@ -769,7 +903,7 @@ class AdaptiveNetworkOfThought(BaseMethod):
         answer = parse_final_answer(output)
         self._log(f"Final: {answer}")
 
-        self._current_item = None
+        self._thread_local.current_item = None
         self.save_log()
         return answer
 
@@ -778,10 +912,10 @@ class AdaptiveNetworkOfThought(BaseMethod):
         # Setup
         if isinstance(query, dict):
             item_name = query.get("item_name", "Unknown")
-            self._current_item = item_name
+            self._thread_local.current_item = item_name
         else:
             item_name = "Unknown"
-            self._current_item = None
+            self._thread_local.current_item = None
 
         self._current_context = context
 
@@ -808,7 +942,7 @@ class AdaptiveNetworkOfThought(BaseMethod):
         answer = parse_final_answer(output)
         self._log(f"Final: {answer}")
 
-        self._current_item = None
+        self._thread_local.current_item = None
         self.save_log()
         return answer
 
@@ -821,7 +955,7 @@ class AdaptiveNetworkOfThought(BaseMethod):
         """
         # Initialize trace for this evaluation
         self._init_trace(request_id, context)
-        self._current_request_id = request_id
+        self._thread_local.request_id = request_id
         phase3_start = None
 
         # Parse items
@@ -855,19 +989,19 @@ class AdaptiveNetworkOfThought(BaseMethod):
             return ", ".join(str(i+1) for i in range(min(k, len(items))))
 
         # Phase 2: Expand Global Plan → Fully Expanded LWT
-        expanded_lwt = self.phase2_expand(plan, items)
+        expanded_lwt = self.phase2_expand(plan, items, context)
 
         # Phase 3: Execute Expanded LWT
         self._log("Phase 3: Execution", separator=True)
         phase3_start = time.time()
-        self.cache = {}
+        self._set_cache({})
         output = self.phase3_execute(expanded_lwt, data, context)
 
         # Parse results from cache
         results = []
         for i in range(len(items)):
-            score_str = self.cache.get(str(i), "0")
-            score = parse_final_answer(score_str)
+            score_str = self._cache_get(str(i), "0")
+            score = parse_score(score_str)  # 0-10 scale
             results.append((i, score, item_names[i]))
 
         # Rank by score (descending), then by index (ascending)
@@ -875,27 +1009,27 @@ class AdaptiveNetworkOfThought(BaseMethod):
         top_k = [str(r[0] + 1) for r in ranked[:k]]  # Convert to 1-indexed
 
         # Record Phase 3 timing
-        if phase3_start and self._trace:
-            self._trace["phase3"]["latency_ms"] = (time.time() - phase3_start) * 1000
+        trace = self._get_trace()
+        if phase3_start and trace:
+            trace["phase3"]["latency_ms"] = (time.time() - phase3_start) * 1000
 
         # Summary
         self._log("RESULTS", separator=True)
         score_lines = []
         for idx, score, name in sorted(results, key=lambda x: x[0]):
-            score_str = {-1: "NO", 0: "?", 1: "YES"}.get(score, str(score))
-            score_lines.append(f"  [{idx+1}] {name}: {score_str}")
+            score_lines.append(f"  [{idx+1}] {name}: {score}/10")
         self._log("Scores:", "\n".join(score_lines))
         self._log(f"Top-{k}: {', '.join(f'{r[0]+1}:{item_names[r[0]]}' for r in ranked[:k])}")
 
         # Record final results to trace
-        if self._trace:
-            self._trace["phase3"]["final_scores"] = [r[1] for r in sorted(results, key=lambda x: x[0])]
-            self._trace["phase3"]["top_k"] = [int(x) for x in top_k]
+        if trace:
+            trace["phase3"]["final_scores"] = [r[1] for r in sorted(results, key=lambda x: x[0])]
+            trace["phase3"]["top_k"] = [int(x) for x in top_k]
 
         # Update display with completion
         result_str = ",".join(top_k)
         self._update_display(request_id, "✓", result_str)
-        self._current_request_id = None
+        self._thread_local.request_id = None
 
         self.save_log()
         self.save_trace()
@@ -903,17 +1037,13 @@ class AdaptiveNetworkOfThought(BaseMethod):
 
     def _evaluate_single_item(self, idx: int, item: dict, context: str) -> tuple:
         """Thread-safe single item evaluation (Phase 2+3 only)."""
-        original_cache = self.cache
-        original_item = self._current_item
-        self.cache = {}
+        # Cache and current_item are now thread-local, no save/restore needed
+        self._set_cache({})
 
         try:
             score = self._evaluate_item(item, context)
         except Exception:
             score = 0
-        finally:
-            self.cache = original_cache
-            self._current_item = original_item
 
         return (idx + 1, score)
 

@@ -12,17 +12,16 @@ This is a Python-based LLM evaluation framework comparing prompting methodologie
 ```bash
 # Development mode (default): creates results/dev/{NNN}_{run-name}/
 python main.py --method cot --run-name baseline
-python main.py --method knot --run-name experiment1
-python main.py --method knot --mode dict --run-name dict_test
+python main.py --method anot --run-name experiment1
 
 # Benchmark mode: set BENCHMARK_MODE=True in utils/arguments.py
 # Creates results/benchmarks/{run-name}/ (tracked in git)
 
 # Custom data paths
-python main.py --method knot --data data/processed/complex_data.jsonl --run-name complex
+python main.py --method anot --data data/processed/complex_data.jsonl --run-name complex
 
 # With pre-generated attacks
-python main.py --method knot --attack typo_10 --run-name robustness
+python main.py --method anot --attack typo_10 --run-name robustness
 
 # Test with dummy method
 python main.py --method dummy --limit 5 -v
@@ -52,9 +51,15 @@ export ANTHROPIC_API_KEY="sk-ant-..."
 export LLM_PROVIDER="openai"  # or "anthropic" or "local"
 export LLM_MODEL="gpt-4o-mini"
 
-# Debug output
-export NOT_DEBUG=1   # for rnot.py
-export KNOT_DEBUG=1  # for knot.py
+# Verbose terminal output (default: on, use --no-verbose to disable)
+python main.py --method anot --no-verbose
+
+# Structured logs written to {run_dir}/:
+#   results_{n}.jsonl   - predictions + per-request usage
+#   usage.jsonl         - consolidated usage across runs
+#   anot_trace.jsonl    - ANoT phase-level structured trace
+#   config.json         - run configuration
+# See doc/logging.md for full schema details
 ```
 
 ## Architecture
@@ -71,7 +76,7 @@ export KNOT_DEBUG=1  # for knot.py
 
 - **methods/cot.py** - Chain-of-Thought using few-shot prompting.
 
-- **methods/knot.py** - Knowledge Network of Thought with dynamic 2-phase script generation.
+- **methods/anot.py** - Adaptive Network of Thought with 3-phase script generation.
 
 - **attack.py** - Attack functions (typo, injection, fake_review) and configs.
 
@@ -93,7 +98,7 @@ results/
     └── final_run/
 
 utils/             # Utility modules
-methods/           # Evaluation methods (cot, knot, etc.)
+methods/           # Evaluation methods (cot, anot, etc.)
 doc/               # Experiment documentation
 ```
 
@@ -105,7 +110,7 @@ def method(query, context: str) -> int
     # returns: -1 (not recommend), 0 (neutral), 1 (recommend)
 ```
 
-### Input Modes (knot.py)
+### Input Modes (anot.py)
 
 **String mode** (default): Input is formatted text, LLM extracts info
 ```
@@ -125,7 +130,7 @@ def method(query, context: str) -> int
 
 2. **Variable Substitution**: `{(var)}[key][index]` for nested access in scripts.
 
-3. **Dynamic Script Generation** (knot.py): LLM generates execution plan at runtime.
+3. **Dynamic Script Generation** (anot.py): LLM generates execution plan at runtime.
 
 ### User Request Personas (R0, R1, R2)
 

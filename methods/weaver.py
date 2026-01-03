@@ -93,8 +93,6 @@ class Weaver(BaseMethod):
 
     def evaluate(self, query: Any, context: str) -> int:
         """Evaluate using Weaver-style SQL+LLM hybrid reasoning."""
-        debug = os.environ.get("KNOT_DEBUG", "0") == "1"
-
         # Convert query to DataFrame
         if isinstance(query, str):
             try:
@@ -106,18 +104,18 @@ class Weaver(BaseMethod):
 
         df = self._create_dataframe(data)
 
-        if debug:
+        if self.verbose:
             print(f"[Weaver] Initial table shape: {df.shape}")
             print(f"[Weaver] Columns: {list(df.columns)}")
 
         # Step 1: Generate execution plan
         plan = self._generate_plan(df, context)
 
-        if debug:
+        if self.verbose:
             print(f"[Weaver] Plan:\n{plan}")
 
         # Step 2: Execute plan steps
-        df = self._execute_plan(df, plan, context, debug)
+        df = self._execute_plan(df, plan, context, self.verbose)
 
         # Step 3: Extract answer
         answer = self._extract_answer(df, context)

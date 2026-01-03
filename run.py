@@ -234,7 +234,7 @@ def evaluate_ranking(items: list[dict], method: Callable, requests: list[dict],
     has_rich_display = hasattr(method, 'start_display') and hasattr(method, 'stop_display')
     if has_rich_display:
         title = f"ANoT: {len(items)} candidates, k={k}"
-        method.start_display(title=title, total=len(requests))
+        method.start_display(title=title, total=len(requests), requests=requests)
 
     try:
         return _evaluate_ranking_inner(
@@ -383,18 +383,22 @@ def run_evaluation_loop(args, dataset, method, experiment):
     usage_for_display = get_usage_tracker().get_summary()
     print_ranking_results(eval_out["stats"], eval_out["results"], usage_for_display)
 
-    # Merge with existing results if partial run
-    results_to_save = eval_out["results"]
-    if experiment.partial:
-        results_to_save = experiment.merge_results(results_to_save)
-        # Recompute stats from merged results
-        merged_stats = compute_multi_k_stats(results_to_save, k)
-        print(f"\nMerged {len(eval_out['results'])} new + existing = {len(results_to_save)} total results")
-        eval_out["stats"] = merged_stats
-
-    # Save results - use results_{n}.jsonl when candidates specified for scaling compatibility
+    # Merge with existing results if resuming
     n_candidates = getattr(args, 'candidates', None) or len(dataset.items)
-    results_filename = f"results_{n_candidates}.jsonl" if getattr(args, 'candidates', None) else "results.jsonl"
+    results_filename = f"results_{n_candidates}.jsonl"  # Always use results_{n}.jsonl
+    results_to_save = eval_out["results"]
+
+    # Always merge with existing (unless --force)
+    if not args.force:
+        existing = load_existing_results(experiment.run_dir, n_candidates)
+        if existing:
+            for r in results_to_save:
+                existing[r["request_id"]] = r
+            results_to_save = list(existing.values())
+            # Recompute stats from merged results
+            merged_stats = compute_multi_k_stats(results_to_save, k)
+            print(f"\nMerged {len(eval_out['results'])} new + existing = {len(results_to_save)} total")
+            eval_out["stats"] = merged_stats
     result_path = experiment.save_results(results_to_save, results_filename)
     print(f"\nResults saved to {result_path}")
 
@@ -480,6 +484,31 @@ def run_single(args, experiment, log):
         filtered_ids = {r["id"] for r in dataset.requests}
         dataset.groundtruth = {k: v for k, v in dataset.groundtruth.items() if k in filtered_ids}
         log.info(f"Filtered to {len(dataset.requests)} requests (indices: {indices[:5]}{'...' if len(indices) > 5 else ''})")
+
+    # Check for existing results and skip/resume
+    n_candidates = getattr(args, 'candidates', None) or len(dataset.items)
+    if not args.force:
+        existing = load_existing_results(run_dir, n_candidates)
+        if existing:
+            expected_ids = {r["id"] for r in dataset.requests}
+            completed_ids = set(existing.keys())
+
+            if expected_ids == completed_ids:
+                # All requests complete - skip evaluation
+                log.info(f"Already complete ({len(existing)} requests). Use --force to re-run.")
+                cached_results = list(existing.values())
+                k = getattr(args, 'k', 5)
+                stats = compute_multi_k_stats(cached_results, k)
+                from utils.usage import get_usage_tracker
+                usage_for_display = get_usage_tracker().get_summary()
+                print_ranking_results(stats, cached_results, usage_for_display)
+                return {"stats": stats}
+
+            # Partial results exist - only run missing requests
+            missing_ids = expected_ids - completed_ids
+            dataset.requests = [r for r in dataset.requests if r["id"] in missing_ids]
+            dataset.groundtruth = {rid: gt for rid, gt in dataset.groundtruth.items() if rid in missing_ids}
+            log.info(f"Resuming: {len(completed_ids)} complete, running {len(missing_ids)} missing")
 
     log.info(f"\n{dataset}")
 
@@ -776,13 +805,16 @@ def run_scaling_experiment(args, log):
         )
 
         # Run evaluation
+        # Use dict mode for methods that need structured access
+        dict_mode_methods = {"anot", "weaver"}
+        eval_mode = "dict" if args.method in dict_mode_methods else "string"
         shuffle = getattr(args, 'shuffle', 'middle')
         eval_result = evaluate_ranking(
             dataset.items,
             method,
             dataset.requests,
             dataset.groundtruth,
-            mode="string",
+            mode=eval_mode,
             k=k,
             shuffle=shuffle,
             parallel=args.parallel,

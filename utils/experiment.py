@@ -150,24 +150,15 @@ class ExperimentManager:
         if self.target_run:
             # Use specific run directory
             run_num = self.target_run
-        elif self.partial:
-            # Default to latest run when --limit is used
+        else:
+            # Default to latest run (resume existing), create run_1 if none exist
             latest = self._get_latest_run(attack_dir)
             run_num = latest if latest else 1
-        else:
-            # Full run: create new run (existing behavior)
-            run_num = self._get_next_benchmark_run()
 
         subdir_name = f"run_{run_num}"
         run_dir = attack_dir / subdir_name
 
-        # Check if exists (allow reuse when target_run is set or partial mode)
-        if run_dir.exists() and not self.target_run and not self.partial and not self.force:
-            raise ExperimentError(
-                f"Run already exists: {run_dir}\n"
-                f"Use --force to overwrite or --run N to target specific run"
-            )
-
+        # Always allow reuse - we merge results with existing
         run_dir.mkdir(exist_ok=True)
         return run_dir
 

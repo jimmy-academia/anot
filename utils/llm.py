@@ -25,8 +25,6 @@ from utils.usage import get_usage_tracker
 
 # httpx/httpcore logging suppression moved to main.py (after basicConfig)
 
-DEBUG = os.environ.get("KNOT_DEBUG", "0") == "1"
-
 # -----------------------------
 # Global rate limiter
 # -----------------------------
