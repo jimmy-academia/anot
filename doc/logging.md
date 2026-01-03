@@ -87,45 +87,41 @@ Per-request predictions with embedded usage:
 
 ### Schema
 
-Each evaluation request generates a detailed trace:
+Each evaluation request generates a detailed trace following the three-phase architecture:
 
 ```json
 {
   "request_id": "R00",
-  "context": "I need a cafe with a drive-thru option",
+  "context": "Looking for a cafe with a drive-thru, kid-friendly, without TVs",
 
   "phase1": {
-    "exploration_rounds": [
-      {"round": 0, "action": "count(\"items\")", "result": "10", "latency_ms": 0.07, "prompt_tokens": 1250, "completion_tokens": 320},
-      {"round": 1, "action": "keys(\"items[0]\")", "result": "[...]", "latency_ms": 0.03, "prompt_tokens": 1420, "completion_tokens": 185},
-      {"round": 2, "action": "union_keys(\"items[*].attributes\")", "result": "[...]", "latency_ms": 0.07, "prompt_tokens": 1580, "completion_tokens": 210}
+    "skeleton": [
+      "(final)=LLM(\"User wants: cafe with drive-thru, kid-friendly, without TVs. Item(s) that match: [5]. Output the best index.\")"
     ],
-    "plan": {
-      "n_items": 10,
-      "relevant_attr": "DriveThru",
-      "n_branches": 11
-    },
-    "latency_ms": 46062.06
+    "message": "CONDITIONS: [\"DriveThru=True\", \"GoodForKids=True\", \"HasTV=False\"]\nREMAINING: [5]\nNEEDS_EXPANSION: no",
+    "latency_ms": 15234.56
   },
 
   "phase2": {
     "expanded_lwt": [
-      "(0)=LLM(\"Tria Cafe has no DriveThru. Output: -1\")",
-      "(5)=LLM(\"Milkcrate Cafe has DriveThru=True. Output: 1\")",
-      "(10)=LLM(\"Scores: {(0)}, {(1)}, ... Return top-5 indices\")"
+      "(final)=LLM(\"User wants: cafe with drive-thru, kid-friendly, without TVs. Item(s) that match: [5]. Output the best index.\")"
     ],
-    "latency_ms": 0.21
+    "react_iterations": 1,
+    "latency_ms": 3012.45
   },
 
   "phase3": {
     "step_results": {
-      "0": {"output": "-1", "latency_ms": 2606.00, "prompt_tokens": 340, "completion_tokens": 45},
-      "5": {"output": "1", "latency_ms": 2096.96, "prompt_tokens": 380, "completion_tokens": 42},
-      "10": {"output": "5,0,1,2,3", "latency_ms": 1500.00, "prompt_tokens": 520, "completion_tokens": 65}
+      "final": {
+        "output": "5",
+        "latency_ms": 3799.84,
+        "prompt_tokens": 340,
+        "completion_tokens": 45
+      }
     },
-    "final_scores": [-1, -1, -1, -1, -1, 1, -1, -1, -1, -1],
-    "top_k": [6, 1, 2, 3, 4],
-    "latency_ms": 5349.06
+    "top_k": [6],
+    "final_output": "5",
+    "latency_ms": 3801.23
   }
 }
 ```
@@ -134,13 +130,30 @@ Each evaluation request generates a detailed trace:
 
 | Phase | Key Fields | Description |
 |-------|------------|-------------|
-| **phase1** | `exploration_rounds`, `plan` | ReAct exploration with per-round token usage |
-| **phase2** | `expanded_lwt` | Fully expanded LWT script steps (no LLM calls) |
-| **phase3** | `step_results`, `final_scores`, `top_k` | Execution results with per-step token usage |
+| **phase1** | `skeleton`, `message`, `latency_ms` | Planning: extract conditions, prune items, generate LWT skeleton |
+| **phase2** | `expanded_lwt`, `react_iterations`, `latency_ms` | ReAct expansion using tools (lwt_list, lwt_insert, read, done) |
+| **phase3** | `step_results`, `top_k`, `final_output`, `latency_ms` | Parallel DAG execution with per-step token usage |
+
+### Phase 1 Output Format
+
+The `message` field contains structured information for Phase 2:
+- `CONDITIONS`: List of attribute conditions extracted from user request
+- `REMAINING`: Indices of items that match all conditions
+- `NEEDS_EXPANSION`: "yes" or "no" - tells Phase 2 whether to expand the LWT
+
+### Phase 2 ReAct Tools
+
+| Tool | Description |
+|------|-------------|
+| `done()` | Finish and return final LWT |
+| `lwt_list()` | Show current LWT steps with indices |
+| `lwt_insert(idx, "step")` | Insert step at index |
+| `lwt_set(idx, "step")` | Replace step at index |
+| `read(path)` | Read data (e.g., `read("items[5].item_data")`) |
 
 ### Token Tracking
 
-Both Phase 1 and Phase 3 record per-step token usage:
+Phase 3 records per-step token usage:
 - `prompt_tokens`: Input tokens for the LLM call
 - `completion_tokens`: Output tokens from the LLM response
 

@@ -393,9 +393,9 @@ class AdaptiveNetworkOfThought(BaseMethod):
         trace = {
             "request_id": request_id,
             "context": context,
-            "phase1": {"skeleton": [], "message": ""},
-            "phase2": {"expanded_lwt": []},
-            "phase3": {"step_results": {}, "top_k": [], "final_output": ""},
+            "phase1": {"skeleton": [], "message": "", "latency_ms": 0},
+            "phase2": {"expanded_lwt": [], "react_iterations": 0, "latency_ms": 0},
+            "phase3": {"step_results": {}, "top_k": [], "final_output": "", "latency_ms": 0},
         }
         with self._traces_lock:
             self._traces[request_id] = trace
@@ -432,7 +432,7 @@ class AdaptiveNetworkOfThought(BaseMethod):
         if not trace or not self.run_dir:
             return
 
-        trace_path = os.path.join(self.run_dir, "traces.jsonl")
+        trace_path = os.path.join(self.run_dir, "anot_trace.jsonl")
         try:
             with open(trace_path, "a") as f:
                 f.write(json.dumps(trace) + "\n")
@@ -728,11 +728,12 @@ class AdaptiveNetworkOfThought(BaseMethod):
                 conversation.append(f"\n{response}\n\nNo valid action found. Use lwt_list(), lwt_get(idx), lwt_set(idx, step), lwt_delete(idx), lwt_insert(idx, step), read(path), or done():")
 
         # Return expanded LWT
-        self._debug(1, "P2", f"Expanded LWT: {len(lwt_steps)} steps")
+        self._debug(1, "P2", f"Expanded LWT: {len(lwt_steps)} steps after {iteration + 1} iterations")
 
         trace = self._get_trace()
         if trace:
             trace["phase2"]["expanded_lwt"] = lwt_steps
+            trace["phase2"]["react_iterations"] = iteration + 1
 
         return lwt_steps
 
@@ -746,26 +747,34 @@ class AdaptiveNetworkOfThought(BaseMethod):
         self._debug(3, "P3", f"Step {idx} filled:", filled)
 
         start = time.time()
+        prompt_tokens = 0
+        completion_tokens = 0
         try:
-            output = await call_llm_async(
+            result = await call_llm_async(
                 filled,
                 system=SYSTEM_PROMPT,
                 role="worker",
-                context={"method": "anot", "phase": 3, "step": idx}
+                context={"method": "anot", "phase": 3, "step": idx},
+                return_usage=True
             )
+            output = result["text"]
+            prompt_tokens = result["prompt_tokens"]
+            completion_tokens = result["completion_tokens"]
         except Exception as e:
             output = "NO"
             self._debug(1, "P3", f"ERROR in step {idx}: {e}")
 
         latency = (time.time() - start) * 1000
         self._log_llm_call("P3", f"step_{idx}", filled, output)
-        self._debug(2, "P3", f"Step {idx}: {output[:50]}... ({latency:.0f}ms)")
+        self._debug(2, "P3", f"Step {idx}: {output[:50]}... ({latency:.0f}ms, {prompt_tokens}+{completion_tokens} tok)")
 
         trace = self._get_trace()
         if trace:
             trace["phase3"]["step_results"][idx] = {
                 "output": output[:100] if len(output) > 100 else output,
                 "latency_ms": latency,
+                "prompt_tokens": prompt_tokens,
+                "completion_tokens": completion_tokens,
             }
 
         return idx, output
@@ -849,26 +858,36 @@ class AdaptiveNetworkOfThought(BaseMethod):
 
         self._debug(1, "INIT", f"Ranking {n_items} items for: {context[:60]}...")
         self._update_display(request_id, "---", "starting", context)
+        trace = self._get_trace()
 
         # Phase 1: Plan (LWT skeleton + message)
         self._update_display(request_id, "P1", "planning")
+        p1_start = time.time()
         lwt_skeleton, message = self.phase1_plan(context, items)
+        p1_latency = (time.time() - p1_start) * 1000
 
-        trace = self._get_trace()
         if trace:
             trace["phase1"]["skeleton"] = lwt_skeleton
             trace["phase1"]["message"] = message[:500] if message else ""
+            trace["phase1"]["latency_ms"] = p1_latency
             self._save_trace_incremental(request_id)
 
         # Phase 2: Expand LWT using ReAct tools
         self._update_display(request_id, "P2", "expanding")
+        p2_start = time.time()
         expanded_lwt_steps = self.phase2_expand(lwt_skeleton, message, data)
+        p2_latency = (time.time() - p2_start) * 1000
         expanded_lwt = "\n".join(expanded_lwt_steps)
-        self._save_trace_incremental(request_id)
+
+        if trace:
+            trace["phase2"]["latency_ms"] = p2_latency
+            self._save_trace_incremental(request_id)
 
         # Phase 3: Execute
         self._update_display(request_id, "P3", "executing")
+        p3_start = time.time()
         output = self.phase3_execute(expanded_lwt, data, context)
+        p3_latency = (time.time() - p3_start) * 1000
 
         # Parse final output to get ranking
         indices = []
@@ -889,6 +908,7 @@ class AdaptiveNetworkOfThought(BaseMethod):
         if trace:
             trace["phase3"]["top_k"] = [int(x) for x in top_k]
             trace["phase3"]["final_output"] = output[:500]
+            trace["phase3"]["latency_ms"] = p3_latency
             self._save_trace_incremental(request_id)
 
         self._update_display(request_id, "✓", ",".join(top_k))

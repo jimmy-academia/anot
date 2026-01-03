@@ -355,8 +355,12 @@ def _call_openai_sync(client, messages: list, model: str, prompt: str = None, co
     raise last_err
 
 
-async def _call_openai_async(client, messages: list, model: str, prompt: str = None, context: dict = None) -> str:
-    """Call OpenAI API with retry logic (async)."""
+async def _call_openai_async(client, messages: list, model: str, prompt: str = None, context: dict = None) -> tuple:
+    """Call OpenAI API with retry logic (async).
+
+    Returns:
+        tuple: (response_text, prompt_tokens, completion_tokens)
+    """
     import asyncio
 
     is_new_model = ("gpt-5" in model) or ("o1" in model) or ("o3" in model)
@@ -381,19 +385,23 @@ async def _call_openai_async(client, messages: list, model: str, prompt: str = N
             latency_ms = (time.time() - start_time) * 1000
             response_text = resp.choices[0].message.content or ""
 
+            prompt_tokens = 0
+            completion_tokens = 0
             if resp.usage:
+                prompt_tokens = resp.usage.prompt_tokens
+                completion_tokens = resp.usage.completion_tokens
                 _record_usage(
                     model=model,
                     provider="openai",
-                    prompt_tokens=resp.usage.prompt_tokens,
-                    completion_tokens=resp.usage.completion_tokens,
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens,
                     latency_ms=latency_ms,
                     context=context,
                     prompt=prompt,
                     response_text=response_text,
                 )
 
-            return response_text
+            return response_text, prompt_tokens, completion_tokens
         except Exception as e:
             last_err = e
             if _should_retry_openai_exc(e) and attempt < _config["max_retries"] - 1:
@@ -435,8 +443,12 @@ def _call_anthropic_sync(prompt: str, system: str, model: str, context: dict = N
     return response_text
 
 
-async def _call_anthropic_async(prompt: str, system: str, model: str, context: dict = None) -> str:
-    """Call Anthropic API (async)."""
+async def _call_anthropic_async(prompt: str, system: str, model: str, context: dict = None) -> tuple:
+    """Call Anthropic API (async).
+
+    Returns:
+        tuple: (response_text, prompt_tokens, completion_tokens)
+    """
     client = _get_async_anthropic_client()
     if "claude" not in model.lower():
         model = "claude-sonnet-4-20250514"
@@ -451,19 +463,23 @@ async def _call_anthropic_async(prompt: str, system: str, model: str, context: d
     latency_ms = (time.time() - start_time) * 1000
     response_text = resp.content[0].text
 
+    prompt_tokens = 0
+    completion_tokens = 0
     if resp.usage:
+        prompt_tokens = resp.usage.input_tokens
+        completion_tokens = resp.usage.output_tokens
         _record_usage(
             model=model,
             provider="anthropic",
-            prompt_tokens=resp.usage.input_tokens,
-            completion_tokens=resp.usage.output_tokens,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
             latency_ms=latency_ms,
             context=context,
             prompt=prompt,
             response_text=response_text,
         )
 
-    return response_text
+    return response_text, prompt_tokens, completion_tokens
 
 
 def _call_local(prompt: str, system: str, model: str) -> str:
@@ -530,7 +546,7 @@ def call_llm(prompt: str, system: str = "", provider: str = None, model: str = N
 # -----------------------------
 # Public API (async)
 # -----------------------------
-async def call_llm_async(prompt: str, system: str = "", provider: str = None, model: str = None, role: str = "default", context: dict = None) -> str:
+async def call_llm_async(prompt: str, system: str = "", provider: str = None, model: str = None, role: str = "default", context: dict = None, return_usage: bool = False):
     """Async version of call_llm for parallel execution.
 
     Args:
@@ -540,6 +556,11 @@ async def call_llm_async(prompt: str, system: str = "", provider: str = None, mo
         model: Model name (uses role-based selection if not specified)
         role: Role for model selection ("planner", "worker", "default")
         context: Optional dict for debugging (e.g., {"method": "anot", "phase": 1, "step": "0"})
+        return_usage: If True, return dict with text and token counts; else return just text
+
+    Returns:
+        str: Response text (if return_usage=False)
+        dict: {"text": str, "prompt_tokens": int, "completion_tokens": int} (if return_usage=True)
     """
     if provider is None:
         provider = _config["provider"]
@@ -551,11 +572,15 @@ async def call_llm_async(prompt: str, system: str = "", provider: str = None, mo
         if provider == "openai":
             client = _get_async_openai_client()
             messages = _build_messages(prompt, system)
-            return await _call_openai_async(client, messages, model, prompt=prompt, context=context)
+            text, prompt_tokens, completion_tokens = await _call_openai_async(client, messages, model, prompt=prompt, context=context)
         elif provider == "anthropic":
-            return await _call_anthropic_async(prompt, system, model, context=context)
+            text, prompt_tokens, completion_tokens = await _call_anthropic_async(prompt, system, model, context=context)
         else:
             raise ValueError(f"Unknown provider for async: {provider}")
+
+        if return_usage:
+            return {"text": text, "prompt_tokens": prompt_tokens, "completion_tokens": completion_tokens}
+        return text
 
 
 # -----------------------------
