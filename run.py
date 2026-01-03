@@ -373,7 +373,8 @@ def run_evaluation_loop(args, dataset, method, experiment):
     # Get current usage for display
     from utils.usage import get_usage_tracker
     usage_for_display = get_usage_tracker().get_summary()
-    print_ranking_results(eval_out["stats"], eval_out["results"], usage_for_display)
+    show_details = getattr(args, 'full', False)
+    print_ranking_results(eval_out["stats"], eval_out["results"], usage_for_display, show_details=show_details)
 
     # Merge with existing results if resuming
     n_candidates = getattr(args, 'candidates', None) or len(dataset.items)
@@ -493,7 +494,11 @@ def run_single(args, experiment, log):
                 stats = compute_multi_k_stats(cached_results, k)
                 from utils.usage import get_usage_tracker
                 usage_for_display = get_usage_tracker().get_summary()
-                print_ranking_results(stats, cached_results, usage_for_display)
+                show_details = getattr(args, 'full', False)
+                print_ranking_results(stats, cached_results, usage_for_display, show_details=show_details)
+                # Save config even when returning early (for aggregation)
+                all_results = {"stats": stats, "results": cached_results}
+                save_final_config(args, all_results, experiment)
                 return {"stats": stats}
 
             # Partial results exist - only run missing requests
@@ -777,7 +782,8 @@ def run_scaling_experiment(args, log):
                     "total_cost_usd": sum(r.get('cost_usd', 0) for r in cached_results),
                     "total_latency_ms": sum(r.get('latency_ms', 0) for r in cached_results),
                 }
-                print_ranking_results(stats, cached_results, cached_usage)
+                show_details = getattr(args, 'full', False)
+                print_ranking_results(stats, cached_results, cached_usage, show_details=show_details)
                 continue
 
             # Partial results exist - only run missing requests
@@ -863,7 +869,8 @@ def run_scaling_experiment(args, log):
 
             # Print per-run results with usage
             usage_for_display = tracker.get_summary()
-            print_ranking_results(stats, merged_results, usage_for_display)
+            show_details = getattr(args, 'full', False)
+            print_ranking_results(stats, merged_results, usage_for_display, show_details=show_details)
 
     # Save scaling summary
     save_scaling_summary(run_dir, results_table, k)

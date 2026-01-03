@@ -84,6 +84,10 @@ def parse_args():
     parser.add_argument("--verbose", "-v", action=argparse.BooleanOptionalAction, default=True,
                         help="Enable verbose/debug output (default: True)")
 
+    # Full output (show per-request details)
+    parser.add_argument("--full", action="store_true", default=False,
+                        help="Show full per-request results (default: summary only)")
+
     args = parser.parse_args()
 
     # Derived arguments

@@ -448,13 +448,14 @@ def _format_result_entry(r: Dict) -> str:
 
 
 def print_ranking_results(stats: Dict[str, Any], results: List[Dict] = None,
-                          usage: Dict[str, Any] = None):
+                          usage: Dict[str, Any] = None, show_details: bool = False):
     """Print single-run ranking results (Hits@K mode).
 
     Args:
         stats: Stats dict with total, k, hits_at
         results: Optional list of per-request results for detailed output
         usage: Optional usage dict with token counts and costs
+        show_details: If True, show per-request details (default: False)
     """
     total = stats.get("total", 0)
     k = stats.get("k", 5)
@@ -476,7 +477,7 @@ def print_ranking_results(stats: Dict[str, Any], results: List[Dict] = None,
         console.print(table)
 
         # Per-request details (double column)
-        if results:
+        if results and show_details:
             console.print("\n[bold]Per-request:[/bold]")
             sorted_results = sorted(results, key=lambda x: x.get("request_id", ""))
             half = (len(sorted_results) + 1) // 2
@@ -506,7 +507,7 @@ def print_ranking_results(stats: Dict[str, Any], results: List[Dict] = None,
             print(f"{j:<5} {hits:<8} {acc:.4f}")
 
         # Per-request details (double column, plain text)
-        if results:
+        if results and show_details:
             print("\nPer-request:")
             sorted_results = sorted(results, key=lambda x: x.get("request_id", ""))
             half = (len(sorted_results) + 1) // 2
