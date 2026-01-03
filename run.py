@@ -373,8 +373,10 @@ def run_evaluation_loop(args, dataset, method, experiment):
     # Get current usage for display
     from utils.usage import get_usage_tracker
     usage_for_display = get_usage_tracker().get_summary()
-    show_details = getattr(args, 'full', False)
-    print_ranking_results(eval_out["stats"], eval_out["results"], usage_for_display, show_details=show_details)
+    # Only print per-run results if not in benchmark mode (aggregated summary shown at end)
+    if not getattr(args, 'benchmark', False):
+        show_details = getattr(args, 'full', False)
+        print_ranking_results(eval_out["stats"], eval_out["results"], usage_for_display, show_details=show_details)
 
     # Merge with existing results if resuming
     n_candidates = getattr(args, 'candidates', None) or len(dataset.items)
@@ -494,8 +496,10 @@ def run_single(args, experiment, log):
                 stats = compute_multi_k_stats(cached_results, k)
                 from utils.usage import get_usage_tracker
                 usage_for_display = get_usage_tracker().get_summary()
-                show_details = getattr(args, 'full', False)
-                print_ranking_results(stats, cached_results, usage_for_display, show_details=show_details)
+                # Only print per-run results if not in benchmark mode (aggregated summary shown at end)
+                if not getattr(args, 'benchmark', False):
+                    show_details = getattr(args, 'full', False)
+                    print_ranking_results(stats, cached_results, usage_for_display, show_details=show_details)
                 # Save config even when returning early (for aggregation)
                 all_results = {"stats": stats, "results": cached_results}
                 save_final_config(args, all_results, experiment)
