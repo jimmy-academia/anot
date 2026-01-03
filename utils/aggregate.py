@@ -321,9 +321,14 @@ def print_summary(summary: Dict[str, Any], show_details: bool = False):
             attack_dir = BENCHMARK_DIR / f"{method}_{data}" / attack
             latest_run = get_latest_run_dir(attack_dir)
             if latest_run:
-                results = load_results_from_file(latest_run / "results.jsonl")
-                if results:
-                    _print_per_request_details(results)
+                # Find results file (could be results.jsonl or results_{N}.jsonl)
+                results_files = list(latest_run.glob("results*.jsonl"))
+                if results_files:
+                    # Use most recently modified results file
+                    results_file = max(results_files, key=lambda f: f.stat().st_mtime)
+                    results = load_results_from_file(results_file)
+                    if results:
+                        _print_per_request_details(results)
 
 
 def _print_per_request_details(results: List[Dict]):

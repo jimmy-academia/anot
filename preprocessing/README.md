@@ -120,6 +120,43 @@ data/{name}/
 
 ---
 
+## Stage 4: Request Text Rewriting
+
+Ensure request texts explicitly signal ALL groundtruth conditions.
+
+### Problem
+
+Original request texts may not mention all conditions in the `structure` field:
+- Text: "I need a cafe with a drive-thru option"
+- Structure: DriveThru=True AND GoodForKids=True AND HasTV=False
+- Missing: GoodForKids and HasTV not signaled in text
+
+### Command
+
+```bash
+# Analyze missing signals in current requests
+python -m preprocessing.rewrite_requests {name} --analyze
+
+# Preview changes (dry run)
+python -m preprocessing.rewrite_requests {name} --dry-run
+
+# Rewrite requests (replaces requests.jsonl)
+python -m preprocessing.rewrite_requests {name}
+```
+
+### Output
+
+Overwrites `data/{name}/requests.jsonl` with rewritten texts.
+
+### Example
+
+```
+Original: "I need a cafe with a drive-thru option - I can't get my kids out of the car"
+Rewritten: "Looking for a cafe with a drive-thru, that's kid-friendly, and without TVs"
+```
+
+---
+
 ## Repeating the Process
 
 1. Run Stage 1 curation for new city/categories
@@ -136,6 +173,7 @@ data/{name}/
 preprocessing/
 ├── curate.py              # Interactive curation tool (Stage 1)
 ├── analyze.py             # Analysis for GT constraint design
+├── rewrite_requests.py    # Request text rewriting (Stage 4)
 ├── raw/                   # Raw Yelp academic dataset (gitignored)
 ├── output/                # Curated selections
 │   └── {name}/

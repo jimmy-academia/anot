@@ -349,7 +349,7 @@ def run_evaluation_loop(args, dataset, method, experiment):
         Dict with stats
     """
     # Use dict mode for methods that need structured access
-    dict_mode_methods = {"anot", "weaver"}
+    dict_mode_methods = {"anot", "anot_v2", "weaver"}
     eval_mode = "dict" if args.method in dict_mode_methods else "string"
     k = getattr(args, 'k', 5)
     shuffle = getattr(args, 'shuffle', 'middle')
@@ -374,9 +374,9 @@ def run_evaluation_loop(args, dataset, method, experiment):
     # Get current usage for display
     from utils.usage import get_usage_tracker
     usage_for_display = get_usage_tracker().get_summary()
-    # Only print per-run results if not in benchmark mode (aggregated summary shown at end)
-    if not getattr(args, 'benchmark', False):
-        show_details = getattr(args, 'full', False)
+    # Show results: always in dev mode, or in benchmark mode if --full
+    show_details = getattr(args, 'full', False)
+    if not getattr(args, 'benchmark', False) or show_details:
         print_ranking_results(eval_out["stats"], eval_out["results"], usage_for_display, show_details=show_details)
 
     # Merge with existing results if resuming
@@ -826,7 +826,7 @@ def run_scaling_experiment(args, log):
 
         # Run evaluation
         # Use dict mode for methods that need structured access
-        dict_mode_methods = {"anot", "weaver"}
+        dict_mode_methods = {"anot", "anot_v2", "weaver"}
         eval_mode = "dict" if args.method in dict_mode_methods else "string"
         shuffle = getattr(args, 'shuffle', 'middle')
         eval_result = evaluate_ranking(

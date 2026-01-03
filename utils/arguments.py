@@ -12,7 +12,7 @@ DEFAULT_DATA = "philly_cafes"
 DATA_DIR = Path(__file__).parent.parent / "data"
 
 # Method choices - champions only
-METHOD_CHOICES = ["cot", "ps", "plan_act", "listwise", "weaver", "anot", "dummy"]
+METHOD_CHOICES = ["cot", "ps", "plan_act", "listwise", "weaver", "anot", "anot_v2", "dummy"]
 
 # Attack choices
 ATTACK_CHOICES = ["none", "clean", "all", "typo", "verbose", "duplicate",

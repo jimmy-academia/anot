@@ -9,6 +9,7 @@ from .plan_act import PlanAndAct
 from .listwise import ListwiseRanker
 from .weaver import Weaver
 from .anot import AdaptiveNetworkOfThought, create_method as create_anot
+from .anot_v2 import ANoTv2
 
 
 # Method registry: name -> (class, supports_defense)
@@ -19,6 +20,7 @@ METHOD_REGISTRY = {
     "listwise": (ListwiseRanker, True),
     "weaver": (Weaver, True),
     "anot": (AdaptiveNetworkOfThought, True),
+    "anot_v2": (ANoTv2, True),
 }
 
 
@@ -78,6 +80,7 @@ __all__ = [
     "ListwiseRanker",
     "Weaver",
     "AdaptiveNetworkOfThought",
+    "ANoTv2",
     "DummyMethod",
     "get_method",
     "list_methods",
