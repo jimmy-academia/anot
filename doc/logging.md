@@ -9,6 +9,7 @@ This document describes the logging system for benchmarking and analysis.
 | `results_{n}.jsonl` | All methods | Predictions + per-request usage |
 | `usage.jsonl` | All methods | Consolidated per-request usage (merged across runs) |
 | `anot_trace.jsonl` | ANoT only | Phase-level structured trace |
+| `debug.log` | ANoT only | Full debug log (LLM prompts/responses, always-on) |
 | `config.json` | All methods | Run configuration and aggregate stats |
 
 ---
@@ -191,6 +192,75 @@ run_dir/
   usage.jsonl           # Merged usage across all scale points
   scaling_summary.json  # Summary with Hits@1, Hits@5 per scale
   config.json           # Run configuration
+```
+
+---
+
+## ANoT Debug Log (`debug.log`)
+
+### Overview
+
+ANoT writes a detailed debug log to `{run_dir}/debug.log` on every run. This is always-on and requires no configuration.
+
+### Behavior
+
+| Feature | Behavior |
+|---------|----------|
+| **Enabled** | Always (no env var needed) |
+| **Location** | `{run_dir}/debug.log` |
+| **Mode** | Overwrite (each run replaces previous) |
+| **Terminal output** | None (file only) |
+| **Detail level** | Full (equivalent to old ANOT_DEBUG=3) |
+
+### Content
+
+The debug log includes:
+- **Timestamps** for each operation (`[HH:MM:SS.mmm]`)
+- **Phase and request prefixes** (`[P1:R00]`, `[P2:R01]`, etc.)
+- **Full LLM prompts and responses** for every call
+- **Item data** passed to each phase
+- **Skeleton generation** and expansion steps
+
+### Example Output
+
+```
+=== ANoT Debug Log @ 2026-01-03T17:09:15.746004 ===
+[17:09:15.746] [INIT:R00] Ranking 10 items for: Looking for a cafe with a drive-thru...
+[17:09:15.746] [P1:R00] Planning for: Looking for a cafe with a drive-thru...
+[17:09:15.746] [P1:R00] Compact items:
+Item 0: "Tria Cafe Rittenhouse" - Alcohol='beer_and_wine', Ambience=...
+
+============================================================
+[17:09:27.887] [P1:R00] LLM Call: plan
+============================================================
+PROMPT:
+Analyze the user request and rank items.
+...
+----------------------------------------
+RESPONSE:
+===LWT_SKELETON===
+(final)=LLM("User wants: ...")
+===MESSAGE===
+CONDITIONS: ["DriveThru=True", "GoodForKids=True", "HasTV=False"]
+REMAINING: [5]
+============================================================
+```
+
+### Performance
+
+File I/O adds negligible latency (~0.01-0.1ms per write) compared to LLM calls (~6,000ms average). The synchronous writes do not materially impact async execution.
+
+### Debugging Workflow
+
+```bash
+# Check debug log after a run
+cat results/dev/XXX_anot/debug.log | less
+
+# Search for specific request
+grep "R00" results/dev/XXX_anot/debug.log
+
+# Find LLM calls
+grep "LLM Call:" results/dev/XXX_anot/debug.log
 ```
 
 ---

@@ -33,9 +33,6 @@ from utils.usage import get_usage_tracker
 from utils.parsing import parse_final_answer
 from prompts.task_descriptions import RANKING_TASK_COMPACT
 
-# Debug level: 0=off, 1=summary, 2=verbose, 3=full
-ANOT_DEBUG = int(os.environ.get("ANOT_DEBUG", "0"))
-
 # Global debug log file handle (set by method instance)
 _DEBUG_LOG_FILE = None
 
@@ -345,16 +342,16 @@ class AdaptiveNetworkOfThought(BaseMethod):
         self._debug_log_file = None
         self._debug_log_path = None
 
-        # Open debug log file if debug enabled and run_dir provided
-        if ANOT_DEBUG > 0 and run_dir:
+        # Always open debug log file (overwrites each run)
+        if run_dir:
             self._debug_log_path = os.path.join(run_dir, "debug.log")
             try:
-                self._debug_log_file = open(self._debug_log_path, "a", buffering=1)  # append, line buffered
+                self._debug_log_file = open(self._debug_log_path, "w", buffering=1)  # overwrite, line buffered
                 from datetime import datetime
-                self._debug_log_file.write(f"\n=== ANoT Debug Log (level={ANOT_DEBUG}) @ {datetime.now().isoformat()} ===\n")
+                self._debug_log_file.write(f"=== ANoT Debug Log @ {datetime.now().isoformat()} ===\n")
                 self._debug_log_file.flush()
             except Exception as e:
-                print(f"Warning: Could not open debug log: {e}", file=sys.stderr)
+                pass  # Silent fail - debug log is optional
 
     def __del__(self):
         """Close debug log file on cleanup."""
@@ -365,8 +362,8 @@ class AdaptiveNetworkOfThought(BaseMethod):
                 pass
 
     def _debug(self, level: int, phase: str, msg: str, content: str = None):
-        """Debug output at specified level. Writes to both stderr and file."""
-        if ANOT_DEBUG < level:
+        """Write debug to file only (no terminal output)."""
+        if not self._debug_log_file:
             return
         req_id = getattr(self._thread_local, 'request_id', 'R??')
         prefix = f"[{phase}:{req_id}]"
@@ -374,19 +371,11 @@ class AdaptiveNetworkOfThought(BaseMethod):
         timestamp = datetime.now().strftime("%H:%M:%S.%f")[:-3]
         log_line = f"[{timestamp}] {prefix} {msg}"
 
-        # Write to stderr
-        print(log_line, file=sys.stderr, flush=True)
-
-        # Write to debug log file (always include content at level 2+)
-        if self._debug_log_file:
-            self._debug_log_file.write(log_line + "\n")
-            if content and ANOT_DEBUG >= 2:
-                self._debug_log_file.write(f">>> {content}\n")
-            self._debug_log_file.flush()
-
-        if content and ANOT_DEBUG >= 3:
-            content_preview = content[:1000] + "..." if len(content) > 1000 else content
-            print(f"[{timestamp}] {prefix} >>> {content_preview}", file=sys.stderr, flush=True)
+        # Write to debug log file only (full detail)
+        self._debug_log_file.write(log_line + "\n")
+        if content:
+            self._debug_log_file.write(f">>> {content}\n")
+        self._debug_log_file.flush()
 
     def _init_trace(self, request_id: str, context: str):
         """Initialize trace for request."""
@@ -468,10 +457,6 @@ class AdaptiveNetworkOfThought(BaseMethod):
         self._display_stats = {"complete": 0, "total": total, "tokens": 0, "cost": 0.0}
         self._display_rows = {}
         self._last_display_update = 0
-
-        if ANOT_DEBUG > 0:
-            self._debug(1, "INIT", f"Debug mode {ANOT_DEBUG}: Rich display disabled")
-            return
 
         if requests:
             for req in requests:

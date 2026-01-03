@@ -64,7 +64,11 @@ python main.py --method anot --no-verbose
 #   results_{n}.jsonl   - predictions + per-request usage
 #   usage.jsonl         - consolidated usage across runs
 #   anot_trace.jsonl    - ANoT phase-level structured trace
+#   debug.log           - ANoT debug (always-on, file-only, overwrites each run)
 #   config.json         - run configuration
+#
+# ANoT debug.log: Full LLM prompts/responses, phase traces, timestamps.
+# No env var needed - always written when run_dir exists.
 # See doc/logging.md for full schema details
 ```
 
