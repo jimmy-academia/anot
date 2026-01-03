@@ -178,23 +178,6 @@ class ExperimentManager:
                 nums.append(int(match.group(1)))
         return max(nums) if nums else None
 
-    def _get_next_benchmark_run(self) -> int:
-        """Find next run number for current attack in benchmark mode."""
-        attack_dir = BENCHMARK_DIR / f"{self.method}_{self.data}" / self.attack
-        if not attack_dir.exists():
-            return 1
-
-        existing = list(attack_dir.glob("run_*/"))
-        if not existing:
-            return 1
-
-        nums = []
-        for p in existing:
-            match = re.search(r'run_(\d+)$', p.name)
-            if match:
-                nums.append(int(match.group(1)))
-        return max(nums) + 1 if nums else 1
-
     def get_completed_runs(self) -> int:
         """Return count of VALID completed runs (with config.json and stats).
 

@@ -8,6 +8,7 @@ Three-phase architecture:
 """
 
 import os
+import sys
 import json
 import re
 import time
@@ -21,6 +22,9 @@ from rich.console import Console
 from rich.text import Text
 
 from .base import BaseMethod
+
+# Debug level: 0=off, 1=summary, 2=verbose, 3=full
+ANOT_DEBUG = int(os.environ.get("ANOT_DEBUG", "0"))
 from .shared import (
     SYSTEM_PROMPT,
     substitute_variables,
@@ -31,6 +35,33 @@ from utils.llm import call_llm, call_llm_async
 from utils.usage import get_usage_tracker
 from utils.parsing import parse_final_answer
 from prompts.task_descriptions import RANKING_TASK_COMPACT
+
+
+# =============================================================================
+# Pre-compiled Regex Patterns
+# =============================================================================
+
+# Score extraction patterns (parse_score function)
+RE_SCORE_TAG = re.compile(r'<(?:score)?>(\d+)<', re.IGNORECASE)
+RE_SCORE_ANGLE = re.compile(r'<(\d+)>')
+RE_SCORE_FRACTION = re.compile(r'(\d+)/10')
+RE_SCORE_LABEL = re.compile(r'(?:score|output)[:\s]*(\d+)', re.IGNORECASE)
+RE_SCORE_PREFIX = re.compile(r'^(\d+)\s*[—\-:\.]')
+RE_SCORE_FINAL = re.compile(r'(?:final|overall)[^:]*:\s*(\d+)', re.IGNORECASE)
+RE_SCORE_DIGIT = re.compile(r'\b(\d+)\b')
+
+# Plan parsing patterns
+RE_PLAN_N = re.compile(r'N\s*=\s*(\d+)')
+RE_PLAN_ATTR = re.compile(r'RELEVANT_ATTR\s*=\s*(\w+)')
+RE_PLAN_BRANCH = re.compile(r'\((\d+)\)\s*=\s*(.+)')
+
+# Action extraction pattern (exploration phase)
+RE_ACTION = re.compile(r'ACTION:\s*(\w+)\s*\(\s*["\']([^"\']*)["\']')
+
+# LLM step extraction patterns
+RE_LLM_INDEXED = re.compile(r'\((\d+)\)\s*=\s*LLM\s*\("(.+?)"\s*\)', re.DOTALL)
+RE_LLM_DOUBLE_QUOTE = re.compile(r'LLM\s*\(\s*"(.+?)"\s*\)', re.DOTALL)
+RE_LLM_SINGLE_QUOTE = re.compile(r"LLM\s*\(\s*'(.+?)'\s*\)", re.DOTALL)
 
 
 # =============================================================================
@@ -120,6 +151,13 @@ FAKE: YES/NO - [indices if YES]
 def parse_score(output: str) -> int:
     """Parse LLM output to extract a 0-10 score.
 
+    Handles various LLM output formats:
+    - Direct number: "5"
+    - XML tags: "<5>" or "<score>5</score>"
+    - Fraction: "4/10"
+    - Score prefix: "Score: 5" or "Output: 5"
+    - Number with explanation: "5 — explanation" or "5: explanation"
+
     Returns 0 if parsing fails.
     """
     output = output.strip()
@@ -128,14 +166,47 @@ def parse_score(output: str) -> int:
     if output.isdigit() and 0 <= int(output) <= 10:
         return int(output)
 
-    # Pattern: Score: N or Output: N
-    match = re.search(r'(?:score|output)[:\s]*(\d+)', output, re.IGNORECASE)
+    # XML tags: <5> or <score>5</score>
+    match = RE_SCORE_TAG.search(output)
     if match:
         score = int(match.group(1))
         return min(10, max(0, score))
 
-    # Pattern: standalone number 0-10
-    match = re.search(r'\b(\d+)\b', output)
+    # Standalone XML: <5>
+    match = RE_SCORE_ANGLE.search(output)
+    if match:
+        score = int(match.group(1))
+        if 0 <= score <= 10:
+            return score
+
+    # Fraction format: 4/10 or 7/10
+    match = RE_SCORE_FRACTION.search(output)
+    if match:
+        score = int(match.group(1))
+        return min(10, max(0, score))
+
+    # Pattern: Score: N or Output: N (with optional explanation after)
+    match = RE_SCORE_LABEL.search(output)
+    if match:
+        score = int(match.group(1))
+        return min(10, max(0, score))
+
+    # Number at start of string (e.g., "5 — explanation")
+    match = RE_SCORE_PREFIX.match(output)
+    if match:
+        score = int(match.group(1))
+        if 0 <= score <= 10:
+            return score
+
+    # Final answer patterns
+    match = RE_SCORE_FINAL.search(output)
+    if match:
+        score = int(match.group(1))
+        if 0 <= score <= 10:
+            return score
+
+    # Any standalone number 0-10 (last resort)
+    match = RE_SCORE_DIGIT.search(output)
     if match:
         score = int(match.group(1))
         if 0 <= score <= 10:
@@ -317,6 +388,73 @@ class AdaptiveNetworkOfThought(BaseMethod):
                 f.write("\n".join(self._log_buffer) + "\n\n")
             self._log_buffer = []
 
+    def _debug(self, level: int, phase: str, msg: str, content: str = None):
+        """Debug output at specified level.
+
+        Args:
+            level: 1=summary, 2=verbose, 3=full
+            phase: P1/P2/P3 for phase identification
+            msg: Main message
+            content: Optional detailed content (shown at level 3)
+        """
+        if ANOT_DEBUG < level:
+            return
+
+        req_id = getattr(self._thread_local, 'request_id', 'R??')
+        prefix = f"[{phase}:{req_id}]"
+
+        # Build log line
+        from datetime import datetime
+        timestamp = datetime.now().strftime("%H:%M:%S.%f")[:-3]
+        log_line = f"[{timestamp}] {prefix} {msg}"
+
+        # Print to stderr
+        print(log_line, file=sys.stderr, flush=True)
+
+        # Write to debug log file (incremental, always flushed)
+        self._write_debug_log(log_line)
+
+        if content and ANOT_DEBUG >= 3:
+            # Truncate very long content for stderr
+            content_preview = content[:1000] + "..." if len(content) > 1000 else content
+            content_line = f"[{timestamp}] {prefix} >>> {content_preview}"
+            print(content_line, file=sys.stderr, flush=True)
+            self._write_debug_log(content_line)
+
+        # Also save to per-request debug file at level 3
+        if ANOT_DEBUG >= 3:
+            self._save_debug_file(req_id, phase, f"{msg}\n{content or ''}")
+
+    def _write_debug_log(self, line: str):
+        """Write a line to the debug log file (incremental, always flushed).
+
+        File location: run_dir/anot_debug.log or /tmp/anot_debug.log
+        """
+        if ANOT_DEBUG < 1:
+            return
+
+        # Determine log path
+        if self.run_dir:
+            os.makedirs(self.run_dir, exist_ok=True)
+            filepath = os.path.join(self.run_dir, "anot_debug.log")
+        else:
+            filepath = "/tmp/anot_debug.log"
+
+        # Append and flush immediately
+        with open(filepath, "a") as f:
+            f.write(line + "\n")
+            f.flush()
+
+    def _save_debug_file(self, request_id: str, phase: str, content: str):
+        """Save debug content to per-request file."""
+        if ANOT_DEBUG < 3 or not self.run_dir:
+            return
+        debug_dir = os.path.join(self.run_dir, "debug")
+        os.makedirs(debug_dir, exist_ok=True)
+        filepath = os.path.join(debug_dir, f"{request_id}_{phase}.txt")
+        with open(filepath, "a") as f:
+            f.write(content + "\n\n" + "=" * 60 + "\n\n")
+
     def _init_trace(self, request_id: str, context: str):
         """Initialize a new trace for this evaluation (thread-safe)."""
         trace = {
@@ -409,11 +547,23 @@ class AdaptiveNetworkOfThought(BaseMethod):
     # =========================================================================
 
     def start_display(self, title: str = "", total: int = 0, requests: list = None):
-        """Start the rich Live display."""
+        """Start the rich Live display (disabled in debug mode)."""
         self._display_title = title
         self._display_stats = {"complete": 0, "total": total, "tokens": 0, "cost": 0.0}
         self._display_rows = {}
         self._last_display_update = 0  # Throttle timestamp
+
+        # Skip Rich Live display in debug mode (it suppresses stderr output)
+        if ANOT_DEBUG > 0:
+            # Show where debug log is written
+            if self.run_dir:
+                log_path = os.path.join(self.run_dir, "anot_debug.log")
+            else:
+                log_path = "/tmp/anot_debug.log"
+            self._debug(1, "INIT", f"Debug mode {ANOT_DEBUG}: Rich display disabled")
+            self._debug(1, "INIT", f"Debug log: {log_path}")
+            self._debug(1, "INIT", f"Tip: tail -f {log_path}")
+            return
 
         # Pre-populate all rows to keep table height constant (fixes cursor repositioning)
         if requests:
@@ -535,12 +685,12 @@ class AdaptiveNetworkOfThought(BaseMethod):
         plan = {}
 
         # Extract N = <number>
-        n_match = re.search(r'N\s*=\s*(\d+)', plan_section)
+        n_match = RE_PLAN_N.search(plan_section)
         if n_match:
             plan["n_items"] = int(n_match.group(1))
 
         # Extract RELEVANT_ATTR = <name>
-        attr_match = re.search(r'RELEVANT_ATTR\s*=\s*(\w+)', plan_section)
+        attr_match = RE_PLAN_ATTR.search(plan_section)
         if attr_match:
             plan["relevant_attr"] = attr_match.group(1)
 
@@ -549,7 +699,7 @@ class AdaptiveNetworkOfThought(BaseMethod):
         for line in plan_section.split('\n'):
             line = line.strip()
             # Match: (0) = evaluate item 0: check [attributes][DriveThru]
-            branch_match = re.match(r'\((\d+)\)\s*=\s*(.+)', line)
+            branch_match = RE_PLAN_BRANCH.match(line)
             if branch_match:
                 idx = int(branch_match.group(1))
                 instruction = branch_match.group(2).strip()
@@ -571,6 +721,7 @@ class AdaptiveNetworkOfThought(BaseMethod):
         }
         """
         self._log("Phase 1: ReAct Exploration")
+        self._debug(1, "P1", f"Starting exploration: {context[:60]}...")
         req_id = getattr(self._thread_local, 'request_id', None)
         if req_id:
             self._update_display(req_id, "P1", "exploring")
@@ -578,6 +729,7 @@ class AdaptiveNetworkOfThought(BaseMethod):
         # Initial structure summary (keys only, no values)
         initial = self._get_initial_structure(query)
         self._log(f"Initial structure: {json.dumps(initial)}", terminal=False)
+        self._debug(2, "P1", f"Initial structure: {json.dumps(initial)[:200]}")
 
         # Build task description from standard template
         task_desc = RANKING_TASK_COMPACT.format(context=context, k=k)
@@ -603,12 +755,16 @@ class AdaptiveNetworkOfThought(BaseMethod):
             else:
                 full_prompt = base_prompt
 
+            self._debug(3, "P1", f"Round {round_num + 1} prompt:", full_prompt)
+
             response = call_llm(
                 full_prompt,
                 system=SYSTEM_PROMPT,
                 role="planner",
                 context={"method": "anot", "phase": 1, "step": f"explore_{round_num}"}
             )
+
+            self._debug(3, "P1", f"Round {round_num + 1} response:", response)
 
             # Capture tokens for this exploration round
             round_tokens = self._find_tokens_by_context(1, f"explore_{round_num}")
@@ -622,6 +778,7 @@ class AdaptiveNetworkOfThought(BaseMethod):
                 n_branches = len(plan.get("branches", []))
                 self._log(f"Exploration complete ({round_num + 1} rounds, {elapsed:.1f}s)")
                 self._log(f"Generated plan: N={plan.get('n_items')}, attr={plan.get('relevant_attr')}, branches={n_branches}", terminal=False)
+                self._debug(1, "P1", f"Plan: attr={plan.get('relevant_attr')}, branches={n_branches}")
 
                 # Record to trace
                 trace = self._get_trace()
@@ -636,7 +793,7 @@ class AdaptiveNetworkOfThought(BaseMethod):
                 return plan
 
             # Parse ACTION: tool("path")
-            action_match = re.search(r'ACTION:\s*(\w+)\s*\(\s*["\']([^"\']*)["\']', response)
+            action_match = RE_ACTION.search(response)
             if action_match:
                 tool, path = action_match.groups()
                 action_start = time.time()
@@ -644,6 +801,7 @@ class AdaptiveNetworkOfThought(BaseMethod):
                 action_latency = (time.time() - action_start) * 1000
 
                 self._log(f"  {tool}(\"{path}\") → {result[:100]}{'...' if len(result) > 100 else ''}", terminal=False)
+                self._debug(2, "P1", f"Round {round_num + 1}: {tool}(\"{path}\") → {result[:100]}")
 
                 # Record to trace
                 trace = self._get_trace()
@@ -702,6 +860,8 @@ class AdaptiveNetworkOfThought(BaseMethod):
             reviews="\n".join(review_texts) if review_texts else "(no reviews)"
         )
 
+        self._debug(3, "P2", f"Expand item {idx} ({item_name}) prompt:", prompt)
+
         response = call_llm(
             prompt,
             system=SYSTEM_PROMPT,
@@ -709,20 +869,111 @@ class AdaptiveNetworkOfThought(BaseMethod):
             context={"method": "anot", "phase": 2, "step": f"expand_{idx}"}
         )
 
+        self._debug(3, "P2", f"Expand item {idx} response:", response)
+
         # Extract LWT step from response
-        # Match: (idx)=LLM("...") or (idx)=LLM('...')
-        match = re.search(r'\(\d+\)\s*=\s*LLM\s*\(["\'].*?["\']\)', response, re.DOTALL)
+        # Try multiple patterns from most specific to fallback
+
+        # Pattern 1: (idx)=LLM("...") with proper quote matching
+        # Match everything between LLM(" and the last ")
+        match = re.search(r'\(' + str(idx) + r'\)\s*=\s*LLM\s*\("(.+?)"\s*\)', response, re.DOTALL)
         if match:
-            return match.group(0)
-        else:
-            # Fallback to simple prompt
-            self._log(f"WARNING: Could not parse LWT from response, using fallback for item {idx}")
-            return f'({idx})=LLM("Rate {item_name} for: {context}. Score 0-10.")'
+            prompt_text = match.group(1).replace('\n', ' ').strip()
+            lwt_step = f'({idx})=LLM("{prompt_text}")'
+            self._debug(2, "P2", f"Item {idx} ({item_name}): {lwt_step[:80]}...")
+            return lwt_step
+
+        # Pattern 2: Any LLM(...) in response - extract the prompt
+        match = RE_LLM_DOUBLE_QUOTE.search(response)
+        if match:
+            prompt_text = match.group(1).replace('\n', ' ').strip()
+            lwt_step = f'({idx})=LLM("{prompt_text}")'
+            self._debug(2, "P2", f"Item {idx} ({item_name}) [pattern2]: {lwt_step[:80]}...")
+            return lwt_step
+
+        # Pattern 3: LLM(...) with single quotes
+        match = RE_LLM_SINGLE_QUOTE.search(response)
+        if match:
+            prompt_text = match.group(1).replace('\n', ' ').strip()
+            lwt_step = f'({idx})=LLM("{prompt_text}")'
+            self._debug(2, "P2", f"Item {idx} ({item_name}) [pattern3]: {lwt_step[:80]}...")
+            return lwt_step
+
+        # Fallback: generate a simple but effective prompt
+        self._log(f"WARNING: Could not parse LWT from response, using fallback for item {idx}")
+        self._debug(1, "P2", f"WARNING: Fallback for item {idx}")
+        # Use response content if it looks like a good prompt
+        if len(response) < 500 and 'score' in response.lower():
+            clean_prompt = response.replace('"', "'").replace('\n', ' ').strip()
+            return f'({idx})=LLM("{clean_prompt}. Output: <score>")'
+        return f'({idx})=LLM("Rate {item_name} for: {context[:100]}. Score 0-10.")'
+
+    async def _expand_branch_async(self, idx: int, item: dict, context: str) -> tuple:
+        """Async version of _expand_branch for parallel expansion."""
+        item_name = item.get("item_name", f"Item {idx}")
+        attrs = item.get("attributes", {})
+        reviews = item.get("reviews", [])[:2]
+        review_texts = [r.get("review", "")[:200] for r in reviews]
+
+        prompt = EXPAND_BRANCH_PROMPT.format(
+            context=context,
+            idx=idx,
+            item_name=item_name,
+            attributes=json.dumps(attrs, indent=2),
+            reviews="\n".join(review_texts) if review_texts else "(no reviews)"
+        )
+
+        self._debug(3, "P2", f"Expand item {idx} ({item_name}) prompt:", prompt)
+
+        response = await call_llm_async(
+            prompt,
+            system=SYSTEM_PROMPT,
+            role="expander",
+            context={"method": "anot", "phase": 2, "step": f"expand_{idx}"}
+        )
+
+        self._debug(3, "P2", f"Expand item {idx} response:", response)
+
+        # Extract LWT step from response (same logic as sync version)
+        match = re.search(r'\(' + str(idx) + r'\)\s*=\s*LLM\s*\("(.+?)"\s*\)', response, re.DOTALL)
+        if match:
+            prompt_text = match.group(1).replace('\n', ' ').strip()
+            lwt_step = f'({idx})=LLM("{prompt_text}")'
+            self._debug(2, "P2", f"Item {idx} ({item_name}): {lwt_step[:80]}...")
+            return idx, lwt_step
+
+        match = RE_LLM_DOUBLE_QUOTE.search(response)
+        if match:
+            prompt_text = match.group(1).replace('\n', ' ').strip()
+            lwt_step = f'({idx})=LLM("{prompt_text}")'
+            self._debug(2, "P2", f"Item {idx} ({item_name}) [pattern2]: {lwt_step[:80]}...")
+            return idx, lwt_step
+
+        match = RE_LLM_SINGLE_QUOTE.search(response)
+        if match:
+            prompt_text = match.group(1).replace('\n', ' ').strip()
+            lwt_step = f'({idx})=LLM("{prompt_text}")'
+            self._debug(2, "P2", f"Item {idx} ({item_name}) [pattern3]: {lwt_step[:80]}...")
+            return idx, lwt_step
+
+        # Fallback
+        self._debug(1, "P2", f"WARNING: Fallback for item {idx}")
+        if len(response) < 500 and 'score' in response.lower():
+            clean_prompt = response.replace('"', "'").replace('\n', ' ').strip()
+            return idx, f'({idx})=LLM("{clean_prompt}. Output: <score>")'
+        return idx, f'({idx})=LLM("Rate {item_name} for: {context[:100]}. Score 0-10.")'
+
+    async def _phase2_expand_parallel(self, items: list, context: str) -> list:
+        """Parallel expansion of all items."""
+        tasks = [self._expand_branch_async(i, item, context) for i, item in enumerate(items)]
+        results = await asyncio.gather(*tasks)
+        # Sort by index and extract steps
+        return [step for _, step in sorted(results, key=lambda x: x[0])]
 
     def phase2_expand(self, plan: dict, items: list, context: str) -> str:
         """Expand global plan into executable LWT.
 
-        Uses LLM to generate intelligent evaluation steps for each item.
+        Uses LLM to generate intelligent evaluation steps for each item (in parallel).
 
         Args:
             plan: Plan from Phase 1 (used for logging only now)
@@ -734,28 +985,36 @@ class AdaptiveNetworkOfThought(BaseMethod):
         """
         start = time.time()
         self._log(f"Phase 2: Expanding global plan ({len(items)} items)")
+        self._debug(1, "P2", f"Expanding {len(items)} items (parallel)...")
         req_id = getattr(self._thread_local, 'request_id', None)
         if req_id:
             self._update_display(req_id, "P2", "expanding")
 
-        # Expand each item branch using LLM
-        expanded_steps = []
-        for i, item in enumerate(items):
-            if req_id:
-                self._update_display(req_id, "P2", f"item {i+1}/{len(items)}")
-            step = self._expand_branch(i, item, context)
-            expanded_steps.append(step)
-            self._log(f"  Branch {i}: {step[:80]}...", terminal=False)
+        # Parallel expansion of all items
+        try:
+            expanded_steps = asyncio.run(self._phase2_expand_parallel(items, context))
+        except RuntimeError:
+            # Already in async context, fall back to sequential
+            self._debug(1, "P2", "Falling back to sequential expansion")
+            expanded_steps = []
+            for i, item in enumerate(items):
+                if req_id:
+                    self._update_display(req_id, "P2", f"item {i+1}/{len(items)}")
+                step = self._expand_branch(i, item, context)
+                expanded_steps.append(step)
+                self._log(f"  Branch {i}: {step[:80]}...", terminal=False)
 
         # Add aggregation step (0-10 scoring)
         n = len(items)
         refs = ", ".join(f"{{({i})}}" for i in range(n))
         agg_step = f'({n})=LLM("Scores: {refs}. Return top-5 indices sorted by score (highest first, comma-separated)")'
         expanded_steps.append(agg_step)
+        self._debug(2, "P2", f"Aggregation step: {agg_step[:80]}...")
 
         expanded_lwt = "\n".join(expanded_steps)
         elapsed = time.time() - start
         self._log(f"Expanded LWT ({len(expanded_steps)} steps)", terminal=False)
+        self._debug(1, "P2", f"Expansion complete: {len(expanded_steps)} steps in {elapsed:.1f}s")
 
         # Record to trace
         trace = self._get_trace()
@@ -793,6 +1052,7 @@ class AdaptiveNetworkOfThought(BaseMethod):
         """Execute a single LWT step asynchronously."""
         filled = substitute_variables(instr, query, context, self._get_cache())
         self._log(f"Step ({idx}) [async]:", instr, terminal=False)
+        self._debug(3, "P3", f"Step {idx} filled prompt:", filled)
 
         start = time.time()
         try:
@@ -805,9 +1065,11 @@ class AdaptiveNetworkOfThought(BaseMethod):
         except Exception as e:
             output = "0"
             self._log(f"Error in step ({idx}): {e}")
+            self._debug(1, "P3", f"ERROR in step {idx}: {e}")
 
         latency = (time.time() - start) * 1000
         self._log(f"Step ({idx}) result: {output}", terminal=False)
+        self._debug(2, "P3", f"Step {idx}: score={output[:20]}")
 
         # Record to trace
         trace = self._get_trace()
@@ -826,10 +1088,12 @@ class AdaptiveNetworkOfThought(BaseMethod):
 
         if not steps:
             self._log("ERROR: No valid steps in LWT")
+            self._debug(1, "P3", "ERROR: No valid steps in LWT")
             return "0"
 
         layers = build_execution_layers(steps)
         self._log(f"Executing: {len(steps)} steps, {len(layers)} layers")
+        self._debug(1, "P3", f"Executing {len(steps)} steps in {len(layers)} layers...")
 
         final = ""
         for layer in layers:
@@ -1007,6 +1271,10 @@ class AdaptiveNetworkOfThought(BaseMethod):
         # Rank by score (descending), then by index (ascending)
         ranked = sorted(results, key=lambda x: (-x[1], x[0]))
         top_k = [str(r[0] + 1) for r in ranked[:k]]  # Convert to 1-indexed
+
+        # Debug final scores
+        self._debug(1, "P3", f"Final scores: {[(n, s) for i, s, n in sorted(results, key=lambda x: x[0])]}")
+        self._debug(1, "P3", f"Final ranking: {','.join(top_k)}")
 
         # Record Phase 3 timing
         trace = self._get_trace()

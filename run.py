@@ -245,16 +245,38 @@ def evaluate_ranking(items: list[dict], method: Callable, requests: list[dict],
             method.stop_display()
 
 
+def _run_with_progress(generator, has_rich_display: bool, description: str, total: int):
+    """Run a generator with optional progress display.
+
+    Args:
+        generator: Generator that yields progress increments
+        has_rich_display: If True, skip Progress bar (method has own display)
+        description: Progress bar description
+        total: Total number of items for progress bar
+    """
+    if has_rich_display:
+        for _ in generator:
+            pass
+    else:
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            TaskProgressColumn(),
+        ) as progress:
+            task = progress.add_task(description, total=total)
+            for _ in generator:
+                progress.update(task, advance=1)
+
+
 def _evaluate_ranking_inner(items, method, requests, groundtruth, mode, k, shuffle, parallel, max_workers, has_rich_display):
     """Inner implementation of evaluate_ranking (wrapped by display context)."""
     req_ids = [r["id"] for r in requests]
     context_exceeded = False
+    results = []
 
     if parallel:
-        # Parallel execution with ThreadPoolExecutor
-        results = []
-
-        def run_parallel():
+        def run_eval():
             nonlocal context_exceeded
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
                 futures = {
@@ -274,32 +296,14 @@ def _evaluate_ranking_inner(items, method, requests, groundtruth, mode, k, shuff
                             results.append(result)
                     except ContextLengthExceeded:
                         context_exceeded = True
-                        # Cancel remaining futures
                         for f in futures:
                             f.cancel()
                         break
-                    yield 1  # Signal progress
+                    yield 1
 
-        if has_rich_display:
-            # ANoT has its own display, just run without Progress bar
-            for _ in run_parallel():
-                pass
-        else:
-            # Use default Progress bar for other methods
-            with Progress(
-                SpinnerColumn(),
-                TextColumn("[progress.description]{task.description}"),
-                BarColumn(),
-                TaskProgressColumn(),
-            ) as progress:
-                task = progress.add_task(f"Ranking evaluation (parallel, {max_workers} workers)...", total=len(requests))
-                for _ in run_parallel():
-                    progress.update(task, advance=1)
+        description = f"Ranking evaluation (parallel, {max_workers} workers)..."
     else:
-        # Sequential execution
-        results = []
-
-        def run_sequential():
+        def run_eval():
             nonlocal context_exceeded
             for req in requests:
                 context = req.get("context") or req.get("text", "")
@@ -312,23 +316,11 @@ def _evaluate_ranking_inner(items, method, requests, groundtruth, mode, k, shuff
                 except ContextLengthExceeded:
                     context_exceeded = True
                     return
-                yield 1  # Signal progress
+                yield 1
 
-        if has_rich_display:
-            # ANoT has its own display, just run without Progress bar
-            for _ in run_sequential():
-                pass
-        else:
-            # Use default Progress bar for other methods
-            with Progress(
-                SpinnerColumn(),
-                TextColumn("[progress.description]{task.description}"),
-                BarColumn(),
-                TaskProgressColumn(),
-            ) as progress:
-                task = progress.add_task("Ranking evaluation (sequential)...", total=len(requests))
-                for _ in run_sequential():
-                    progress.update(task, advance=1)
+        description = "Ranking evaluation (sequential)..."
+
+    _run_with_progress(run_eval(), has_rich_display, description, len(requests))
 
     # Compute multi-K stats
     stats = compute_multi_k_stats(results, k)

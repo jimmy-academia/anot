@@ -281,6 +281,30 @@ def _build_messages(prompt: str, system: str) -> list:
     return messages
 
 
+def _record_usage(
+    model: str,
+    provider: str,
+    prompt_tokens: int,
+    completion_tokens: int,
+    latency_ms: float,
+    context: dict = None,
+    prompt: str = None,
+    response_text: str = None,
+):
+    """Record usage statistics for an LLM call."""
+    tracker = get_usage_tracker()
+    tracker.record(
+        model=model,
+        provider=provider,
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+        latency_ms=latency_ms,
+        context=context,
+        prompt_preview=prompt[:200] if prompt else None,
+        response_preview=response_text[:200] if response_text else None,
+    )
+
+
 # -----------------------------
 # Provider-specific implementations
 # -----------------------------
@@ -308,18 +332,16 @@ def _call_openai_sync(client, messages: list, model: str, prompt: str = None, co
             latency_ms = (time.time() - start_time) * 1000
             response_text = resp.choices[0].message.content or ""
 
-            # Record usage with context and previews
             if resp.usage:
-                tracker = get_usage_tracker()
-                tracker.record(
+                _record_usage(
                     model=model,
                     provider="openai",
                     prompt_tokens=resp.usage.prompt_tokens,
                     completion_tokens=resp.usage.completion_tokens,
                     latency_ms=latency_ms,
                     context=context,
-                    prompt_preview=prompt[:200] if prompt else None,
-                    response_preview=response_text[:200] if response_text else None,
+                    prompt=prompt,
+                    response_text=response_text,
                 )
 
             return response_text
@@ -359,18 +381,16 @@ async def _call_openai_async(client, messages: list, model: str, prompt: str = N
             latency_ms = (time.time() - start_time) * 1000
             response_text = resp.choices[0].message.content or ""
 
-            # Record usage with context and previews
             if resp.usage:
-                tracker = get_usage_tracker()
-                tracker.record(
+                _record_usage(
                     model=model,
                     provider="openai",
                     prompt_tokens=resp.usage.prompt_tokens,
                     completion_tokens=resp.usage.completion_tokens,
                     latency_ms=latency_ms,
                     context=context,
-                    prompt_preview=prompt[:200] if prompt else None,
-                    response_preview=response_text[:200] if response_text else None,
+                    prompt=prompt,
+                    response_text=response_text,
                 )
 
             return response_text
@@ -400,18 +420,16 @@ def _call_anthropic_sync(prompt: str, system: str, model: str, context: dict = N
     latency_ms = (time.time() - start_time) * 1000
     response_text = resp.content[0].text
 
-    # Record usage with context and previews
     if resp.usage:
-        tracker = get_usage_tracker()
-        tracker.record(
+        _record_usage(
             model=model,
             provider="anthropic",
             prompt_tokens=resp.usage.input_tokens,
             completion_tokens=resp.usage.output_tokens,
             latency_ms=latency_ms,
             context=context,
-            prompt_preview=prompt[:200] if prompt else None,
-            response_preview=response_text[:200] if response_text else None,
+            prompt=prompt,
+            response_text=response_text,
         )
 
     return response_text
@@ -433,18 +451,16 @@ async def _call_anthropic_async(prompt: str, system: str, model: str, context: d
     latency_ms = (time.time() - start_time) * 1000
     response_text = resp.content[0].text
 
-    # Record usage with context and previews
     if resp.usage:
-        tracker = get_usage_tracker()
-        tracker.record(
+        _record_usage(
             model=model,
             provider="anthropic",
             prompt_tokens=resp.usage.input_tokens,
             completion_tokens=resp.usage.output_tokens,
             latency_ms=latency_ms,
             context=context,
-            prompt_preview=prompt[:200] if prompt else None,
-            response_preview=response_text[:200] if response_text else None,
+            prompt=prompt,
+            response_text=response_text,
         )
 
     return response_text

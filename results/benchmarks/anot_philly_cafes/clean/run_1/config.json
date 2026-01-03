@@ -11,49 +11,49 @@
     "max_tokens": 1024
   },
   "stats": {
-    "total": 2,
+    "total": 10,
     "k": 5,
     "hits_at": {
       "1": {
-        "hits": 2,
-        "accuracy": 1.0
+        "hits": 7,
+        "accuracy": 0.7
       },
       "2": {
-        "hits": 2,
-        "accuracy": 1.0
+        "hits": 8,
+        "accuracy": 0.8
       },
       "3": {
-        "hits": 2,
-        "accuracy": 1.0
+        "hits": 8,
+        "accuracy": 0.8
       },
       "4": {
-        "hits": 2,
-        "accuracy": 1.0
+        "hits": 8,
+        "accuracy": 0.8
       },
       "5": {
-        "hits": 2,
-        "accuracy": 1.0
+        "hits": 9,
+        "accuracy": 0.9
       }
     }
   },
   "usage": {
-    "total_calls": 52,
-    "total_prompt_tokens": 21325,
-    "total_completion_tokens": 97611,
-    "total_tokens": 118936,
-    "total_cost_usd": 0.061765,
-    "total_latency_ms": 637789.6,
-    "avg_latency_ms": 12265.18,
+    "total_calls": 257,
+    "total_prompt_tokens": 105249,
+    "total_completion_tokens": 506917,
+    "total_tokens": 612166,
+    "total_cost_usd": 0.319938,
+    "total_latency_ms": 14131528.91,
+    "avg_latency_ms": 54986.49,
     "by_model": {
       "gpt-5-nano": {
-        "calls": 52,
-        "prompt_tokens": 21325,
-        "completion_tokens": 97611,
-        "cost_usd": 0.061765
+        "calls": 257,
+        "prompt_tokens": 105249,
+        "completion_tokens": 506917,
+        "cost_usd": 0.319938
       }
     }
   },
-  "timestamp": "2026-01-03T02:33:53.840083",
+  "timestamp": "2026-01-03T03:53:38.816483",
   "benchmark_mode": true,
   "run_name": "anot"
 }

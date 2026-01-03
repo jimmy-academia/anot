@@ -1,12 +1,8 @@
 #!/usr/bin/env python3
 """Shared utilities, prompts, and logging for methods."""
 
-import os
 import re
-import json
 import logging
-from datetime import datetime
-from pathlib import Path
 from typing import Optional
 from collections import Counter
 

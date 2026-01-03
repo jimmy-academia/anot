@@ -62,7 +62,8 @@
       "Bash(do grep \"name = \" \"$f\")",
       "Bash(do for method in cot cotsc react ps decomp l2m selfask prp listwise setwise parade rankgpt finegrained pal pot cot_table weaver)",
       "Bash(do echo \"Running $method on selection_$sel...\")",
-      "Bash(chmod:*)"
+      "Bash(chmod:*)",
+      "Bash(ANOT_DEBUG=3 timeout 300 python:*)"
     ]
   }
 }

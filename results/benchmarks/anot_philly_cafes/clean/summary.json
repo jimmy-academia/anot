@@ -3,65 +3,65 @@
   "k": 5,
   "hits_at": {
     "1": {
-      "mean": 1.0,
+      "mean": 0.7,
       "std": 0.0,
       "values": [
-        1.0
+        0.7
       ]
     },
     "2": {
-      "mean": 1.0,
+      "mean": 0.8,
       "std": 0.0,
       "values": [
-        1.0
+        0.8
       ]
     },
     "3": {
-      "mean": 1.0,
+      "mean": 0.8,
       "std": 0.0,
       "values": [
-        1.0
+        0.8
       ]
     },
     "4": {
-      "mean": 1.0,
+      "mean": 0.8,
       "std": 0.0,
       "values": [
-        1.0
+        0.8
       ]
     },
     "5": {
-      "mean": 1.0,
+      "mean": 0.9,
       "std": 0.0,
       "values": [
-        1.0
+        0.9
       ]
     }
   },
   "per_run": [
     {
-      "total": 2,
+      "total": 10,
       "k": 5,
       "hits_at": {
         "1": {
-          "hits": 2,
-          "accuracy": 1.0
+          "hits": 7,
+          "accuracy": 0.7
         },
         "2": {
-          "hits": 2,
-          "accuracy": 1.0
+          "hits": 8,
+          "accuracy": 0.8
         },
         "3": {
-          "hits": 2,
-          "accuracy": 1.0
+          "hits": 8,
+          "accuracy": 0.8
         },
         "4": {
-          "hits": 2,
-          "accuracy": 1.0
+          "hits": 8,
+          "accuracy": 0.8
         },
         "5": {
-          "hits": 2,
-          "accuracy": 1.0
+          "hits": 9,
+          "accuracy": 0.9
         }
       }
     }
@@ -71,27 +71,27 @@
   "data": "philly_cafes",
   "attack": "clean",
   "usage": {
-    "total_calls": 52,
-    "total_prompt_tokens": 21325,
-    "total_completion_tokens": 97611,
-    "total_tokens": 118936,
-    "total_cost_usd": 0.061765,
-    "mean_cost_per_run": 0.061765,
+    "total_calls": 257,
+    "total_prompt_tokens": 105249,
+    "total_completion_tokens": 506917,
+    "total_tokens": 612166,
+    "total_cost_usd": 0.319938,
+    "mean_cost_per_run": 0.319938,
     "per_run": [
       {
-        "total_calls": 52,
-        "total_prompt_tokens": 21325,
-        "total_completion_tokens": 97611,
-        "total_tokens": 118936,
-        "total_cost_usd": 0.061765,
-        "total_latency_ms": 637789.6,
-        "avg_latency_ms": 12265.18,
+        "total_calls": 257,
+        "total_prompt_tokens": 105249,
+        "total_completion_tokens": 506917,
+        "total_tokens": 612166,
+        "total_cost_usd": 0.319938,
+        "total_latency_ms": 14131528.91,
+        "avg_latency_ms": 54986.49,
         "by_model": {
           "gpt-5-nano": {
-            "calls": 52,
-            "prompt_tokens": 21325,
-            "completion_tokens": 97611,
-            "cost_usd": 0.061765
+            "calls": 257,
+            "prompt_tokens": 105249,
+            "completion_tokens": 506917,
+            "cost_usd": 0.319938
           }
         }
       }

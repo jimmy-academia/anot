@@ -1,0 +1,614 @@
+Expanding 10 items (parallel)...
+
+
+============================================================
+
+Expand item 0 (Milkcrate Cafe) prompt:
+Generate an LWT evaluation step for this restaurant.
+
+[USER REQUEST]
+Looking for a cafe that serves authentic Italian gelato
+
+[RESTAURANT 0]
+Name: Milkcrate Cafe
+Attributes: {
+  "BusinessParking": "{'garage': False, 'street': True, 'validated': False, 'lot': False, 'valet': False}",
+  "RestaurantsReservations": "False",
+  "GoodForKids": "True",
+  "NoiseLevel": "u'average'",
+  "WiFi": "u'free'",
+  "BikeParking": "True",
+  "RestaurantsAttire": "u'casual'",
+  "Ambience": "{'touristy': False, 'hipster': True, 'romantic': False, 'divey': False, 'intimate': False, 'trendy': False, 'upscale': False, 'classy': False, 'casual': True}",
+  "BusinessAcceptsCreditCards": "True",
+  "Alcohol": "u'none'",
+  "RestaurantsPriceRange2": "1",
+  "OutdoorSeating": "True",
+  "Caters": "True",
+  "HasTV": "False",
+  "RestaurantsGoodForGroups": "False",
+  "RestaurantsTakeOut": "True",
+  "GoodForMeal": "{'dessert': False, 'latenight': False, 'lunch': False, 'dinner': False, 'brunch': True, 'breakfast': True}",
+  "DriveThru": "True",
+  "RestaurantsDelivery": "True"
+}
+Sample Reviews: (no reviews)
+
+[LWT SYNTAX]
+(0)=LLM("prompt text. Output: <score>")
+- Scores are 0-10 based on how well restaurant matches user request
+- Your prompt should evaluate the ACTUAL attribute values semantically
+- Example: For user wanting "quiet cafe", NoiseLevel="u'quiet'" → high score, NoiseLevel="u'loud'" → low score
+- Consider attribute values like: NoiseLevel, WiFi, OutdoorSeating, Ambience, etc.
+- Values are often strings like "u'quiet'", "u'free'", "True", "False", or dicts as strings
+
+[OUTPUT]
+Write a single LWT step that scores restaurant 0.
+Include key attribute values and review insights relevant to the user's request.
+Output ONLY the LWT step line (no explanation):
+
+
+============================================================
+
+Expand item 1 (Tria Cafe Rittenhouse) prompt:
+Generate an LWT evaluation step for this restaurant.
+
+[USER REQUEST]
+Looking for a cafe that serves authentic Italian gelato
+
+[RESTAURANT 1]
+Name: Tria Cafe Rittenhouse
+Attributes: {
+  "HasTV": "False",
+  "WiFi": "u'free'",
+  "RestaurantsAttire": "'casual'",
+  "OutdoorSeating": "True",
+  "GoodForKids": "False",
+  "Alcohol": "'beer_and_wine'",
+  "BusinessAcceptsCreditCards": "True",
+  "NoiseLevel": "u'average'",
+  "BestNights": "{'monday': False, 'tuesday': False, 'friday': True, 'wednesday': False, 'thursday': False, 'sunday': True, 'saturday': True}",
+  "BYOBCorkage": "'no'",
+  "Caters": "False",
+  "BusinessAcceptsBitcoin": "False",
+  "RestaurantsReservations": "True",
+  "WheelchairAccessible": "False",
+  "Ambience": "{'touristy': False, 'hipster': False, 'romantic': False, 'divey': False, 'intimate': False, 'trendy': True, 'upscale': False, 'classy': True, 'casual': False}",
+  "HappyHour": "False",
+  "ByAppointmentOnly": "False",
+  "Smoking": "u'no'",
+  "DogsAllowed": "True",
+  "GoodForMeal": "{'dessert': False, 'latenight': None, 'lunch': None, 'dinner': None, 'brunch': False, 'breakfast': False}",
+  "CoatCheck": "True",
+  "RestaurantsTableService": "True",
+  "RestaurantsDelivery": "True",
+  "RestaurantsTakeOut": "True",
+  "BusinessParking": "{'garage': False, 'street': True, 'validated': False, 'lot': False, 'valet': False}",
+  "Music": "{'dj': False, 'background_music': False, 'no_music': False, 'jukebox': False, 'live': False, 'video': False, 'karaoke': False}",
+  "GoodForDancing": "False",
+  "RestaurantsGoodForGroups": "True",
+  "BikeParking": "True",
+  "RestaurantsPriceRange2": "3"
+}
+Sample Reviews: (no reviews)
+
+[LWT SYNTAX]
+(1)=LLM("prompt text. Output: <score>")
+- Scores are 0-10 based on how well restaurant matches user request
+- Your prompt should evaluate the ACTUAL attribute values semantically
+- Example: For user wanting "quiet cafe", NoiseLevel="u'quiet'" → high score, NoiseLevel="u'loud'" → low score
+- Consider attribute values like: NoiseLevel, WiFi, OutdoorSeating, Ambience, etc.
+- Values are often strings like "u'quiet'", "u'free'", "True", "False", or dicts as strings
+
+[OUTPUT]
+Write a single LWT step that scores restaurant 1.
+Include key attribute values and review insights relevant to the user's request.
+Output ONLY the LWT step line (no explanation):
+
+
+============================================================
+
+Expand item 2 (Front Street Cafe) prompt:
+Generate an LWT evaluation step for this restaurant.
+
+[USER REQUEST]
+Looking for a cafe that serves authentic Italian gelato
+
+[RESTAURANT 2]
+Name: Front Street Cafe
+Attributes: {
+  "RestaurantsTableService": "True",
+  "BusinessParking": "{'garage': False, 'street': True, 'validated': False, 'lot': True, 'valet': False}",
+  "WheelchairAccessible": "True",
+  "OutdoorSeating": "True",
+  "RestaurantsReservations": "True",
+  "CoatCheck": "True",
+  "BusinessAcceptsCreditCards": "True",
+  "BestNights": "{'monday': False, 'tuesday': False, 'friday': True, 'wednesday': False, 'thursday': False, 'sunday': False, 'saturday': False}",
+  "WiFi": "u'free'",
+  "BYOB": "False",
+  "HasTV": "False",
+  "Caters": "True",
+  "BikeParking": "True",
+  "BusinessAcceptsBitcoin": "False",
+  "DogsAllowed": "False",
+  "Smoking": "u'no'",
+  "NoiseLevel": "u'average'",
+  "GoodForKids": "True",
+  "RestaurantsGoodForGroups": "True",
+  "GoodForMeal": "{'dessert': None, 'latenight': False, 'lunch': True, 'dinner': None, 'brunch': True, 'breakfast': True}",
+  "RestaurantsDelivery": "None",
+  "HappyHour": "True",
+  "Music": "{'dj': False}",
+  "GoodForDancing": "False",
+  "Ambience": "{'touristy': False, 'hipster': True, 'romantic': False, 'divey': False, 'intimate': False, 'trendy': False, 'upscale': False, 'classy': True, 'casual': True}",
+  "Alcohol": "u'full_bar'",
+  "RestaurantsTakeOut": "True",
+  "RestaurantsAttire": "u'casual'",
+  "RestaurantsPriceRange2": "2"
+}
+Sample Reviews: (no reviews)
+
+[LWT SYNTAX]
+(2)=LLM("prompt text. Output: <score>")
+- Scores are 0-10 based on how well restaurant matches user request
+- Your prompt should evaluate the ACTUAL attribute values semantically
+- Example: For user wanting "quiet cafe", NoiseLevel="u'quiet'" → high score, NoiseLevel="u'loud'" → low score
+- Consider attribute values like: NoiseLevel, WiFi, OutdoorSeating, Ambience, etc.
+- Values are often strings like "u'quiet'", "u'free'", "True", "False", or dicts as strings
+
+[OUTPUT]
+Write a single LWT step that scores restaurant 2.
+Include key attribute values and review insights relevant to the user's request.
+Output ONLY the LWT step line (no explanation):
+
+
+============================================================
+
+Expand item 3 (MilkBoy) prompt:
+Generate an LWT evaluation step for this restaurant.
+
+[USER REQUEST]
+Looking for a cafe that serves authentic Italian gelato
+
+[RESTAURANT 3]
+Name: MilkBoy
+Attributes: {
+  "BikeParking": "True",
+  "GoodForKids": "False",
+  "RestaurantsAttire": "u'casual'",
+  "WiFi": "u'no'",
+  "RestaurantsReservations": "False",
+  "HasTV": "True",
+  "RestaurantsTakeOut": "True",
+  "GoodForDancing": "False",
+  "BusinessAcceptsCreditCards": "True",
+  "BusinessParking": "{'garage': False, 'street': True, 'validated': False, 'lot': False, 'valet': False}",
+  "RestaurantsPriceRange2": "2",
+  "RestaurantsGoodForGroups": "True",
+  "DogsAllowed": "False",
+  "WheelchairAccessible": "True",
+  "Alcohol": "u'full_bar'",
+  "OutdoorSeating": "True",
+  "HappyHour": "True",
+  "Music": "{'dj': False, 'background_music': False, 'no_music': False, 'jukebox': False, 'live': True, 'video': False, 'karaoke': False}",
+  "Ambience": "{'touristy': False, 'hipster': None, 'romantic': False, 'divey': False, 'intimate': False, 'trendy': None, 'upscale': False, 'classy': False, 'casual': True}",
+  "NoiseLevel": "u'loud'",
+  "BestNights": "{'monday': False, 'tuesday': False, 'friday': True, 'wednesday': False, 'thursday': True, 'sunday': False, 'saturday': True}",
+  "RestaurantsDelivery": "True"
+}
+Sample Reviews: (no reviews)
+
+[LWT SYNTAX]
+(3)=LLM("prompt text. Output: <score>")
+- Scores are 0-10 based on how well restaurant matches user request
+- Your prompt should evaluate the ACTUAL attribute values semantically
+- Example: For user wanting "quiet cafe", NoiseLevel="u'quiet'" → high score, NoiseLevel="u'loud'" → low score
+- Consider attribute values like: NoiseLevel, WiFi, OutdoorSeating, Ambience, etc.
+- Values are often strings like "u'quiet'", "u'free'", "True", "False", or dicts as strings
+
+[OUTPUT]
+Write a single LWT step that scores restaurant 3.
+Include key attribute values and review insights relevant to the user's request.
+Output ONLY the LWT step line (no explanation):
+
+
+============================================================
+
+Expand item 4 (Kung Fu Tea) prompt:
+Generate an LWT evaluation step for this restaurant.
+
+[USER REQUEST]
+Looking for a cafe that serves authentic Italian gelato
+
+[RESTAURANT 4]
+Name: Kung Fu Tea
+Attributes: {
+  "OutdoorSeating": "False",
+  "RestaurantsTakeOut": "True",
+  "HasTV": "True",
+  "RestaurantsReservations": "False",
+  "RestaurantsTableService": "False",
+  "RestaurantsGoodForGroups": "True",
+  "ByAppointmentOnly": "False",
+  "GoodForMeal": "{'dessert': False, 'latenight': False, 'lunch': False, 'dinner': False, 'brunch': False, 'breakfast': False}",
+  "BusinessAcceptsCreditCards": "True",
+  "RestaurantsAttire": "u'casual'",
+  "Caters": "False",
+  "Alcohol": "u'none'",
+  "WiFi": "'free'",
+  "BikeParking": "True",
+  "GoodForKids": "True",
+  "RestaurantsPriceRange2": "1",
+  "Ambience": "{'romantic': False, 'intimate': False, 'classy': False, 'hipster': False, 'divey': False, 'touristy': False, 'trendy': False, 'upscale': False, 'casual': False}",
+  "DogsAllowed": "False",
+  "WheelchairAccessible": "True",
+  "RestaurantsDelivery": "True",
+  "BusinessParking": "{'garage': False, 'street': True, 'validated': False, 'lot': False, 'valet': False}",
+  "NoiseLevel": "u'loud'"
+}
+Sample Reviews: (no reviews)
+
+[LWT SYNTAX]
+(4)=LLM("prompt text. Output: <score>")
+- Scores are 0-10 based on how well restaurant matches user request
+- Your prompt should evaluate the ACTUAL attribute values semantically
+- Example: For user wanting "quiet cafe", NoiseLevel="u'quiet'" → high score, NoiseLevel="u'loud'" → low score
+- Consider attribute values like: NoiseLevel, WiFi, OutdoorSeating, Ambience, etc.
+- Values are often strings like "u'quiet'", "u'free'", "True", "False", or dicts as strings
+
+[OUTPUT]
+Write a single LWT step that scores restaurant 4.
+Include key attribute values and review insights relevant to the user's request.
+Output ONLY the LWT step line (no explanation):
+
+
+============================================================
+
+Expand item 5 (Gran Caffe L'Aquila) prompt:
+Generate an LWT evaluation step for this restaurant.
+
+[USER REQUEST]
+Looking for a cafe that serves authentic Italian gelato
+
+[RESTAURANT 5]
+Name: Gran Caffe L'Aquila
+Attributes: {
+  "RestaurantsPriceRange2": "2",
+  "RestaurantsTableService": "True",
+  "Caters": "True",
+  "WiFi": "'free'",
+  "GoodForKids": "True",
+  "NoiseLevel": "u'average'",
+  "BusinessAcceptsCreditCards": "True",
+  "RestaurantsGoodForGroups": "True",
+  "Alcohol": "u'full_bar'",
+  "HasTV": "True",
+  "BikeParking": "True",
+  "GoodForMeal": "{'dessert': True, 'latenight': False, 'lunch': True, 'dinner': True, 'brunch': False, 'breakfast': False}",
+  "Ambience": "{'romantic': False, 'intimate': False, 'classy': True, 'hipster': False, 'divey': False, 'touristy': False, 'trendy': False, 'upscale': False, 'casual': True}",
+  "WheelchairAccessible": "True",
+  "HappyHour": "True",
+  "BusinessParking": "{'garage': None, 'street': True, 'validated': False, 'lot': False, 'valet': False}",
+  "OutdoorSeating": "True",
+  "DogsAllowed": "False",
+  "RestaurantsReservations": "True",
+  "RestaurantsAttire": "u'casual'",
+  "RestaurantsDelivery": "True",
+  "RestaurantsTakeOut": "True"
+}
+Sample Reviews: (no reviews)
+
+[LWT SYNTAX]
+(5)=LLM("prompt text. Output: <score>")
+- Scores are 0-10 based on how well restaurant matches user request
+- Your prompt should evaluate the ACTUAL attribute values semantically
+- Example: For user wanting "quiet cafe", NoiseLevel="u'quiet'" → high score, NoiseLevel="u'loud'" → low score
+- Consider attribute values like: NoiseLevel, WiFi, OutdoorSeating, Ambience, etc.
+- Values are often strings like "u'quiet'", "u'free'", "True", "False", or dicts as strings
+
+[OUTPUT]
+Write a single LWT step that scores restaurant 5.
+Include key attribute values and review insights relevant to the user's request.
+Output ONLY the LWT step line (no explanation):
+
+
+============================================================
+
+Expand item 6 (Thirsty Dice) prompt:
+Generate an LWT evaluation step for this restaurant.
+
+[USER REQUEST]
+Looking for a cafe that serves authentic Italian gelato
+
+[RESTAURANT 6]
+Name: Thirsty Dice
+Attributes: {
+  "ByAppointmentOnly": "False",
+  "BusinessParking": "{'garage': False, 'street': True, 'validated': False, 'lot': False, 'valet': False}",
+  "RestaurantsReservations": "True",
+  "HappyHour": "True",
+  "Smoking": "u'no'",
+  "BikeParking": "True",
+  "Alcohol": "u'full_bar'",
+  "BestNights": "{'monday': False, 'tuesday': False, 'friday': True, 'wednesday': False, 'thursday': False, 'sunday': False, 'saturday': False}",
+  "WiFi": "u'free'",
+  "Music": "{'dj': False, 'background_music': False, 'no_music': False, 'jukebox': False, 'live': False, 'video': False, 'karaoke': False}",
+  "BusinessAcceptsCreditCards": "True",
+  "Ambience": "{'touristy': False, 'hipster': False, 'romantic': False, 'divey': False, 'intimate': False, 'trendy': False, 'upscale': False, 'classy': False, 'casual': False}",
+  "GoodForMeal": "{'dessert': False, 'latenight': False, 'lunch': False, 'dinner': False, 'brunch': False, 'breakfast': False}",
+  "WheelchairAccessible": "True",
+  "DogsAllowed": "False",
+  "RestaurantsTableService": "True",
+  "RestaurantsDelivery": "True",
+  "GoodForKids": "True"
+}
+Sample Reviews: (no reviews)
+
+[LWT SYNTAX]
+(6)=LLM("prompt text. Output: <score>")
+- Scores are 0-10 based on how well restaurant matches user request
+- Your prompt should evaluate the ACTUAL attribute values semantically
+- Example: For user wanting "quiet cafe", NoiseLevel="u'quiet'" → high score, NoiseLevel="u'loud'" → low score
+- Consider attribute values like: NoiseLevel, WiFi, OutdoorSeating, Ambience, etc.
+- Values are often strings like "u'quiet'", "u'free'", "True", "False", or dicts as strings
+
+[OUTPUT]
+Write a single LWT step that scores restaurant 6.
+Include key attribute values and review insights relevant to the user's request.
+Output ONLY the LWT step line (no explanation):
+
+
+============================================================
+
+Expand item 7 (Steap and Grind) prompt:
+Generate an LWT evaluation step for this restaurant.
+
+[USER REQUEST]
+Looking for a cafe that serves authentic Italian gelato
+
+[RESTAURANT 7]
+Name: Steap and Grind
+Attributes: {
+  "WiFi": "u'free'",
+  "OutdoorSeating": "True",
+  "BusinessAcceptsCreditCards": "True",
+  "RestaurantsGoodForGroups": "True",
+  "RestaurantsTakeOut": "True",
+  "BikeParking": "True",
+  "NoiseLevel": "u'quiet'",
+  "RestaurantsAttire": "u'casual'",
+  "Alcohol": "u'none'",
+  "GoodForKids": "True",
+  "Ambience": "{'romantic': False, 'intimate': False, 'touristy': False, 'hipster': False, 'divey': False, 'classy': False, 'trendy': False, 'upscale': False, 'casual': True}",
+  "DogsAllowed": "True",
+  "BusinessParking": "{'garage': False, 'street': True, 'validated': False, 'lot': False, 'valet': False}",
+  "Caters": "False",
+  "GoodForMeal": "{'dessert': False, 'latenight': False, 'lunch': False, 'dinner': False, 'brunch': False, 'breakfast': True}",
+  "HasTV": "True",
+  "RestaurantsReservations": "False",
+  "RestaurantsPriceRange2": "1",
+  "RestaurantsDelivery": "True"
+}
+Sample Reviews: (no reviews)
+
+[LWT SYNTAX]
+(7)=LLM("prompt text. Output: <score>")
+- Scores are 0-10 based on how well restaurant matches user request
+- Your prompt should evaluate the ACTUAL attribute values semantically
+- Example: For user wanting "quiet cafe", NoiseLevel="u'quiet'" → high score, NoiseLevel="u'loud'" → low score
+- Consider attribute values like: NoiseLevel, WiFi, OutdoorSeating, Ambience, etc.
+- Values are often strings like "u'quiet'", "u'free'", "True", "False", or dicts as strings
+
+[OUTPUT]
+Write a single LWT step that scores restaurant 7.
+Include key attribute values and review insights relevant to the user's request.
+Output ONLY the LWT step line (no explanation):
+
+
+============================================================
+
+Expand item 8 (Elixr Coffee Roasters) prompt:
+Generate an LWT evaluation step for this restaurant.
+
+[USER REQUEST]
+Looking for a cafe that serves authentic Italian gelato
+
+[RESTAURANT 8]
+Name: Elixr Coffee Roasters
+Attributes: {
+  "BikeParking": "True",
+  "BusinessParking": "{'garage': False, 'street': True, 'validated': False, 'lot': False, 'valet': False}",
+  "BusinessAcceptsCreditCards": "True",
+  "WiFi": "u'free'",
+  "RestaurantsReservations": "False",
+  "Alcohol": "'none'",
+  "GoodForKids": "False",
+  "GoodForMeal": "{'dessert': False, 'latenight': False, 'lunch': False, 'dinner': False, 'brunch': False, 'breakfast': False}",
+  "Ambience": "{'touristy': False, 'hipster': False, 'romantic': False, 'divey': False, 'intimate': False, 'trendy': True, 'upscale': False, 'classy': True, 'casual': False}",
+  "DogsAllowed": "False",
+  "RestaurantsTakeOut": "True",
+  "RestaurantsGoodForGroups": "False",
+  "HappyHour": "False",
+  "RestaurantsAttire": "u'casual'",
+  "HasTV": "True",
+  "OutdoorSeating": "None",
+  "Caters": "False",
+  "RestaurantsTableService": "False",
+  "RestaurantsDelivery": "None",
+  "RestaurantsPriceRange2": "1",
+  "NoiseLevel": "u'quiet'"
+}
+Sample Reviews: (no reviews)
+
+[LWT SYNTAX]
+(8)=LLM("prompt text. Output: <score>")
+- Scores are 0-10 based on how well restaurant matches user request
+- Your prompt should evaluate the ACTUAL attribute values semantically
+- Example: For user wanting "quiet cafe", NoiseLevel="u'quiet'" → high score, NoiseLevel="u'loud'" → low score
+- Consider attribute values like: NoiseLevel, WiFi, OutdoorSeating, Ambience, etc.
+- Values are often strings like "u'quiet'", "u'free'", "True", "False", or dicts as strings
+
+[OUTPUT]
+Write a single LWT step that scores restaurant 8.
+Include key attribute values and review insights relevant to the user's request.
+Output ONLY the LWT step line (no explanation):
+
+
+============================================================
+
+Expand item 9 (Chapterhouse Café & Gallery) prompt:
+Generate an LWT evaluation step for this restaurant.
+
+[USER REQUEST]
+Looking for a cafe that serves authentic Italian gelato
+
+[RESTAURANT 9]
+Name: Chapterhouse Café & Gallery
+Attributes: {
+  "RestaurantsAttire": "u'casual'",
+  "RestaurantsTakeOut": "True",
+  "RestaurantsGoodForGroups": "True",
+  "WiFi": "'free'",
+  "BusinessAcceptsCreditCards": "True",
+  "OutdoorSeating": "False",
+  "Alcohol": "u'none'",
+  "ByAppointmentOnly": "False",
+  "RestaurantsReservations": "False",
+  "BusinessParking": "{'garage': False, 'street': True, 'validated': False, 'lot': False, 'valet': False}",
+  "RestaurantsPriceRange2": "1",
+  "BikeParking": "True",
+  "GoodForKids": "True",
+  "NoiseLevel": "u'average'",
+  "RestaurantsDelivery": "True",
+  "Caters": "False",
+  "DogsAllowed": "True"
+}
+Sample Reviews: (no reviews)
+
+[LWT SYNTAX]
+(9)=LLM("prompt text. Output: <score>")
+- Scores are 0-10 based on how well restaurant matches user request
+- Your prompt should evaluate the ACTUAL attribute values semantically
+- Example: For user wanting "quiet cafe", NoiseLevel="u'quiet'" → high score, NoiseLevel="u'loud'" → low score
+- Consider attribute values like: NoiseLevel, WiFi, OutdoorSeating, Ambience, etc.
+- Values are often strings like "u'quiet'", "u'free'", "True", "False", or dicts as strings
+
+[OUTPUT]
+Write a single LWT step that scores restaurant 9.
+Include key attribute values and review insights relevant to the user's request.
+Output ONLY the LWT step line (no explanation):
+
+
+============================================================
+
+Expand item 9 response:
+(9)=LLM("You are evaluating how well restaurant 9 matches the user's request: 'Looking for a cafe that serves authentic Italian gelato'. Consider the actual attribute values: Type: cafe/gallery; Attire: casual; RestaurantsTakeOut: True; WiFi: free; Delivery: True; OutdoorSeating: False; RestaurantsPriceRange2: 1; BikeParking: True; GoodForKids: True; NoiseLevel: average; Alcohol: none; Reservations: False; Parking: {'garage': False, 'street': True, 'validated': False, 'lot': False, 'valet': False}; There is no explicit gelato or Italian gelato in the menu or cuisine attributes. No evidence this location serves gelato. Score the fit from 0 (no relevance) to 10 (perfect match). Output: <score>")
+
+============================================================
+
+Item 9 (Chapterhouse Café & Gallery): (9)=LLM("You are evaluating how well restaurant 9 matches the user's request: 'L...
+
+
+============================================================
+
+Expand item 6 response:
+(6)=LLM("User seeks a cafe that serves authentic Italian gelato. Thirsty Dice has no explicit cafe/gelato/Italian cues in its attributes (no Cuisine or Gelato/Dessert tag; Ambience all False; GoodForMeal all False). It offers RestaurantsReservations True, Free WiFi, Delivery, Table Service, WheelchairAccessible True, GoodForKids True, and a full bar. Given no evidence of gelato or Italian dessert focus, rate the match on a 0-10 scale where 0 means no relevance to gelato cafe and 10 means perfect match. Consider whether reservations, wifi, accessibility, and kid-friendly features compensate for lack of gelato/cafe cue. Output: <score>")
+
+============================================================
+
+Item 6 (Thirsty Dice): (6)=LLM("User seeks a cafe that serves authentic Italian gelato. Thirsty Dice ha...
+
+
+============================================================
+
+Expand item 1 response:
+(1)=LLM("Assess how well Restaurant 1 matches the user's request: 'Looking for a cafe that serves authentic Italian gelato'. Use the provided attributes to judge fit. The data has no explicit gelato or Italian cuisine attribute. Therefore match to 'authentic Italian gelato' is weak. Cafe-like signals: RestaurantsAttire casual, OutdoorSeating True, WiFi free, NoiseLevel average, Ambience trendy and classy, PriceRange 3, Reservations True, Delivery/TakeOut True. No explicit gelato or Italian cuisine. Provide a final score 0-10 with a brief justification. Output: <score>")
+
+============================================================
+
+Item 1 (Tria Cafe Rittenhouse): (1)=LLM("Assess how well Restaurant 1 matches the user's request: 'Looking for a...
+
+
+============================================================
+
+Expand item 0 response:
+(0)=LLM("Assess Milkcrate Cafe's fit for the request 'Looking for a cafe that serves authentic Italian gelato'. There is no explicit gelato or Italian dessert offering in the attributes; Desserts are not flagged as a focus (GoodForMeal shows brunch/breakfast, not dessert). Ambience is casual/hipster; Outdoor seating True; Free WiFi; Takeout/Delivery True; PriceRange2: 1; Reservations False; Alcohol: none. Because the key criterion (gelato) is not evidenced, score low on a 0-10 scale. Output: 2")
+
+============================================================
+
+Item 0 (Milkcrate Cafe): (0)=LLM("Assess Milkcrate Cafe's fit for the request 'Looking for a cafe that se...
+
+
+============================================================
+
+Expand item 8 response:
+(8)=LLM("Evaluate how well the restaurant Elixr Coffee Roasters matches the user's request for a cafe that serves authentic Italian gelato. Restaurant 8 attributes: Name: Elixr Coffee Roasters; Ambience: trendy and classy; NoiseLevel: quiet; WiFi: free; OutdoorSeating: None; RestaurantsTakeOut: True; RestaurantsDelivery: None; PriceRange2: 1. There is no explicit gelato or Italian dessert offering listed, and the venue is a coffee roaster, not a gelateria. Based on these attributes, rate the fit on a 0-10 scale where 0 = no alignment and 10 = perfect alignment. Output: <score>")
+
+============================================================
+
+Item 8 (Elixr Coffee Roasters): (8)=LLM("Evaluate how well the restaurant Elixr Coffee Roasters matches the user...
+
+
+============================================================
+
+Expand item 5 response:
+
+
+============================================================
+
+WARNING: Fallback for item 5
+
+
+============================================================
+
+Expand item 4 response:
+(4)=LLM("You are evaluating how well restaurant 4 matches the user's request: 'Looking for a cafe that serves authentic Italian gelato'. Restaurant 4 is Kung Fu Tea. Use the provided attributes to judge fit: OutdoorSeating=False, RestaurantsTakeOut=True, HasTV=True, RestaurantsReservations=False, RestaurantsTableService=False, RestaurantsGoodForGroups=True, ByAppointmentOnly=False, GoodForMeal={'dessert': False, 'latenight': False, 'lunch': False, 'dinner': False, 'brunch': False, 'breakfast': False}, BusinessAcceptsCreditCards=True, RestaurantsAttire='casual', Caters=False, Alcohol='none', WiFi='free', BikeParking=True, GoodForKids=True, RestaurantsPriceRange2='1', Ambience={'romantic': False, 'intimate': False, 'classy': False, 'hipster': False, 'divey': False, 'touristy': False, 'trendy': False, 'upscale': False, 'casual': False}, DogsAllowed=False, WheelchairAccessible=True, RestaurantsDelivery=True, BusinessParking={'garage': False, 'street': True, 'validated': False, 'lot': False, 'valet': False}, NoiseLevel='loud'. Consider whether the restaurant offers gelato or Italian desserts, whether it has a cafe vibe, and whether it would satisfy 'authentic Italian gelato'. Based on the data, assign a score from 0 to 10 with 0 meaning no relevance and 10 meaning perfect match, and provide a brief justification. Output: <score>")
+
+============================================================
+
+Item 4 (Kung Fu Tea): (4)=LLM("You are evaluating how well restaurant 4 matches the user's request: 'L...
+
+
+============================================================
+
+Expand item 7 response:
+(7)=LLM("Evaluate how well restaurant 7 matches the user's request for a cafe that serves authentic Italian gelato. Use the actual attributes of Steap and Grind: No explicit gelato or Italian cuisine is listed; Dessert capability is absent (GoodForMeal: dessert False); Ambience casual; NoiseLevel quiet; OutdoorSeating True; WiFi free; Delivery True; TakeOut True; PriceRange 1; Breakfast available; HasTV True; Reservations False. The user asks for authentic Italian gelato, which is not evidenced here, so the match is weak. Provide a single 0-10 score representing semantic fit. Output: 1")
+
+============================================================
+
+Item 7 (Steap and Grind): (7)=LLM("Evaluate how well restaurant 7 matches the user's request for a cafe th...
+
+
+============================================================
+
+Expand item 2 response:
+
+
+============================================================
+
+WARNING: Fallback for item 2
+
+
+============================================================
+
+Expand item 3 response:
+
+
+============================================================
+
+WARNING: Fallback for item 3
+
+
+============================================================
+
+Aggregation step: (10)=LLM("Scores: {(0)}, {(1)}, {(2)}, {(3)}, {(4)}, {(5)}, {(6)}, {(7)}, {(8)},...
+
+
+============================================================
+
+Expansion complete: 11 steps in 121.9s
+
+
+============================================================
+

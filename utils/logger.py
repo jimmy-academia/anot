@@ -1,4 +1,7 @@
-"""Logging utilities for experiment debugging."""
+"""Logging utilities for experiment debugging.
+
+Note: Global logging configuration is handled in main.py's setup_logging().
+"""
 
 import json
 import os
@@ -9,16 +12,6 @@ from typing import Optional
 
 # Configure module-level logger
 logger = logging.getLogger(__name__)
-
-
-def setup_logging(verbose: bool = False):
-    """Setup logging configuration."""
-    level = logging.DEBUG if verbose else logging.INFO
-    logging.basicConfig(
-        level=level,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        datefmt='%H:%M:%S'
-    )
 
 
 class DebugLogger:

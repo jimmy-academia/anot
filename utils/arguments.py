@@ -100,9 +100,6 @@ def parse_args():
     else:
         args.data_dir = Path(args.data)
 
-    # For backward compatibility
-    args.selection_name = "all"
-
     return args
 
 
