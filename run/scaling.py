@@ -202,6 +202,7 @@ def run_scaling_experiment(args, log):
     results_table = []
     context_exceeded_at = None
     k = getattr(args, 'k', 5)
+    any_new_work = False  # Track if any new evaluations were run
 
     for n_candidates in SCALE_POINTS:
         # Skip previously failed scales
@@ -256,6 +257,7 @@ def run_scaling_experiment(args, log):
         # Handle context exceeded
         if context_exceeded:
             context_exceeded_at = n_candidates
+            any_new_work = True
             results_table.append({
                 "candidates": n_candidates,
                 "requests": len(merged_results),
@@ -266,7 +268,8 @@ def run_scaling_experiment(args, log):
             print(f"\n[STOP] Context limit exceeded at {n_candidates} candidates.")
             continue
 
-        # Normal result
+        # Normal result - new work was done
+        any_new_work = True
         stats = compute_multi_k_stats(merged_results, k)
         usage = tracker.get_summary()
         results_table.append(_make_row_from_stats(
@@ -281,8 +284,9 @@ def run_scaling_experiment(args, log):
             usage_for_display = tracker.get_summary()
             print_ranking_results(stats, merged_results, usage_for_display, show_details=True)
 
-    # Save summary
-    save_scaling_summary(run_dir, results_table, k, SCALE_POINTS)
+    # Save summary only if new work was done
+    if any_new_work:
+        save_scaling_summary(run_dir, results_table, k, SCALE_POINTS)
 
     # Print final summary
     _print_scaling_summary(args.method, results_table, context_exceeded_at)
