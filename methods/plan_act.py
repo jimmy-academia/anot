@@ -12,7 +12,7 @@ Key difference from Plan-and-Solve (PS):
 import re
 from .base import BaseMethod
 from utils.llm import call_llm
-from utils.parsing import parse_final_answer
+from utils.parsing import parse_final_answer, parse_numbered_steps
 
 
 # ============================================================================
@@ -240,19 +240,7 @@ Evaluate if this restaurant matches the user's request."""
 
     def _parse_numbered_steps(self, response: str) -> list:
         """Fallback parser for numbered lists."""
-        lines = response.strip().split('\n')
-        steps = []
-        for line in lines:
-            line = line.strip()
-            if line and line[0].isdigit():
-                # Remove number prefix
-                for i, ch in enumerate(line):
-                    if ch in '.):' and i < 3:
-                        line = line[i+1:].strip()
-                        break
-            if line and len(line) > 5:
-                steps.append(line)
-        return steps[:4]
+        return parse_numbered_steps(response, max_steps=4)
 
     def evaluate_ranking(self, query: str, context: str, k: int = 1) -> str:
         """Ranking with Plan-and-Act approach."""

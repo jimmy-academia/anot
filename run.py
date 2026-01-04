@@ -349,7 +349,7 @@ def run_evaluation_loop(args, dataset, method, experiment):
         Dict with stats
     """
     # Use dict mode for methods that need structured access
-    dict_mode_methods = {"anot", "anot_v2", "weaver"}
+    dict_mode_methods = {"anot", "weaver"}
     eval_mode = "dict" if args.method in dict_mode_methods else "string"
     k = getattr(args, 'k', 5)
     shuffle = getattr(args, 'shuffle', 'middle')
@@ -826,7 +826,7 @@ def run_scaling_experiment(args, log):
 
         # Run evaluation
         # Use dict mode for methods that need structured access
-        dict_mode_methods = {"anot", "anot_v2", "weaver"}
+        dict_mode_methods = {"anot", "weaver"}
         eval_mode = "dict" if args.method in dict_mode_methods else "string"
         shuffle = getattr(args, 'shuffle', 'middle')
         eval_result = evaluate_ranking(

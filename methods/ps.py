@@ -8,7 +8,7 @@ https://arxiv.org/abs/2305.04091
 
 from .base import BaseMethod
 from utils.llm import call_llm
-from utils.parsing import parse_final_answer
+from utils.parsing import parse_final_answer, parse_numbered_steps
 
 
 SYSTEM_PROMPT_PLAN = """You are devising a plan to evaluate a restaurant for a user's specific request.
@@ -70,18 +70,7 @@ Based on all steps above, should this restaurant be recommended?"""
 
     def _parse_steps(self, response: str) -> list:
         """Parse numbered steps from LLM response."""
-        lines = response.strip().split('\n')
-        steps = []
-        for line in lines:
-            line = line.strip()
-            if line and line[0].isdigit():
-                for i, ch in enumerate(line):
-                    if ch in '.):' and i < 3:
-                        line = line[i+1:].strip()
-                        break
-            if line and len(line) > 5:
-                steps.append(line)
-        return steps[:3]
+        return parse_numbered_steps(response, max_steps=3)
 
     def evaluate_ranking(self, query: str, context: str, k: int = 1) -> str:
         """Ranking with Plan-and-Solve approach."""

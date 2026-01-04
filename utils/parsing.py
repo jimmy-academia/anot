@@ -256,3 +256,31 @@ def parse_indices(response: str, max_index: int = 20, k: int = 5) -> list[int]:
             if len(indices) >= k:
                 break
     return indices
+
+
+def parse_numbered_steps(response: str, max_steps: int = 3) -> list:
+    """Parse numbered steps from LLM response.
+
+    Extracts step content from lines starting with digits (e.g., "1. Step", "2) Step").
+    Strips the number prefix and returns the step text.
+
+    Args:
+        response: LLM response text containing numbered steps
+        max_steps: Maximum number of steps to return (default: 3)
+
+    Returns:
+        List of step strings (up to max_steps)
+    """
+    lines = response.strip().split('\n')
+    steps = []
+    for line in lines:
+        line = line.strip()
+        if line and line[0].isdigit():
+            # Strip number prefix like "1.", "2)", "3:"
+            for i, ch in enumerate(line):
+                if ch in '.):' and i < 3:
+                    line = line[i+1:].strip()
+                    break
+        if line and len(line) > 5:
+            steps.append(line)
+    return steps[:max_steps]

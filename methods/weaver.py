@@ -9,7 +9,6 @@ processing to handle both structured and unstructured data in tables.
 
 import json
 import re
-import os
 from typing import Any, List, Dict
 
 try:
@@ -223,7 +222,15 @@ Create a step-by-step plan to analyze this table and answer the question."""
         code = code.strip()
 
         try:
-            namespace = {'df': df, 'pd': pd}
+            # Validate code - reject dangerous patterns
+            DANGEROUS_PATTERNS = ['import ', '__', 'exec(', 'eval(', 'open(', 'os.', 'sys.', 'subprocess']
+            code_lower = code.lower()
+            for pattern in DANGEROUS_PATTERNS:
+                if pattern in code_lower:
+                    raise ValueError(f"Unsafe code pattern detected: {pattern}")
+
+            # Execute with restricted namespace (no builtins)
+            namespace = {'df': df, 'pd': pd, '__builtins__': {}}
             result = eval(code, namespace)
 
             if isinstance(result, pd.DataFrame):

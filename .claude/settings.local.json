@@ -64,7 +64,14 @@
       "Bash(do echo \"Running $method on selection_$sel...\")",
       "Bash(chmod:*)",
       "Bash(ANOT_DEBUG=3 timeout 300 python:*)",
-      "Bash(git -C /Users/jimmyyeh/Documents/Station/anot diff HEAD~1 methods/anot.py methods/shared.py)"
+      "Bash(git -C /Users/jimmyyeh/Documents/Station/anot diff HEAD~1 methods/anot.py methods/shared.py)",
+      "Bash(git -C /Users/jimmyyeh/Documents/Station/anot diff --stat)",
+      "Bash(git -C /Users/jimmyyeh/Documents/Station/anot diff --cached --stat)",
+      "Bash(git -C /Users/jimmyyeh/Documents/Station/anot diff methods/cot.py methods/shared.py)",
+      "Bash(git -C /Users/jimmyyeh/Documents/Station/anot ls-files methods/prompts.py)",
+      "Bash(git -C /Users/jimmyyeh/Documents/Station/anot ls-files:*)",
+      "Bash(git -C /Users/jimmyyeh/Documents/Station/anot show HEAD:methods/cot.py)",
+      "Bash(git -C /Users/jimmyyeh/Documents/Station/anot show HEAD:methods/shared.py)"
     ]
   }
 }

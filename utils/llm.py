@@ -19,7 +19,6 @@ from pathlib import Path
 from typing import Optional
 
 import httpx
-import logging
 
 from utils.usage import get_usage_tracker
 

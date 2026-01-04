@@ -8,7 +8,6 @@ Three-phase architecture:
 """
 
 import os
-import sys
 import json
 import re
 import time
@@ -26,8 +25,6 @@ from .base import BaseMethod
 from utils.llm import call_llm, call_llm_async
 from utils.parsing import parse_script, substitute_variables
 from utils.usage import get_usage_tracker
-from utils.parsing import parse_final_answer
-from prompts.task_descriptions import RANKING_TASK_COMPACT
 
 # =============================================================================
 # Constants and Utilities (moved from shared.py - anot-specific)
@@ -88,54 +85,8 @@ _DEBUG_LOG_FILE = None
 
 
 # =============================================================================
-# Schema Extraction (Hardcoded - No LLM)
+# Formatting Utilities
 # =============================================================================
-
-def extract_schema(data: Any, truncate_review: int = 12) -> Any:
-    """Extract FULL structure with truncated leaf values.
-
-    Rules:
-    - Dicts: recurse into ALL keys
-    - Lists: recurse into ALL elements (not just [0])
-    - Review text: truncate to first N chars + "..."
-    - Everything else: show fully (dates, hours, etc.)
-
-    Args:
-        data: Input data structure
-        truncate_review: Max chars for review text (default 12)
-
-    Returns:
-        Full structure with truncated review text only
-    """
-    if isinstance(data, dict):
-        result = {}
-        for key, value in data.items():
-            result[key] = extract_schema(value, truncate_review)
-        return result
-
-    elif isinstance(data, list):
-        return [extract_schema(item, truncate_review) for item in data]
-
-    elif isinstance(data, str):
-        if len(data) > truncate_review:
-            return data[:truncate_review] + "..."
-        return data
-
-    else:
-        # Numbers, booleans, None - pass through
-        return data
-
-
-def get_attribute_keys(data: dict) -> List[str]:
-    """Extract all unique attribute keys from items."""
-    keys = set()
-    items = data.get("items", [])
-    for item in items:
-        attrs = item.get("attributes", {})
-        if isinstance(attrs, dict):
-            keys.update(attrs.keys())
-    return sorted(keys)
-
 
 def format_items_compact(items: list) -> str:
     """Format items as one line each with key=value pairs.
@@ -283,7 +234,6 @@ def tool_lwt_set(idx: int, step: str, lwt_steps: List[str]) -> str:
     """Replace step at index. Returns status."""
     if idx < 0 or idx >= len(lwt_steps):
         return f"Error: index {idx} out of range (0-{len(lwt_steps)-1})"
-    old = lwt_steps[idx]
     lwt_steps[idx] = step
     return f"Replaced step at index {idx}"
 
@@ -302,70 +252,6 @@ def tool_lwt_insert(idx: int, step: str, lwt_steps: List[str]) -> str:
         return f"Error: index {idx} out of range (0-{len(lwt_steps)})"
     lwt_steps.insert(idx, step)
     return f"Inserted at index {idx}"
-
-
-def tool_compare_hours(item_hours: str, required_range: str) -> str:
-    """Check if hours overlap with required range.
-
-    Args:
-        item_hours: Hours string like "7:0-17:0"
-        required_range: Required range like "7:0-8:0"
-
-    Returns:
-        "OVERLAP" or "NO_OVERLAP" with explanation
-    """
-    def parse_time(t: str) -> int:
-        """Parse time like '7:0' to minutes since midnight."""
-        parts = t.split(":")
-        h = int(parts[0])
-        m = int(parts[1]) if len(parts) > 1 else 0
-        return h * 60 + m
-
-    try:
-        # Parse item hours (open-close)
-        item_open, item_close = item_hours.split("-")
-        item_open_mins = parse_time(item_open)
-        item_close_mins = parse_time(item_close)
-
-        # Parse required range
-        req_start, req_end = required_range.split("-")
-        req_start_mins = parse_time(req_start)
-        req_end_mins = parse_time(req_end)
-
-        # Check overlap: item must be open during required range
-        # Item open during [item_open, item_close], need to cover [req_start, req_end]
-        if item_open_mins <= req_start_mins and item_close_mins >= req_end_mins:
-            return f"OVERLAP (open {item_open}, covers {required_range})"
-        elif item_open_mins <= req_start_mins:
-            return f"PARTIAL (open {item_open}, closes before {req_end})"
-        else:
-            return f"NO_OVERLAP (opens {item_open}, too late for {required_range})"
-
-    except Exception as e:
-        return f"Error parsing hours: {e}"
-
-
-def tool_compare_date(review_date: str, threshold: str) -> str:
-    """Check if review date is recent enough.
-
-    Args:
-        review_date: Date string like "2023-01-15"
-        threshold: Threshold like "2020-01-01" (reviews after this are recent)
-
-    Returns:
-        "RECENT" or "OLD" with explanation
-    """
-    try:
-        from datetime import datetime
-        rev_dt = datetime.strptime(review_date[:10], "%Y-%m-%d")
-        thresh_dt = datetime.strptime(threshold[:10], "%Y-%m-%d")
-
-        if rev_dt >= thresh_dt:
-            return f"RECENT (after {threshold})"
-        else:
-            return f"OLD (before {threshold})"
-    except Exception as e:
-        return f"Error parsing date: {e}"
 
 
 # =============================================================================
@@ -409,7 +295,7 @@ class AdaptiveNetworkOfThought(BaseMethod):
         if hasattr(self, '_debug_log_file') and self._debug_log_file:
             try:
                 self._debug_log_file.close()
-            except:
+            except Exception:
                 pass
 
     def _debug(self, level: int, phase: str, msg: str, content: str = None):
