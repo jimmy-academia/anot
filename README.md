@@ -107,7 +107,8 @@ anot/
 
 ## Documentation
 
-See `doc/` for:
-- [research_plan.md](doc/research_plan.md) - Research plan and specifications
+See [`doc/`](doc/README.md) for full documentation index:
+- [baselines.md](doc/baselines.md) - Implemented baseline methods with paper references
 - [anot_architecture.md](doc/anot_architecture.md) - ANoT three-phase design
+- [research_plan.md](doc/research_plan.md) - Research plan and specifications
 - [logging.md](doc/logging.md) - Logging infrastructure
