@@ -9,6 +9,7 @@ https://arxiv.org/abs/2305.04091
 from .base import BaseMethod
 from utils.llm import call_llm
 from utils.parsing import parse_final_answer, parse_numbered_steps
+from prompts.task_descriptions import RANKING_TASK_COMPACT
 
 
 SYSTEM_PROMPT_PLAN = """You are devising a plan to evaluate a restaurant for a user's specific request.
@@ -74,7 +75,9 @@ Based on all steps above, should this restaurant be recommended?"""
 
     def evaluate_ranking(self, query: str, context: str, k: int = 1) -> str:
         """Ranking with Plan-and-Solve approach."""
-        plan_prompt = f"""User request: {context}
+        task_desc = RANKING_TASK_COMPACT.format(context=context, k=k)
+
+        plan_prompt = f"""{task_desc}
 
 Devise a 3-step plan to compare multiple restaurants and select the best match."""
 
@@ -88,11 +91,10 @@ Devise a 3-step plan to compare multiple restaurants and select the best match."
         ranking_prompt = f"""[EVALUATION PLAN]
 {plan_response}
 
+{task_desc}
+
 [RESTAURANTS]
 {query}
-
-[USER REQUEST]
-{context}
 
 Execute the plan above to evaluate each restaurant.
 {instruction}

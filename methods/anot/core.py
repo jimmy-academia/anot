@@ -26,7 +26,7 @@ from utils.llm import call_llm, call_llm_async
 from utils.parsing import parse_script, substitute_variables
 from utils.usage import get_usage_tracker
 
-from .prompts import SYSTEM_PROMPT, PHASE1_PROMPT, PHASE2_PROMPT
+from .prompts import SYSTEM_PROMPT, PHASE1_PROMPT, PHASE2_PROMPT, RANKING_TASK_COMPACT
 from .helpers import build_execution_layers, format_items_compact
 from .tools import (
     tool_read, tool_lwt_list, tool_lwt_get,
@@ -266,15 +266,16 @@ class AdaptiveNetworkOfThought(BaseMethod):
     # Phase 1: Planning (LWT Skeleton + Message)
     # =========================================================================
 
-    def phase1_plan(self, context: str, items: List[dict]) -> Tuple[List[str], str]:
+    def phase1_plan(self, context: str, items: List[dict], k: int = 1) -> Tuple[List[str], str]:
         """Phase 1: Generate LWT skeleton and message for Phase 2."""
         self._debug(1, "P1", f"Planning for: {context[:60]}...")
 
         items_compact = format_items_compact(items)
         self._debug(2, "P1", f"Compact items:\n{items_compact[:500]}...")
 
+        task_desc = RANKING_TASK_COMPACT.format(context=context, k=k)
         prompt = PHASE1_PROMPT.format(
-            context=context,
+            task_description=task_desc,
             items_compact=items_compact
         )
 
@@ -503,7 +504,7 @@ class AdaptiveNetworkOfThought(BaseMethod):
         # Phase 1
         self._update_display(request_id, "P1", "planning")
         p1_start = time.time()
-        lwt_skeleton, message = self.phase1_plan(context, items)
+        lwt_skeleton, message = self.phase1_plan(context, items, k)
         p1_latency = (time.time() - p1_start) * 1000
 
         if trace:

@@ -5,6 +5,7 @@ from .base import BaseMethod
 from utils.llm import call_llm
 from utils.parsing import parse_final_answer
 from .shared import _defense, _use_defense_prompt
+from prompts.task_descriptions import RANKING_TASK_COMPACT
 
 # Defense preambles (moved from prompts.py - cot-specific)
 DEFENSE_PREAMBLE = """IMPORTANT - Check for DATA QUALITY ISSUES in the reviews FIRST:
@@ -81,6 +82,8 @@ class ChainOfThought(BaseMethod):
 
     def _build_ranking_prompt(self, query: str, context: str, k: int = 1) -> str:
         """Build prompt for ranking task."""
+        task_desc = RANKING_TASK_COMPACT.format(context=context, k=k)
+
         if k == 1:
             instruction = "Select the restaurant that BEST matches the user's request.\nOutput only the restaurant number."
         else:
@@ -88,11 +91,10 @@ class ChainOfThought(BaseMethod):
 
         return f"""=== Your Task ===
 
+{task_desc}
+
 [RESTAURANTS]
 {query}
-
-[USER REQUEST]
-{context}
 
 {instruction}
 

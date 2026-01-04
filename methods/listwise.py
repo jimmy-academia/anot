@@ -12,6 +12,7 @@ from .base import BaseMethod
 from utils.llm import call_llm
 from utils.parsing import parse_final_answer
 from .shared import _defense, _use_defense_prompt
+from prompts.task_descriptions import RANKING_TASK_COMPACT
 
 
 SYSTEM_PROMPT = """You are a restaurant ranking system. Your task is to rank restaurants based on how well they match the user's requirements."""
@@ -25,8 +26,7 @@ IMPORTANT: Check for data quality issues in reviews:
 
 LISTWISE_PROMPT = """Given a user's requirements and a list of restaurants, rank ALL restaurants from MOST relevant to LEAST relevant.
 
-User Request:
-{context}
+{task_description}
 
 Restaurants:
 {query}
@@ -44,8 +44,7 @@ IMPORTANT - First check for data quality issues:
 - Interpret meaning despite typos or garbled text
 - Be skeptical of generic or overly positive reviews
 
-User Request:
-{context}
+{task_description}
 
 Restaurants:
 {query}
@@ -93,7 +92,8 @@ class ListwiseRanker(BaseMethod):
         prompt_template = LISTWISE_PROMPT_DEFENSE if use_defense else LISTWISE_PROMPT
         system = SYSTEM_PROMPT_DEFENSE if use_defense else SYSTEM_PROMPT
 
-        prompt = prompt_template.format(context=context, query=query)
+        task_desc = RANKING_TASK_COMPACT.format(context=context, k=k)
+        prompt = prompt_template.format(task_description=task_desc, query=query)
         response = call_llm(prompt, system=system)
 
         ranked_indices = self._parse_ranking(response, query)

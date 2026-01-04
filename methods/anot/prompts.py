@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
 """Prompt constants for ANoT phases."""
 
+from prompts.task_descriptions import RANKING_TASK_COMPACT
+
+# Re-export for use in core.py
+__all__ = ['SYSTEM_PROMPT', 'PHASE1_PROMPT', 'PHASE2_PROMPT', 'RANKING_TASK_COMPACT']
+
 SYSTEM_PROMPT = "You follow instructions precisely. Output only what is requested."
 
 PHASE1_PROMPT = """Analyze the user request and rank items.
 
-[USER REQUEST]
-{context}
+{task_description}
 
 [ITEMS]
 {items_compact}
