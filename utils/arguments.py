@@ -17,13 +17,14 @@ METHOD_CHOICES = ["cot", "ps", "plan_act", "listwise", "weaver", "anot", "dummy"
 # Attack choices - import from attack.py for consistency
 # Note: heterogeneity requires --attack-target-len
 ATTACK_CHOICES = [
-    "none", "clean",
+    "none",  # Default: no attack (clean baseline)
     "typo_10", "typo_20",
     "inject_override", "inject_fake_sys", "inject_hidden", "inject_manipulation",
     "fake_positive", "fake_negative",
     "sarcastic_wifi", "sarcastic_noise", "sarcastic_outdoor", "sarcastic_all",
     "heterogeneity",
-    "all",  # Run all attacks (excluding clean)
+    "all",   # Run all attacks
+    "both",  # Run clean baseline + all attacks
 ]
 
 
@@ -51,7 +52,7 @@ def parse_args():
 
     # Attack arguments
     parser.add_argument("--attack", choices=ATTACK_CHOICES, default="none",
-                        help="Attack type to apply (none=clean)")
+                        help="Attack type (none=clean baseline, all=all attacks, both=clean+all)")
     parser.add_argument("--seed", type=int, default=None,
                         help="Random seed for reproducible attacks")
     parser.add_argument("--defense", action="store_true",
@@ -102,6 +103,15 @@ def parse_args():
                         help="Show full per-request results (default: summary only)")
 
     args = parser.parse_args()
+
+    # Validate --limit: if it's a single integer <= 0, error
+    if args.limit is not None:
+        try:
+            limit_int = int(args.limit)
+            if limit_int <= 0:
+                parser.error(f"--limit must be positive (got {limit_int})")
+        except ValueError:
+            pass  # Not a single integer (e.g., "0-9" or "0,1,2"), validation happens later
 
     # Derived arguments
     args.parallel = PARALLEL_MODE and not args.sequential

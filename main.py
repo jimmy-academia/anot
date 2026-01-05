@@ -86,6 +86,24 @@ def main():
         run_all_attacks(args, log)
         return
 
+    # Handle --attack both (clean baseline + all attacks)
+    if args.attack == "both":
+        if args.candidates is None:
+            print("ERROR: --attack both requires --candidates N (e.g., --candidates 10)")
+            return
+
+        # Run clean baseline first
+        print(f"\n{'='*60}")
+        print("RUNNING CLEAN BASELINE")
+        print(f"{'='*60}")
+        args.attack = "none"
+        experiment = create_experiment(args)
+        run_single(args, experiment, log)
+
+        # Then run all attacks
+        run_all_attacks(args, log)
+        return
+
     # Scaling experiment (default) vs single run (--candidates N)
     if args.candidates is None:
         run_scaling_experiment(args, log)

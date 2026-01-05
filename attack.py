@@ -421,7 +421,7 @@ ATTACK_CONFIGS = {
     # Heterogeneity - requires --attack-target-len at runtime
     "heterogeneity": ("heterogeneity", {}),  # target_len added at runtime
 }
-ATTACK_CHOICES = ["none"] + list(ATTACK_CONFIGS.keys()) + ["all"]
+ATTACK_CHOICES = ["none"] + list(ATTACK_CONFIGS.keys()) + ["all", "both"]
 
 
 def get_all_attack_names() -> list:
@@ -447,8 +447,8 @@ def apply_attacks(items: list, attack: str, seed: int = None) -> tuple:
         - attacked_items: List of modified items (deep copied from originals)
         - attack_params: Dict with full attack config for storage/reproducibility
     """
-    # Handle clean/no attack case
-    if attack in ("none", "clean", None, ""):
+    # Handle no attack case
+    if attack in ("none", None, ""):
         return items, {"attack": "none", "attack_type": None, "attack_config": None, "seed": None}
 
     # Set seed for reproducibility if provided
@@ -491,7 +491,7 @@ def get_attack_config(
     Returns:
         Attack configuration dict
     """
-    if attack in ("none", "clean", None, ""):
+    if attack in ("none", None, ""):
         return {"attack": "none"}
 
     if attack not in ATTACK_CONFIGS:
@@ -531,8 +531,8 @@ def apply_attack_for_request(
     """
     attack = attack_config.get("attack", "none")
 
-    # Handle clean/no attack case
-    if attack in ("none", "clean", None, ""):
+    # Handle no attack case
+    if attack in ("none", None, ""):
         return items
 
     # Set seed for reproducibility
