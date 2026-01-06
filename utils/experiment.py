@@ -211,24 +211,24 @@ class ExperimentManager:
             total_requests: Total expected number of requests
 
         Returns:
-            List of missing request indices (0-based)
+            List of missing request indices (1-based, matching R01-R80 format)
         """
         if not self.benchmark_mode:
-            return list(range(total_requests))
+            return list(range(1, total_requests + 1))
 
         attack_dir = BENCHMARK_DIR / f"{self.method}_{self.data}" / self.attack
         if not attack_dir.exists():
-            return list(range(total_requests))
+            return list(range(1, total_requests + 1))
 
         # Find latest run
         latest = self._get_latest_run(attack_dir)
         if not latest:
-            return list(range(total_requests))
+            return list(range(1, total_requests + 1))
 
         run_dir = attack_dir / f"run_{latest}"
         results_path = run_dir / "results.jsonl"
         if not results_path.exists():
-            return list(range(total_requests))
+            return list(range(1, total_requests + 1))
 
         # Parse completed request IDs
         completed_indices = set()
@@ -236,7 +236,7 @@ class ExperimentManager:
             for line in f:
                 try:
                     r = json.loads(line)
-                    # request_id format: R00, R01, ..., R49
+                    # request_id format: R01, R02, ..., R80
                     req_id = r.get("request_id", "")
                     if req_id.startswith("R"):
                         idx = int(req_id[1:])
@@ -244,8 +244,8 @@ class ExperimentManager:
                 except (json.JSONDecodeError, ValueError):
                     continue
 
-        # Return missing indices
-        all_indices = set(range(total_requests))
+        # Return missing indices (1-based)
+        all_indices = set(range(1, total_requests + 1))
         missing = sorted(all_indices - completed_indices)
         return missing
 

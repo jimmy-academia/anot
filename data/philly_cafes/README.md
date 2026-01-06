@@ -5,7 +5,7 @@ A structured benchmark dataset for evaluating LLM reasoning on restaurant recomm
 ## Overview
 
 - **50 restaurants** with attributes and reviews
-- **80 requests** across 8 structural complexity groups (G01-G08)
+- **100 requests** across 10 structural complexity groups (G01-G10)
 - **100% validation** - each request matches exactly one restaurant
 
 ## Dataset Files
@@ -14,19 +14,20 @@ A structured benchmark dataset for evaluating LLM reasoning on restaurant recomm
 |------|-------------|
 | `restaurants.jsonl` | 50 Philadelphia cafe profiles with attributes |
 | `reviews.jsonl` | Customer reviews for each restaurant |
-| `requests.jsonl` | 80 benchmark requests with logical structures |
+| `requests.jsonl` | 100 benchmark requests with logical structures |
 | `groundtruth.jsonl` | Gold answers and validation status |
+| `user_mapping.json` | Synthetic user data for social filter (G09-G10) |
 | `condition_matrix.json` | Full condition satisfaction matrix |
 | `condition_summary.md` | Human-readable condition analysis |
 
 ## Request Groups
 
-### G01: Simple AND (R00-R09)
+### G01: Simple AND (R01-R10)
 **Structure**: `AND(condition1, condition2, condition3)`
 
 Basic conjunction of 2-4 conditions. Tests fundamental attribute matching.
 
-**Example R00**:
+**Example R01**:
 ```
 "Looking for a quiet cafe with free WiFi that's good for studying"
 AND(noise_quiet, wifi_free, study_reviews)
@@ -37,12 +38,12 @@ Gold: [0] Milkcrate Cafe
 
 ---
 
-### G02: Simple OR (R10-R19)
+### G02: Simple OR (R11-R20)
 **Structure**: `OR(condition1, condition2)` or `AND(anchor, OR(...))`
 
 Tests disjunctive reasoning - any one condition suffices.
 
-**Example R12**:
+**Example R13**:
 ```
 "Looking for a cafe that's either good for brunch or has outdoor seating"
 OR(meal_brunch, outdoor_yes)
@@ -53,12 +54,12 @@ Gold: [1] Tria Cafe Rittenhouse
 
 ---
 
-### G03: AND-OR Combination (R20-R29)
+### G03: AND-OR Combination (R21-R30)
 **Structure**: `AND(condition1, OR(condition2, condition3))`
 
 Nested structure with anchor + disjunction.
 
-**Example R21**:
+**Example R22**:
 ```
 "Looking for a mid-priced cafe with either 'cozy' or 'comfortable' mentioned in reviews"
 AND(price_mid, OR(cozy, comfortable_reviews))
@@ -69,7 +70,7 @@ Gold: [1] Tria Cafe Rittenhouse
 
 ---
 
-### G04: Review Metadata Weighting (R30-R39)
+### G04: Review Metadata Weighting (R31-R40)
 **Structure**: `AND(conditions, credibility_count_condition)`
 
 Uses credibility-count evaluation: "At least N credible reviewers (above percentile) mention pattern"
@@ -79,7 +80,7 @@ Uses credibility-count evaluation: "At least N credible reviewers (above percent
 - Minimum credible matches: 2 reviewers must agree
 - Weight fields: `review_count`, `fans`, `elite` years, `useful` votes
 
-**Example R32**:
+**Example R33**:
 ```
 "Looking for a cafe with a full bar, where elite reviewers mention 'love', without coat check, offers delivery, and good for dinner"
 AND(full_bar, no_coat_check, elite_love, delivery, dinner)
@@ -90,12 +91,12 @@ Gold: [9] Gran Caffe L'Aquila
 
 ---
 
-### G05: Triple OR with Anchor (R40-R49)
+### G05: Triple OR with Anchor (R41-R50)
 **Structure**: `AND(anchor1, anchor2, OR(opt1, opt2, opt3))`
 
 Multiple anchoring conditions with three-way disjunction.
 
-**Example R40**:
+**Example R41**:
 ```
 "Looking for a cafe with a drive-thru that has either 'coffee', 'breakfast', or 'friendly' mentioned"
 AND(drive_thru, OR(coffee_reviews, breakfast_reviews, friendly_reviews))
@@ -106,12 +107,12 @@ Gold: [0] Milkcrate Cafe
 
 ---
 
-### G06: Nested OR+AND (R50-R59)
+### G06: Nested OR+AND (R51-R60)
 **Structure**: `AND(anchor, OR(AND(a,b), AND(c,d)))`
 
 Disjunction of conjunctions - either (A AND B) or (C AND D).
 
-**Example R54**:
+**Example R55**:
 ```
 "Looking for a cafe with free corkage that's either (organic AND music) or (work AND wifi)"
 AND(byob_corkage_free, OR(AND(organic, music), AND(work, wifi)))
@@ -122,12 +123,12 @@ Gold: [42] Mugshots Coffeehouse
 
 ---
 
-### G07: Chained OR (R60-R69)
+### G07: Chained OR (R61-R70)
 **Structure**: `AND(anchor, OR(a,b), OR(c,d))`
 
 Multiple independent OR blocks that all must have at least one match.
 
-**Example R65**:
+**Example R66**:
 ```
 "Looking for a hipster cafe good for lunch, open Monday afternoon,
  that either has 'sandwich' or 'work' mentioned,
@@ -140,12 +141,12 @@ Gold: [47] Rocket Cat Cafe
 
 ---
 
-### G08: Unbalanced Structure (R70-R79)
+### G08: Unbalanced Structure (R71-R80)
 **Structure**: `AND(anchor, simple, OR(opt, AND(nested1, nested2)))`
 
 Asymmetric structure with one simple OR option and one complex AND option.
 
-**Example R70**:
+**Example R71**:
 ```
 "Looking for a quiet cafe with beer and wine that's either
  where reviews mention 'slow', or both elite reviewers mention 'work' and 'best'"
@@ -154,6 +155,47 @@ Gold: [7] Swiss Haus Cafe & Pastry Bar
 ```
 
 **Complexity**: High - unbalanced complexity in OR branches
+
+---
+
+### G09: Direct Friends / 1-Hop (R81-R90)
+**Structure**: `1HOP([friend_list], pattern)`
+
+Filter reviews to those from users directly in the provided friend list. Tests social/relational reasoning with direct connections.
+
+**Evaluation Logic**:
+- Reviewer's name must be in the query's friend list
+- Reviewer must mention the required pattern
+
+**Example R81**:
+```
+"My friend Alice recommended some cafes. Looking for one where she mentions it's 'cozy'"
+1HOP(['Alice'], 'cozy')
+Gold: [0] Milkcrate Cafe
+```
+
+**Complexity**: Medium - requires matching reviewer identity + pattern
+
+---
+
+### G10: Social Circle / 2-Hop (R91-R100)
+**Structure**: `2HOP([friend_list], pattern)`
+
+Filter reviews to those from users who are either direct friends OR friends-of-friends. Tests broader social graph reasoning.
+
+**Evaluation Logic**:
+- Reviewer's name is in the friend list (direct friend), OR
+- Reviewer has a friend whose name is in the friend list (friend-of-friend)
+- Reviewer must mention the required pattern
+
+**Example R91**:
+```
+"Looking for a cafe recommended by my social circle. My friend Bob or his friends mention 'recommend'"
+2HOP(['Bob'], 'recommend')
+Gold: [10] Thirsty Dice
+```
+
+**Complexity**: High - requires traversing social graph + pattern matching
 
 ---
 
@@ -171,6 +213,8 @@ Each request includes a `shorthand` field with compact structure notation:
 | G06 | `AND(a, OR(AND(b,c), AND(d,e)))` | `AND(takeout_no, OR(AND(romantic, coffee), AND(espresso, latte)))` |
 | G07 | `AND(a, OR(b,c), OR(d,e))` | `AND(budget, byob, OR(cozy, romantic), OR(coffee, espresso))` |
 | G08 | `AND(a, OR(b, AND(c,d)))` | `AND(quiet, OR(slow, AND(elite_work, best)))` |
+| G09 | `1HOP([friends], pattern)` | `1HOP(['Alice'], 'cozy')` |
+| G10 | `2HOP([friends], pattern)` | `2HOP(['Bob'], 'recommend')` |
 
 ---
 
@@ -182,6 +226,7 @@ Each request includes a `shorthand` field with compact structure notation:
 | `item_meta_hours` | ~30 | Operating hour conditions |
 | `review_text` | ~100 | Pattern matching in reviews |
 | `review_meta` | ~20 | Credibility-count patterns (G04) |
+| `social_filter` | 20 | Social graph filtering (G09-G10) |
 
 ## Restaurant Coverage
 
@@ -189,9 +234,9 @@ All 50 restaurants are used as gold answers, with distribution across groups ens
 
 | Restaurant Index | Usage Count | Example Requests |
 |------------------|-------------|------------------|
-| [0] Milkcrate Cafe | 3 | R00, R30, R40 |
-| [1] Tria Cafe | 3 | R01, R12, R41 |
-| [2] Front Street Cafe | 2 | R02, R17 |
+| [0] Milkcrate Cafe | 3 | R01, R31, R41 |
+| [1] Tria Cafe | 3 | R02, R13, R42 |
+| [2] Front Street Cafe | 2 | R03, R18 |
 | ... | ... | ... |
 
 ## Validation
@@ -201,8 +246,8 @@ All 50 restaurants are used as gold answers, with distribution across groups ens
 .venv/bin/python -m data.validate philly_cafes
 
 # Expected output:
-# Validation: 80/80 = 100%
-# All 80 requests validated successfully!
+# Validation: 100/100 = 100%
+# All 100 requests validated successfully!
 ```
 
 ## Usage in Evaluation
@@ -216,11 +261,11 @@ requests = load_jsonl('data/philly_cafes/requests.jsonl')
 groundtruth = load_jsonl('data/philly_cafes/groundtruth.jsonl')
 
 # Each request has:
-# - id: "R00" to "R79"
-# - group: "G01" to "G08"
-# - scenario: Persona-based name (e.g., "Busy Parent", "Wine Enthusiast")
+# - id: "R01" to "R100"
+# - group: "G01" to "G10"
+# - scenario: Persona-based name (e.g., "Busy Parent", "Friend Recommendation")
 # - text: Natural language request
-# - shorthand: Compact notation (e.g., "AND(a, OR(b, c))")
+# - shorthand: Compact notation (e.g., "AND(a, OR(b, c))" or "1HOP(['Alice'], 'cozy')")
 # - structure: Formal logical structure (JSON)
 # - gold_restaurant: Business ID of correct answer
 
@@ -228,7 +273,7 @@ groundtruth = load_jsonl('data/philly_cafes/groundtruth.jsonl')
 # - request_id: Matches request.id
 # - gold_restaurant: Business ID
 # - gold_idx: Index in restaurants list (0-49)
-# - status: "ok" for all 80 requests
+# - status: "ok" for all 100 requests
 ```
 
 ## Design Methodology

@@ -485,7 +485,7 @@ class AdaptiveNetworkOfThought(BaseMethod):
         """Single item evaluation (not used for ranking)."""
         return 0
 
-    def evaluate_ranking(self, query, context: str, k: int = 1, request_id: str = "R00") -> str:
+    def evaluate_ranking(self, query, context: str, k: int = 1, request_id: str = "R01") -> str:
         """Ranking evaluation: Phase 1 → Phase 2 → Phase 3."""
         self._init_trace(request_id, context)
         self._thread_local.request_id = request_id

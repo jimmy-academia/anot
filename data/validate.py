@@ -25,6 +25,57 @@ console = Console()
 
 DATA_DIR = Path(__file__).parent
 
+# --- Social Filter Data (Lazy Loaded) ---
+
+_social_data = None
+
+def get_social_data():
+    """Load user_mapping.json for social filter evaluation."""
+    global _social_data
+    if _social_data is None:
+        mapping_path = DATA_DIR / "philly_cafes" / "user_mapping.json"
+        if mapping_path.exists():
+            with open(mapping_path) as f:
+                _social_data = json.load(f)
+        else:
+            _social_data = {"user_names": {}, "friend_graph": {}, "restaurant_reviews": {}}
+    return _social_data
+
+
+def check_social_filter(reviewer_name: str, friends: list[str], hops: int) -> bool:
+    """Check if reviewer qualifies under social filter.
+
+    Args:
+        reviewer_name: Name of the reviewer (e.g., "Alice")
+        friends: Query's friend list (e.g., ["Bob", "Carol"])
+        hops: 1 for direct friends only, 2 for friends + friends-of-friends
+
+    Returns:
+        True if reviewer qualifies (is in social circle)
+    """
+    social = get_social_data()
+    user_names = social.get("user_names", {})
+    friend_graph = social.get("friend_graph", {})
+
+    # Build name -> user_id lookup
+    name_to_id = {v: k for k, v in user_names.items()}
+
+    # 1-hop: reviewer's name is in friend list
+    if reviewer_name in friends:
+        return True
+
+    if hops >= 2:
+        # 2-hop: reviewer has a friend whose name is in the friend list
+        reviewer_id = name_to_id.get(reviewer_name)
+        if reviewer_id and reviewer_id in friend_graph:
+            reviewer_friends = friend_graph[reviewer_id]
+            for friend_id in reviewer_friends:
+                friend_name = user_names.get(friend_id, "")
+                if friend_name in friends:
+                    return True
+
+    return False
+
 
 # --- Hours Parsing ---
 
@@ -428,6 +479,47 @@ def evaluate_review_text_pattern(reviews: list, pattern: str) -> int:
     return -1
 
 
+def evaluate_social_filter(restaurant_idx: int, pattern: str, social_filter: dict) -> int:
+    """Evaluate review text pattern with social filter.
+
+    Uses synthetic restaurant_reviews data from user_mapping.json.
+
+    Args:
+        restaurant_idx: Index of restaurant (0-49)
+        pattern: Pattern to match in review
+        social_filter: {"friends": ["Alice", "Bob"], "hops": 1 or 2}
+
+    Returns: 1 if condition satisfied, -1 otherwise
+    """
+    social = get_social_data()
+    restaurant_reviews = social.get("restaurant_reviews", {})
+    friends = social_filter.get("friends", [])
+    hops = social_filter.get("hops", 1)
+    min_matches = social_filter.get("min_matches", 1)
+
+    # Get synthetic reviews for this restaurant
+    reviews = restaurant_reviews.get(str(restaurant_idx), [])
+
+    # Count matching reviews
+    matches = 0
+    user_names = social.get("user_names", {})
+
+    for review in reviews:
+        # review is [user_id, pattern_mentioned]
+        user_id, mentioned_pattern = review
+        reviewer_name = user_names.get(user_id, "")
+
+        # Check if pattern matches
+        if pattern.lower() != mentioned_pattern.lower():
+            continue
+
+        # Check if reviewer qualifies under social filter
+        if check_social_filter(reviewer_name, friends, hops):
+            matches += 1
+
+    return 1 if matches >= min_matches else -1
+
+
 def evaluate_condition(item: dict, condition: dict, reviews: list = None) -> int:
     """Evaluate a single condition against an item.
 
@@ -444,6 +536,25 @@ def evaluate_condition(item: dict, condition: dict, reviews: list = None) -> int
     elif kind == "review_text":
         pattern = evidence_spec.get("pattern", "")
         weight_by = evidence_spec.get("weight_by")
+        social_filter = evidence_spec.get("social_filter")
+
+        # If social_filter specified, use synthetic social data
+        if social_filter:
+            # Look up restaurant index from business_id
+            business_id = item.get("business_id", "")
+            social = get_social_data()
+            restaurant_reviews = social.get("restaurant_reviews", {})
+
+            # Find index by checking which index has this business_id
+            # We need to load restaurants to find the index
+            restaurants_path = DATA_DIR / "philly_cafes" / "restaurants.jsonl"
+            if restaurants_path.exists():
+                with open(restaurants_path) as f:
+                    for idx, line in enumerate(f):
+                        r = json.loads(line)
+                        if r.get("business_id") == business_id:
+                            return evaluate_social_filter(idx, pattern, social_filter)
+            return -1
 
         if not reviews:
             return 0

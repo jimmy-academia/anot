@@ -27,7 +27,7 @@ class DebugLogger:
         Args:
             run_dir: Path to the run directory (e.g., results/dev/001_test)
             item_id: Unique identifier for the data item
-            request_id: Request identifier (e.g., R00, R01, ...)
+            request_id: Request identifier (e.g., R01, R02, ...)
         """
         self.buffer = []
         self.run_dir = run_dir

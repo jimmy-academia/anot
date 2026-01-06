@@ -67,22 +67,24 @@ Given a user request with logical structure and N candidate restaurants, identif
 | Metric | Value |
 |--------|-------|
 | Restaurants | 50 |
-| Requests | 80 |
-| Request Groups | 8 (G01-G08) |
+| Requests | 100 |
+| Request Groups | 10 (G01-G10) |
 | Validation Rate | 100% |
 
 ### Request Groups
 
 | Group | Structure | Shorthand Pattern | Requests |
 |-------|-----------|-------------------|----------|
-| G01 | Simple AND | `AND(a, b, c)` | R00-R09 |
-| G02 | Simple OR | `AND(anchor, OR(a, b))` | R10-R19 |
-| G03 | AND-OR Combination | `AND(a, OR(b, c))` | R20-R29 |
-| G04 | Credibility-Count | `AND(a, review_meta_*)` | R30-R39 |
-| G05 | Triple OR + Anchor | `AND(a, OR(b, c, d, e))` | R40-R49 |
-| G06 | Nested OR+AND | `AND(a, OR(AND(b,c), AND(d,e)))` | R50-R59 |
-| G07 | Chained OR | `AND(a, OR(b,c), OR(d,e))` | R60-R69 |
-| G08 | Unbalanced | `AND(a, OR(b, AND(c,d)))` | R70-R79 |
+| G01 | Simple AND | `AND(a, b, c)` | R01-R10 |
+| G02 | Simple OR | `AND(anchor, OR(a, b))` | R11-R20 |
+| G03 | AND-OR Combination | `AND(a, OR(b, c))` | R21-R30 |
+| G04 | Credibility-Count | `AND(a, review_meta_*)` | R31-R40 |
+| G05 | Triple OR + Anchor | `AND(a, OR(b, c, d, e))` | R41-R50 |
+| G06 | Nested OR+AND | `AND(a, OR(AND(b,c), AND(d,e)))` | R51-R60 |
+| G07 | Chained OR | `AND(a, OR(b,c), OR(d,e))` | R61-R70 |
+| G08 | Unbalanced | `AND(a, OR(b, AND(c,d)))` | R71-R80 |
+| G09 | Direct Friends (1-hop) | `1HOP([friends], pattern)` | R81-R90 |
+| G10 | Social Circle (2-hop) | `2HOP([friends], pattern)` | R91-R100 |
 
 ### Evidence Types
 

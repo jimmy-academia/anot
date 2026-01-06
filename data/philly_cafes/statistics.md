@@ -7,8 +7,8 @@ Comprehensive statistics for the philly_cafes benchmark dataset.
 | Metric | Value |
 |--------|-------|
 | Total Restaurants | 50 |
-| Total Requests | 80 |
-| Request Groups | 8 |
+| Total Requests | 100 |
+| Request Groups | 10 |
 | Validation Rate | 100% |
 
 ## Request Groups Distribution
@@ -23,17 +23,20 @@ Comprehensive statistics for the philly_cafes benchmark dataset.
 | G06 | 10 | Nested OR+AND |
 | G07 | 10 | Chained OR |
 | G08 | 10 | Unbalanced Structure |
+| G09 | 10 | Direct Friends (1-hop) |
+| G10 | 10 | Social Circle (2-hop) |
 
 ## Evidence Type Distribution
 
 | Evidence Type | Count | Percentage |
 |---------------|-------|------------|
-| item_meta | 196 | 49.7% |
-| review_text | 136 | 34.5% |
-| review_meta | 49 | 12.4% |
-| item_meta_hours | 13 | 3.3% |
+| item_meta | 196 | 47.3% |
+| review_text | 136 | 32.9% |
+| review_meta | 49 | 11.8% |
+| social_filter | 20 | 4.8% |
+| item_meta_hours | 13 | 3.1% |
 
-**Total conditions across all requests**: 394
+**Total conditions across all requests**: 414
 
 ## Top 20 Most Used Conditions
 
@@ -77,39 +80,39 @@ Comprehensive statistics for the philly_cafes benchmark dataset.
 
 | Index | Restaurant Name | Usage Count | Requests |
 |-------|-----------------|-------------|----------|
-| 0 | Milkcrate Cafe | 3 | R00, R30, R40 |
-| 1 | Tria Cafe Rittenhouse | 4 | R01, R12, R21, R41 |
-| 2 | Front Street Cafe | 5 | R02, R17, R18, R39, R45 |
-| 3 | MilkBoy | 5 | R10, R23, R25, R31, R46 |
-| 4 | Kung Fu Tea | 3 | R03, R34, R47 |
-| 5 | Function Coffee Labs | 4 | R06, R48, R58, R68 |
+| 0 | Milkcrate Cafe | 3 | R01, R31, R41 |
+| 1 | Tria Cafe Rittenhouse | 4 | R02, R13, R22, R42 |
+| 2 | Front Street Cafe | 5 | R03, R18, R19, R40, R46 |
+| 3 | MilkBoy | 5 | R11, R24, R26, R32, R47 |
+| 4 | Kung Fu Tea | 3 | R04, R35, R48 |
+| 5 | Function Coffee Labs | 4 | R07, R49, R59, R69 |
 | 6 | The Bubble House | 0 | - |
-| 7 | Swiss Haus Cafe & Pastry Bar | 4 | R04, R36, R49, R70 |
+| 7 | Swiss Haus Cafe & Pastry Bar | 4 | R05, R37, R50, R71 |
 | 8 | Le Pain Quotidien | 0 | - |
-| 9 | Gran Caffe L'Aquila | 5 | R11, R27, R28, R32, R71 |
-| 10 | Thirsty Dice | 4 | R16, R29, R37, R72 |
-| 11 | Cafe La Maude | 4 | R38, R57, R67, R73 |
-| 12 | Hinge Cafe | 4 | R33, R56, R66, R74 |
-| 13 | Steap and Grind | 5 | R05, R14, R22, R26, R75 |
-| 14 | La Colombe Coffee | 4 | R07, R55, R65, R76 |
+| 9 | Gran Caffe L'Aquila | 5 | R12, R28, R29, R33, R72 |
+| 10 | Thirsty Dice | 4 | R17, R30, R38, R73 |
+| 11 | Cafe La Maude | 4 | R39, R58, R68, R74 |
+| 12 | Hinge Cafe | 4 | R34, R57, R67, R75 |
+| 13 | Steap and Grind | 5 | R06, R15, R23, R27, R76 |
+| 14 | La Colombe Coffee | 4 | R08, R56, R66, R77 |
 | 15 | Last Drop | 0 | - |
-| 16 | Elixr Coffee Roasters | 4 | R09, R20, R35, R77 |
-| 17 | United By Blue | 4 | R15, R24, R59, R69 |
-| 18 | Chapterhouse Café & Gallery | 5 | R08, R19, R53, R63, R78 |
-| 19 | Sabrina's Café | 4 | R13, R54, R64, R79 |
+| 16 | Elixr Coffee Roasters | 4 | R10, R21, R36, R78 |
+| 17 | United By Blue | 4 | R16, R25, R60, R70 |
+| 18 | Chapterhouse Café & Gallery | 5 | R09, R20, R54, R64, R79 |
+| 19 | Sabrina's Café | 4 | R14, R55, R65, R80 |
 | 20 | The Bakeshop on 20th | 0 | - |
-| 21 | K'Far Cafe | 3 | R42, R52, R62 |
+| 21 | K'Far Cafe | 3 | R43, R53, R63 |
 | 22 | The Green Line Cafe | 0 | - |
 | 23 | La Colombe Coffee | 0 | - |
 | 24 | Manakeesh Cafe Bakery & Grill | 0 | - |
-| 25 | Frieda | 3 | R43, R51, R61 |
+| 25 | Frieda | 3 | R44, R52, R62 |
 | 26 | Plenty Café | 0 | - |
 | 27 | Bluestone Lane | 0 | - |
 | 28 | One Shot Coffee | 0 | - |
 | 29 | Saxbys Rittenhouse | 0 | - |
 | 30 | Black & Brew | 0 | - |
 | 31 | Metropolitan Bakery | 0 | - |
-| 32 | Saxbys | 3 | R44, R50, R60 |
+| 32 | Saxbys | 3 | R45, R51, R61 |
 | 33-49 | (Various) | 0 | - |
 
 ## Structural Complexity Analysis
@@ -126,15 +129,19 @@ Comprehensive statistics for the philly_cafes benchmark dataset.
 | G06 | 3 | 4-6 | AND(anchor, OR(AND,AND)) |
 | G07 | 2 | 5-7 | AND(anchor, OR, OR) |
 | G08 | 3 | 4-6 | AND(anchor, OR(simple, AND)) |
+| G09 | 1 | 1 | 1HOP(friends, pattern) |
+| G10 | 1 | 1 | 2HOP(friends, pattern) |
 
 ### Evaluation Difficulty Progression
 
 ```
-G01 → G02 → G03 → G04 → G05 → G06 → G07 → G08
- │      │      │      │      │      │      │      │
- ▼      ▼      ▼      ▼      ▼      ▼      ▼      ▼
-Easy   Easy  Medium Medium Medium  High  High  High
+G01 → G02 → G03 → G04 → G05 → G06 → G07 → G08 → G09 → G10
+ │      │      │      │      │      │      │      │      │      │
+ ▼      ▼      ▼      ▼      ▼      ▼      ▼      ▼      ▼      ▼
+Easy   Easy  Medium Medium Medium  High  High  High Medium  High
 ```
+
+Note: G09-G10 test social/relational reasoning rather than logical complexity.
 
 ## Condition Category Distribution
 
@@ -148,3 +155,4 @@ Easy   Easy  Medium Medium Medium  High  High  High
 | ambience | 3 | 7 |
 | review_patterns | 32 | 125 |
 | review_meta | 17 | 39 |
+| social_filter | 20 | 20 |
