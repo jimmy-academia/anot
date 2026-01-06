@@ -157,6 +157,23 @@ Gold: [7] Swiss Haus Cafe & Pastry Bar
 
 ---
 
+## Shorthand Notation
+
+Each request includes a `shorthand` field with compact structure notation:
+
+| Group | Pattern | Example |
+|-------|---------|---------|
+| G01 | `AND(a, b, c)` | `AND(drive_thru, good_for_kids, no_tv)` |
+| G02 | `AND(anchor, OR(a, b))` | `AND(full_bar, OR(music, live_music))` |
+| G03 | `AND(a, OR(b, c))` | `AND(price_mid, OR(cozy, comfortable))` |
+| G04 | `AND(a, b, review_meta_*)` | `AND(full_bar, review_meta_elite_status_love)` |
+| G05 | `AND(a, OR(b, c, d, e))` | `AND(drive_thru, OR(love, breakfast, popular_best, elite_love))` |
+| G06 | `AND(a, OR(AND(b,c), AND(d,e)))` | `AND(takeout_no, OR(AND(romantic, coffee), AND(espresso, latte)))` |
+| G07 | `AND(a, OR(b,c), OR(d,e))` | `AND(budget, byob, OR(cozy, romantic), OR(coffee, espresso))` |
+| G08 | `AND(a, OR(b, AND(c,d)))` | `AND(quiet, OR(slow, AND(elite_work, best)))` |
+
+---
+
 ## Evidence Types Used
 
 | Type | Count | Description |
@@ -201,8 +218,10 @@ groundtruth = load_jsonl('data/philly_cafes/groundtruth.jsonl')
 # Each request has:
 # - id: "R00" to "R79"
 # - group: "G01" to "G08"
+# - scenario: Persona-based name (e.g., "Busy Parent", "Wine Enthusiast")
 # - text: Natural language request
-# - structure: Formal logical structure
+# - shorthand: Compact notation (e.g., "AND(a, OR(b, c))")
+# - structure: Formal logical structure (JSON)
 # - gold_restaurant: Business ID of correct answer
 
 # Groundtruth has:

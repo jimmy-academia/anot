@@ -73,16 +73,16 @@ Given a user request with logical structure and N candidate restaurants, identif
 
 ### Request Groups
 
-| Group | Structure | Complexity | Requests |
-|-------|-----------|------------|----------|
-| G01 | Simple AND | Low | R00-R09 |
-| G02 | Simple OR | Low-Medium | R10-R19 |
-| G03 | AND-OR Combination | Medium | R20-R29 |
-| G04 | Credibility-Count Weighting | Medium-High | R30-R39 |
-| G05 | Triple OR with Anchor | Medium | R40-R49 |
-| G06 | Nested OR+AND | High | R50-R59 |
-| G07 | Chained OR | High | R60-R69 |
-| G08 | Unbalanced Structure | High | R70-R79 |
+| Group | Structure | Shorthand Pattern | Requests |
+|-------|-----------|-------------------|----------|
+| G01 | Simple AND | `AND(a, b, c)` | R00-R09 |
+| G02 | Simple OR | `AND(anchor, OR(a, b))` | R10-R19 |
+| G03 | AND-OR Combination | `AND(a, OR(b, c))` | R20-R29 |
+| G04 | Credibility-Count | `AND(a, review_meta_*)` | R30-R39 |
+| G05 | Triple OR + Anchor | `AND(a, OR(b, c, d, e))` | R40-R49 |
+| G06 | Nested OR+AND | `AND(a, OR(AND(b,c), AND(d,e)))` | R50-R59 |
+| G07 | Chained OR | `AND(a, OR(b,c), OR(d,e))` | R60-R69 |
+| G08 | Unbalanced | `AND(a, OR(b, AND(c,d)))` | R70-R79 |
 
 ### Evidence Types
 

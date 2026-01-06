@@ -11,6 +11,8 @@ Complete reference for all 80 benchmark requests.
 
 **Text**: Looking for a cafe that's kid-friendly, with a drive-thru, and without TVs
 
+**Shorthand**: `AND(drive_thru, good_for_kids, no_tv)`
+
 **Structure**:
 ```json
 {
@@ -57,6 +59,8 @@ Complete reference for all 80 benchmark requests.
 **Gold**: [1] Tria Cafe Rittenhouse
 
 **Text**: Looking for a cafe that's upscale, with bike parking, and with free WiFi
+
+**Shorthand**: `AND(upscale, bike_parking, wifi_free)`
 
 **Structure**:
 ```json
@@ -105,6 +109,8 @@ Complete reference for all 80 benchmark requests.
 
 **Text**: Looking for a cafe with coat check, with a full bar, and with a hipster vibe
 
+**Shorthand**: `AND(coat_check, full_bar, hipster_vibe)`
+
 **Structure**:
 ```json
 {
@@ -151,6 +157,8 @@ Complete reference for all 80 benchmark requests.
 **Gold**: [4] Kung Fu Tea
 
 **Text**: Looking for a cafe that's lively, kid-friendly, with TVs, and indoor-only
+
+**Shorthand**: `AND(lively, indoor, has_tv, good_for_kids)`
 
 **Structure**:
 ```json
@@ -210,6 +218,8 @@ Complete reference for all 80 benchmark requests.
 
 **Text**: Looking for a cafe that's quiet, indoor-only, no reservations needed, and good for groups
 
+**Shorthand**: `AND(quiet, indoor, no_reservations, good_for_groups)`
+
 **Structure**:
 ```json
 {
@@ -268,6 +278,8 @@ Complete reference for all 80 benchmark requests.
 
 **Text**: Looking for a cafe that's dog-friendly, quiet, good for groups
 
+**Shorthand**: `AND(dog_friendly, quiet, good_for_groups)`
+
 **Structure**:
 ```json
 {
@@ -314,6 +326,8 @@ Complete reference for all 80 benchmark requests.
 **Gold**: [5] Function Coffee Labs
 
 **Text**: Looking for a cafe that's BYOB, trendy, with bike parking
+
+**Shorthand**: `AND(byob, trendy, bike_parking)`
 
 **Structure**:
 ```json
@@ -362,6 +376,8 @@ Complete reference for all 80 benchmark requests.
 
 **Text**: Looking for a cafe without WiFi, indoor-only, and not aimed at kids
 
+**Shorthand**: `AND(no_wifi, indoor, not_for_kids)`
+
 **Structure**:
 ```json
 {
@@ -408,6 +424,8 @@ Complete reference for all 80 benchmark requests.
 **Gold**: [18] Chapterhouse Café & Gallery
 
 **Text**: Looking for a cafe that's dog-friendly, budget-friendly, kid-friendly, with takeout, and indoor-only
+
+**Shorthand**: `AND(dog_friendly, indoor, price_cheap, good_for_kids, takeout)`
 
 **Structure**:
 ```json
@@ -478,6 +496,8 @@ Complete reference for all 80 benchmark requests.
 
 **Text**: Looking for a cafe that's quiet, trendy, budget-friendly
 
+**Shorthand**: `AND(quiet, trendy, price_cheap)`
+
 **Structure**:
 ```json
 {
@@ -527,6 +547,8 @@ Complete reference for all 80 benchmark requests.
 **Gold**: [3] MilkBoy
 
 **Text**: Looking for a cafe with a casual atmosphere, has reviews mentioning 'live music', no reservations needed, and without WiFi
+
+**Shorthand**: `AND(live_music, casual_vibe, no_reservations, wifi_none)`
 
 **Structure**:
 ```json
@@ -582,6 +604,8 @@ Complete reference for all 80 benchmark requests.
 
 **Text**: Looking for a cafe that's mid-priced, with takeout, has reviews mentioning 'gelato', and good for lunch
 
+**Shorthand**: `AND(gelato, price_mid, lunch, takeout)`
+
 **Structure**:
 ```json
 {
@@ -636,6 +660,8 @@ Complete reference for all 80 benchmark requests.
 
 **Text**: Looking for a cafe with takeout, has reviews mentioning 'wine bar', offers delivery, and takes reservations
 
+**Shorthand**: `AND(wine_bar, delivery, takeout, reservations)`
+
 **Structure**:
 ```json
 {
@@ -689,6 +715,8 @@ Complete reference for all 80 benchmark requests.
 **Gold**: [19] Sabrina's Café
 
 **Text**: Looking for a cafe with free WiFi, has reviews mentioning 'challah', good for breakfast, without TVs, and offers delivery
+
+**Shorthand**: `AND(wifi_free, challah, breakfast, no_tv, delivery)`
 
 **Structure**:
 ```json
@@ -755,6 +783,8 @@ Complete reference for all 80 benchmark requests.
 
 **Text**: Looking for a cafe with TVs, with takeout, with a casual atmosphere, has reviews mentioning 'dog friendly', and accepts credit cards
 
+**Shorthand**: `AND(dog_friendly_reviews, has_tv, takeout, casual_vibe, credit_cards)`
+
 **Structure**:
 ```json
 {
@@ -820,6 +850,8 @@ Complete reference for all 80 benchmark requests.
 
 **Text**: Looking for a cafe that's mid-priced, has reviews mentioning 'matcha latte', and without TVs
 
+**Shorthand**: `AND(matcha_latte, price_mid, no_tv)`
+
 **Structure**:
 ```json
 {
@@ -862,6 +894,8 @@ Complete reference for all 80 benchmark requests.
 **Gold**: [10] Thirsty Dice
 
 **Text**: Looking for a cafe that's kid-friendly, wheelchair accessible, with free WiFi, has reviews mentioning 'midnight', and takes reservations
+
+**Shorthand**: `AND(midnight, wifi_free, good_for_kids, reservations, wheelchair)`
 
 **Structure**:
 ```json
@@ -928,6 +962,8 @@ Complete reference for all 80 benchmark requests.
 
 **Text**: Looking for a cafe with coat check, mid-priced, with bike parking, has reviews mentioning 'banh mi', and good for brunch
 
+**Shorthand**: `AND(coat_check, banh_mi, brunch, price_mid, bike_parking)`
+
 **Structure**:
 ```json
 {
@@ -993,6 +1029,8 @@ Complete reference for all 80 benchmark requests.
 
 **Text**: Looking for a cafe with free WiFi, with a casual atmosphere, has reviews mentioning 'terrace', and good for breakfast
 
+**Shorthand**: `AND(terrace, wifi_free, casual_vibe, breakfast)`
+
 **Structure**:
 ```json
 {
@@ -1047,6 +1085,8 @@ Complete reference for all 80 benchmark requests.
 
 **Text**: Looking for a cafe that's budget-friendly, has reviews mentioning 'bring your dog', and accepts credit cards
 
+**Shorthand**: `AND(bring_dog, price_cheap, credit_cards)`
+
 **Structure**:
 ```json
 {
@@ -1092,6 +1132,8 @@ Complete reference for all 80 benchmark requests.
 **Gold**: [16] Elixr Coffee Roasters
 
 **Text**: Looking for a cafe that's quiet, budget-friendly, not kid-friendly, with bike parking, and open on Monday from 7:00 AM to 8:00 AM
+
+**Shorthand**: `AND(monday_early, quiet, not_for_kids, bike_parking, price_cheap)`
 
 **Structure**:
 ```json
@@ -1162,6 +1204,8 @@ Complete reference for all 80 benchmark requests.
 
 **Text**: Looking for a cafe with beer and wine, open on Friday from 6:00 PM to 9:00 PM, and without TVs
 
+**Shorthand**: `AND(friday_evening, beer_wine, no_tv)`
+
 **Structure**:
 ```json
 {
@@ -1208,6 +1252,8 @@ Complete reference for all 80 benchmark requests.
 **Gold**: [13] Steap and Grind
 
 **Text**: Looking for a cafe that's dog-friendly, quiet, with takeout, and open on Sunday from 8:00 AM to 10:00 AM
+
+**Shorthand**: `AND(sunday_morning, dogs, quiet, takeout)`
 
 **Structure**:
 ```json
@@ -1267,6 +1313,8 @@ Complete reference for all 80 benchmark requests.
 
 **Text**: Looking for a cafe that's lively, with a full bar, with casual dress code, and open on Monday from 2:00 PM to 4:00 PM
 
+**Shorthand**: `AND(monday_afternoon, full_bar, loud, casual_attire)`
+
 **Structure**:
 ```json
 {
@@ -1324,6 +1372,8 @@ Complete reference for all 80 benchmark requests.
 **Gold**: [17] United By Blue
 
 **Text**: Looking for a cafe that's dog-friendly, with outdoor seating, with a casual atmosphere, open on Friday from 7:00 AM to 9:00 AM, and accepts credit cards
+
+**Shorthand**: `AND(friday_early, dogs, outdoor, casual_vibe, credit_cards)`
 
 **Structure**:
 ```json
@@ -1394,6 +1444,8 @@ Complete reference for all 80 benchmark requests.
 
 **Text**: Looking for a cafe that's lively, open on Friday from 10:00 PM to 1:00 AM, and without WiFi
 
+**Shorthand**: `AND(friday_late, loud, no_wifi)`
+
 **Structure**:
 ```json
 {
@@ -1440,6 +1492,8 @@ Complete reference for all 80 benchmark requests.
 **Gold**: [13] Steap and Grind
 
 **Text**: Looking for a cafe that's dog-friendly, quiet, with outdoor seating, and open on Wednesday from 12:00 PM to 2:00 PM
+
+**Shorthand**: `AND(wednesday_lunch, dogs, outdoor, quiet)`
 
 **Structure**:
 ```json
@@ -1498,6 +1552,8 @@ Complete reference for all 80 benchmark requests.
 **Gold**: [9] Gran Caffe L'Aquila
 
 **Text**: Looking for a cafe with a full bar, with outdoor seating, with moderate noise, open on Friday from 9:00 PM to 11:00 PM, and takes reservations
+
+**Shorthand**: `AND(friday_late, full_bar, outdoor, average_noise, reservations)`
 
 **Structure**:
 ```json
@@ -1568,6 +1624,8 @@ Complete reference for all 80 benchmark requests.
 
 **Text**: Looking for a cafe that's kid-friendly, with a full bar, with outdoor seating, with happy hour, and open on Sunday from 12:00 PM to 5:00 PM
 
+**Shorthand**: `AND(sunday_afternoon, full_bar, kids, outdoor, happy_hour)`
+
 **Structure**:
 ```json
 {
@@ -1637,6 +1695,8 @@ Complete reference for all 80 benchmark requests.
 
 **Text**: Looking for a cafe that's kid-friendly, with a full bar, open on Sunday from 12:00 PM to 5:00 PM, and without outdoor seating
 
+**Shorthand**: `AND(sunday_afternoon, full_bar, kids, no_outdoor)`
+
 **Structure**:
 ```json
 {
@@ -1698,6 +1758,8 @@ Complete reference for all 80 benchmark requests.
 
 **Text**: Looking for a cafe with a drive-thru, hipster vibe, has experienced reviewers mentioning 'coffee', and no dogs allowed
 
+**Shorthand**: `AND(drive_thru, hipster, no_dogs, coffee_by_experts)`
+
 **Structure**:
 ```json
 {
@@ -1757,6 +1819,8 @@ Complete reference for all 80 benchmark requests.
 **Gold**: [3] MilkBoy
 
 **Text**: Looking for a cafe that's lively, not aimed at kids, with a casual atmosphere, has popular reviewers mentioning 'work', and without WiFi
+
+**Shorthand**: `AND(loud, no_wifi, work_by_influencers, casual_vibe, not_for_kids)`
 
 **Structure**:
 ```json
@@ -1829,6 +1893,8 @@ Complete reference for all 80 benchmark requests.
 
 **Text**: Looking for a cafe with a full bar, has elite reviewers mentioning 'love', without coat check, and offers delivery, and good for dinner
 
+**Shorthand**: `AND(full_bar, no_coat_check, love_by_elite, delivery, dinner)`
+
 **Structure**:
 ```json
 {
@@ -1900,6 +1966,8 @@ Complete reference for all 80 benchmark requests.
 
 **Text**: Looking for a cafe that's BYOB, with casual dress code, with takeout, where helpful reviews mention 'hidden gem', and accepts credit cards
 
+**Shorthand**: `AND(byob, hidden_gem_trusted, casual_attire, credit_cards, takeout)`
+
 **Structure**:
 ```json
 {
@@ -1969,6 +2037,8 @@ Complete reference for all 80 benchmark requests.
 **Gold**: [4] Kung Fu Tea
 
 **Text**: Looking for a cafe that's lively, budget-friendly, with bike parking, with TVs, and has elite reviewers mentioning 'bubble'
+
+**Shorthand**: `AND(loud, bubble_by_elite, bike_parking, has_tv, price_cheap)`
 
 **Structure**:
 ```json
@@ -2041,6 +2111,8 @@ Complete reference for all 80 benchmark requests.
 
 **Text**: Looking for a cafe that's quiet, trendy, with free WiFi, and has experienced reviewers mentioning 'work'
 
+**Shorthand**: `AND(quiet, trendy, work_by_pros, wifi_free)`
+
 **Structure**:
 ```json
 {
@@ -2101,6 +2173,8 @@ Complete reference for all 80 benchmark requests.
 
 **Text**: Looking for a cafe that's quiet, with beer and wine, and has experienced reviewers mentioning 'work'
 
+**Shorthand**: `AND(quiet, beer_wine, work_by_pros)`
+
 **Structure**:
 ```json
 {
@@ -2149,6 +2223,8 @@ Complete reference for all 80 benchmark requests.
 **Gold**: [10] Thirsty Dice
 
 **Text**: Looking for a cafe that's kid-friendly, wheelchair accessible, with a full bar, has elite reviewers mentioning 'game', and takes reservations
+
+**Shorthand**: `AND(full_bar, kids, game_by_elite, reservations, wheelchair)`
 
 **Structure**:
 ```json
@@ -2221,6 +2297,8 @@ Complete reference for all 80 benchmark requests.
 
 **Text**: Looking for a cafe that's BYOB, with a classy atmosphere, has elite reviewers mentioning 'brunch', and good for breakfast
 
+**Shorthand**: `AND(byob, brunch_by_elite, classy_vibe, breakfast)`
+
 **Structure**:
 ```json
 {
@@ -2280,6 +2358,8 @@ Complete reference for all 80 benchmark requests.
 **Gold**: [2] Front Street Cafe
 
 **Text**: Looking for a cafe with a hipster vibe, with a full bar, has experienced reviewers mentioning 'brunch', and good for lunch
+
+**Shorthand**: `AND(hipster, full_bar, brunch_by_experts, lunch)`
 
 **Structure**:
 ```json
@@ -2343,6 +2423,8 @@ Complete reference for all 80 benchmark requests.
 **Gold**: [0] Milkcrate Cafe
 
 **Text**: Looking for a cafe with a drive-thru that either has reviews mentioning 'love' or has reviews mentioning 'breakfast' or has popular reviewers mentioning 'best' or has elite reviewers mentioning 'love'
+
+**Shorthand**: `AND(drive_thru, OR(love_reviews, breakfast_reviews, review_meta_reviewer_popularity_best, review_meta_elite_status_love))`
 
 **Structure**:
 ```json
@@ -2414,6 +2496,8 @@ Complete reference for all 80 benchmark requests.
 
 **Text**: Looking for a cafe that's upscale that either has reviews mentioning 'cozy' or has elite reviewers mentioning 'love' or has elite reviewers mentioning 'recommend' or has reviews mentioning 'latte'
 
+**Shorthand**: `AND(price_upscale, OR(cozy, review_meta_elite_status_love, review_meta_elite_status_recommend, latte_reviews))`
+
 **Structure**:
 ```json
 {
@@ -2484,6 +2568,8 @@ Complete reference for all 80 benchmark requests.
 
 **Text**: Looking for a cafe that's intimate that either has popular reviewers mentioning 'love' or has reviews mentioning 'favorite' or has reviews mentioning 'art' or has reviews mentioning 'cocktail'
 
+**Shorthand**: `AND(ambience_intimate, OR(review_meta_reviewer_popularity_love, favorite_reviews, art_reviews, cocktail_reviews))`
+
 **Structure**:
 ```json
 {
@@ -2547,6 +2633,8 @@ Complete reference for all 80 benchmark requests.
 **Gold**: [25] Frieda
 
 **Text**: Looking for a cafe with paid WiFi that either has reviews mentioning 'slow' or has experienced reviewers mentioning 'coffee' or has reviews mentioning 'brunch' or has reviews mentioning 'pastry'
+
+**Shorthand**: `AND(wifi_paid, OR(slow_reviews, review_meta_reviewer_experience_coffee, brunch_reviews, pastry_reviews))`
 
 **Structure**:
 ```json
@@ -2612,6 +2700,8 @@ Complete reference for all 80 benchmark requests.
 
 **Text**: Looking for a cafe that's dine-in only that either has reviews mentioning 'fast' or has reviews mentioning 'latte' or has reviews mentioning 'friendly' or has elite reviewers mentioning 'work'
 
+**Shorthand**: `AND(takeout_no, OR(fast_reviews, latte_reviews, friendly_reviews, review_meta_elite_status_work))`
+
 **Structure**:
 ```json
 {
@@ -2675,6 +2765,8 @@ Complete reference for all 80 benchmark requests.
 **Gold**: [2] Front Street Cafe
 
 **Text**: Looking for a cafe with a hipster vibe with coat check that either has reviews mentioning 'music' or has popular reviewers mentioning 'recommend' or has reviews mentioning 'meeting' or has reviews mentioning 'loud'
+
+**Shorthand**: `AND(ambience_hipster, coat_check, OR(music_reviews, review_meta_reviewer_popularity_recommend, meeting_reviews, loud_reviews))`
 
 **Structure**:
 ```json
@@ -2751,6 +2843,8 @@ Complete reference for all 80 benchmark requests.
 
 **Text**: Looking for a cafe that's has reviews mentioning 'breakfast', adult-oriented that either has experienced reviewers mentioning 'work' or has reviews mentioning 'music' or has reviews mentioning 'love' or has reviews mentioning 'tea'
 
+**Shorthand**: `AND(breakfast_reviews, kids_no, OR(review_meta_reviewer_experience_work, music_reviews, love_reviews, tea_reviews))`
+
 **Structure**:
 ```json
 {
@@ -2822,6 +2916,8 @@ Complete reference for all 80 benchmark requests.
 
 **Text**: Looking for a cafe that's has reviews mentioning 'wine', lively that either has reviews mentioning 'book' or has reviews mentioning 'romantic' or has experienced reviewers mentioning 'love' or has reviews mentioning 'wifi'
 
+**Shorthand**: `AND(wine_reviews, noise_loud, OR(books_reviews, romantic_reviews, review_meta_reviewer_experience_love, wifi_reviews))`
+
 **Structure**:
 ```json
 {
@@ -2892,6 +2988,8 @@ Complete reference for all 80 benchmark requests.
 **Gold**: [5] Function Coffee Labs
 
 **Text**: Looking for a cafe that's dog-friendly with a hipster vibe that either has elite reviewers mentioning 'coffee' or has experienced reviewers mentioning 'coffee' or has reviews mentioning 'recommend' or has elite reviewers mentioning 'work'
+
+**Shorthand**: `AND(ambience_hipster, dogs_yes, OR(review_meta_elite_status_coffee, review_meta_reviewer_experience_coffee, recommend_reviews, review_meta_elite_status_work))`
 
 **Structure**:
 ```json
@@ -2980,6 +3078,8 @@ Complete reference for all 80 benchmark requests.
 
 **Text**: Looking for a quiet cafe with beer and wine that either has reviews mentioning 'coffee' or has reviews mentioning 'pastry' or has reviews mentioning 'work' or has reviews mentioning 'friendly'
 
+**Shorthand**: `AND(noise_quiet, alcohol_beer_wine, OR(coffee_reviews, pastry_reviews, work_reviews, friendly_reviews))`
+
 **Structure**:
 ```json
 {
@@ -3052,6 +3152,8 @@ Complete reference for all 80 benchmark requests.
 
 **Text**: Looking for a cafe with dine-in only (no takeout). Ideally known for romantic and coffee, or alternatively known for espresso and latte
 
+**Shorthand**: `AND(takeout_no, OR(AND(romantic_reviews, coffee_reviews), AND(espresso_reviews, latte_reviews)))`
+
 **Structure**:
 ```json
 {
@@ -3119,6 +3221,8 @@ Complete reference for all 80 benchmark requests.
 **Gold**: [25] Frieda
 
 **Text**: Looking for a cafe with paid WiFi. Ideally known for quiet and romantic, or alternatively known for coffee and latte
+
+**Shorthand**: `AND(wifi_paid, OR(AND(quiet_reviews, romantic_reviews), AND(coffee_reviews, latte_reviews)))`
 
 **Structure**:
 ```json
@@ -3188,6 +3292,8 @@ Complete reference for all 80 benchmark requests.
 
 **Text**: Looking for a cafe that's intimate. Ideally known for romantic and coffee, or alternatively known for espresso and latte
 
+**Shorthand**: `AND(ambience_intimate, OR(AND(romantic_reviews, coffee_reviews), AND(espresso_reviews, latte_reviews)))`
+
 **Structure**:
 ```json
 {
@@ -3255,6 +3361,8 @@ Complete reference for all 80 benchmark requests.
 **Gold**: [18] Chapterhouse Café & Gallery
 
 **Text**: Looking for a cafe that's dog-friendly and indoor-only. Ideally known for cozy and quiet, or alternatively known for loud and romantic
+
+**Shorthand**: `AND(dogs_yes, outdoor_no, OR(AND(cozy, quiet_reviews), AND(loud_reviews, romantic_reviews)))`
 
 **Structure**:
 ```json
@@ -3335,6 +3443,8 @@ Complete reference for all 80 benchmark requests.
 
 **Text**: Looking for a cafe that's dog-friendly and known for meeting. Ideally known for cozy and quiet, or alternatively known for loud and coffee
 
+**Shorthand**: `AND(dogs_yes, meeting_reviews, OR(AND(cozy, quiet_reviews), AND(loud_reviews, coffee_reviews)))`
+
 **Structure**:
 ```json
 {
@@ -3409,6 +3519,8 @@ Complete reference for all 80 benchmark requests.
 **Gold**: [14] La Colombe Coffee
 
 **Text**: Looking for a cafe that's adult-oriented and indoor-only. Ideally known for cozy and quiet, or alternatively known for loud and romantic
+
+**Shorthand**: `AND(kids_no, outdoor_no, OR(AND(cozy, quiet_reviews), AND(loud_reviews, romantic_reviews)))`
 
 **Structure**:
 ```json
@@ -3489,6 +3601,8 @@ Complete reference for all 80 benchmark requests.
 
 **Text**: Looking for a cafe that's BYOB and known for music. Ideally known for cozy and quiet, or alternatively known for romantic and coffee
 
+**Shorthand**: `AND(byob, music_reviews, OR(AND(cozy, quiet_reviews), AND(romantic_reviews, coffee_reviews)))`
+
 **Structure**:
 ```json
 {
@@ -3563,6 +3677,8 @@ Complete reference for all 80 benchmark requests.
 **Gold**: [11] Cafe La Maude
 
 **Text**: Looking for a cafe that's BYOB and classy. Ideally known for cozy and romantic, or alternatively known for coffee and latte
+
+**Shorthand**: `AND(byob, ambience_classy, OR(AND(cozy, romantic_reviews), AND(coffee_reviews, latte_reviews)))`
 
 **Structure**:
 ```json
@@ -3643,6 +3759,8 @@ Complete reference for all 80 benchmark requests.
 
 **Text**: Looking for a cafe that's budget-friendly and that's BYOB. Ideally known for cozy and romantic, or alternatively known for coffee and espresso
 
+**Shorthand**: `AND(price_budget, byob, OR(AND(cozy, romantic_reviews), AND(coffee_reviews, espresso_reviews)))`
+
 **Structure**:
 ```json
 {
@@ -3721,6 +3839,8 @@ Complete reference for all 80 benchmark requests.
 **Gold**: [17] United By Blue
 
 **Text**: Looking for a cafe that's mid-priced and dog-friendly and trendy. Ideally known for romantic and coffee, or alternatively known for latte and tea
+
+**Shorthand**: `AND(price_mid, dogs_yes, ambience_trendy, OR(AND(romantic_reviews, coffee_reviews), AND(latte_reviews, tea_reviews)))`
 
 **Structure**:
 ```json
@@ -3815,6 +3935,8 @@ Complete reference for all 80 benchmark requests.
 
 **Text**: Looking for a cafe with dine-in only (no takeout). Looking for a place known for romantic or coffee. Also interested in places known for espresso or latte
 
+**Shorthand**: `AND(takeout_no, OR(romantic_reviews, coffee_reviews), OR(espresso_reviews, latte_reviews))`
+
 **Structure**:
 ```json
 {
@@ -3877,6 +3999,8 @@ Complete reference for all 80 benchmark requests.
 **Gold**: [25] Frieda
 
 **Text**: Looking for a cafe with paid WiFi. Looking for a place known for quiet or romantic. Also interested in places known for coffee or latte
+
+**Shorthand**: `AND(wifi_paid, OR(quiet_reviews, romantic_reviews), OR(coffee_reviews, latte_reviews))`
 
 **Structure**:
 ```json
@@ -3941,6 +4065,8 @@ Complete reference for all 80 benchmark requests.
 
 **Text**: Looking for a cafe that's intimate. Looking for a place known for romantic or coffee. Also interested in places known for espresso or latte
 
+**Shorthand**: `AND(ambience_intimate, OR(romantic_reviews, coffee_reviews), OR(espresso_reviews, latte_reviews))`
+
 **Structure**:
 ```json
 {
@@ -4003,6 +4129,8 @@ Complete reference for all 80 benchmark requests.
 **Gold**: [18] Chapterhouse Café & Gallery
 
 **Text**: Looking for a cafe that's dog-friendly and indoor-only. Looking for a place known for cozy or quiet. Also interested in places known for loud or romantic
+
+**Shorthand**: `AND(dogs_yes, outdoor_no, OR(cozy, quiet_reviews), OR(loud_reviews, romantic_reviews))`
 
 **Structure**:
 ```json
@@ -4078,6 +4206,8 @@ Complete reference for all 80 benchmark requests.
 
 **Text**: Looking for a cafe that's dog-friendly and known for meeting. Looking for a place known for cozy or quiet. Also interested in places known for loud or coffee
 
+**Shorthand**: `AND(dogs_yes, meeting_reviews, OR(cozy, quiet_reviews), OR(loud_reviews, coffee_reviews))`
+
 **Structure**:
 ```json
 {
@@ -4147,6 +4277,8 @@ Complete reference for all 80 benchmark requests.
 **Gold**: [14] La Colombe Coffee
 
 **Text**: Looking for a cafe that's adult-oriented and indoor-only. Looking for a place known for cozy or quiet. Also interested in places known for loud or romantic
+
+**Shorthand**: `AND(kids_no, outdoor_no, OR(cozy, quiet_reviews), OR(loud_reviews, romantic_reviews))`
 
 **Structure**:
 ```json
@@ -4222,6 +4354,8 @@ Complete reference for all 80 benchmark requests.
 
 **Text**: Looking for a cafe that's BYOB and known for music. Looking for a place known for cozy or quiet. Also interested in places known for romantic or coffee
 
+**Shorthand**: `AND(byob, music_reviews, OR(cozy, quiet_reviews), OR(romantic_reviews, coffee_reviews))`
+
 **Structure**:
 ```json
 {
@@ -4291,6 +4425,8 @@ Complete reference for all 80 benchmark requests.
 **Gold**: [11] Cafe La Maude
 
 **Text**: Looking for a cafe that's BYOB and classy. Looking for a place known for cozy or romantic. Also interested in places known for coffee or latte
+
+**Shorthand**: `AND(byob, ambience_classy, OR(cozy, romantic_reviews), OR(coffee_reviews, latte_reviews))`
 
 **Structure**:
 ```json
@@ -4366,6 +4502,8 @@ Complete reference for all 80 benchmark requests.
 
 **Text**: Looking for a cafe that's budget-friendly and that's BYOB. Looking for a place known for cozy or romantic. Also interested in places known for coffee or espresso
 
+**Shorthand**: `AND(price_budget, byob, OR(cozy, romantic_reviews), OR(coffee_reviews, espresso_reviews))`
+
 **Structure**:
 ```json
 {
@@ -4439,6 +4577,8 @@ Complete reference for all 80 benchmark requests.
 **Gold**: [17] United By Blue
 
 **Text**: Looking for a cafe known for slow, dog-friendly, where helpful reviews mention 'love'. Looking for a place known for gluten or where helpful reviews mention 'love'. Also interested in places known for best or recommended by experienced reviewers for work, with outdoor seating
+
+**Shorthand**: `AND(slow_reviews, dogs_yes, review_meta_review_helpfulness_love, OR(gluten_reviews, review_meta_review_helpfulness_love), OR(best_reviews, review_meta_reviewer_experience_work), outdoor_yes)`
 
 **Structure**:
 ```json
@@ -4547,6 +4687,8 @@ Complete reference for all 80 benchmark requests.
 
 **Text**: Looking for a cafe that's quiet with beer and wine. Either known for slow, or ideally both praised by elite reviewers for work and known for best
 
+**Shorthand**: `AND(alcohol_beer_wine, noise_quiet, OR(slow_reviews, AND(review_meta_elite_status_work, best_reviews)))`
+
 **Structure**:
 ```json
 {
@@ -4620,6 +4762,8 @@ Complete reference for all 80 benchmark requests.
 
 **Text**: Looking for a cafe known for slow, good for dinner. Either known for book, or ideally both endorsed by popular reviewers for love and known for beer
 
+**Shorthand**: `AND(slow_reviews, meal_dinner, OR(books_reviews, AND(review_meta_reviewer_popularity_love, beer_reviews)))`
+
 **Structure**:
 ```json
 {
@@ -4689,6 +4833,8 @@ Complete reference for all 80 benchmark requests.
 
 **Text**: Looking for a cafe known for quiet, open Friday late night. Either known for quiet, or ideally both praised by elite reviewers for best and known for beer
 
+**Shorthand**: `AND(quiet_reviews, hours_friday_late_night, OR(quiet_reviews, AND(review_meta_elite_status_best, beer_reviews)))`
+
 **Structure**:
 ```json
 {
@@ -4757,6 +4903,8 @@ Complete reference for all 80 benchmark requests.
 **Gold**: [11] Cafe La Maude
 
 **Text**: Looking for a cafe that's where helpful reviews mention 'recommend', that's BYOB. Either known for fast, or ideally both praised by elite reviewers for work and known for brunch, without delivery
+
+**Shorthand**: `AND(review_meta_review_helpfulness_recommend, byob, OR(fast_reviews, AND(review_meta_elite_status_work, brunch_reviews)), no_delivery)`
 
 **Structure**:
 ```json
@@ -4843,6 +4991,8 @@ Complete reference for all 80 benchmark requests.
 
 **Text**: Looking for a cafe known for hidden gem, that's BYOB that either endorsed by popular reviewers for love, or ideally both known for favorite and music
 
+**Shorthand**: `AND(hidden_gem_reviews, byob, OR(review_meta_reviewer_popularity_love, AND(favorite_reviews, music_reviews)))`
+
 **Structure**:
 ```json
 {
@@ -4912,6 +5062,8 @@ Complete reference for all 80 benchmark requests.
 
 **Text**: Looking for a cafe that's dog-friendly with TVs. Either known for sandwich, or ideally both known for tea and art
 
+**Shorthand**: `AND(has_tv, dogs_yes, OR(sandwich_reviews, AND(tea_reviews, art_reviews)))`
+
 **Structure**:
 ```json
 {
@@ -4978,6 +5130,8 @@ Complete reference for all 80 benchmark requests.
 **Gold**: [14] La Colombe Coffee
 
 **Text**: Looking for a cafe known for quiet, adult-oriented. Either known for work, or ideally both where helpful reviews mention 'coffee' and praised by elite reviewers for work
+
+**Shorthand**: `AND(quiet_reviews, kids_no, OR(work_reviews, AND(review_meta_review_helpfulness_coffee, review_meta_elite_status_work)))`
 
 **Structure**:
 ```json
@@ -5053,6 +5207,8 @@ Complete reference for all 80 benchmark requests.
 
 **Text**: Looking for a cafe known for hidden gem with TVs. Either known for favorite, or ideally both praised by elite reviewers for coffee and known for loud
 
+**Shorthand**: `AND(hidden_gem_reviews, has_tv, OR(favorite_reviews, AND(review_meta_elite_status_coffee, loud_reviews)))`
+
 **Structure**:
 ```json
 {
@@ -5122,6 +5278,8 @@ Complete reference for all 80 benchmark requests.
 
 **Text**: Looking for a cafe known for organic, indoor-only. Either known for gluten, or ideally both known for love and music
 
+**Shorthand**: `AND(organic_reviews, outdoor_no, OR(gluten_reviews, AND(love_reviews, music_reviews)))`
+
 **Structure**:
 ```json
 {
@@ -5183,7 +5341,9 @@ Complete reference for all 80 benchmark requests.
 ### R79: BYOB Vegan Brunch
 **Gold**: [19] Sabrina's Café
 
-**Text**: Looking for a cafe known for quiet or praised by elite reviewers for recommend. Either known for fast, or ideally both where helpful reviews mention 'love' and latte, and dog-friendly
+**Text**: Looking for a cafe known for quiet and praised by elite reviewers for recommend. Either known for fast, or ideally both where helpful reviews mention 'love' and latte, and dog-friendly
+
+**Shorthand**: `AND(quiet_reviews, review_meta_elite_status_recommend, OR(fast_reviews, AND(review_meta_review_helpfulness_love, latte_reviews)), dogs_yes)`
 
 **Structure**:
 ```json
