@@ -523,7 +523,7 @@ Complete reference for all 80 benchmark requests.
 ### R10
 **Gold**: [3] MilkBoy
 
-**Text**: Looking for a cafe with a casual atmosphere, where reviews mention 'live music', no reservations needed, and without WiFi
+**Text**: Looking for a cafe with a casual atmosphere, has reviews mentioning 'live music', no reservations needed, and without WiFi
 
 **Structure**:
 ```json
@@ -577,7 +577,7 @@ Complete reference for all 80 benchmark requests.
 ### R11
 **Gold**: [9] Gran Caffe L'Aquila
 
-**Text**: Looking for a cafe that's mid-priced, with takeout, where reviews mention 'gelato', and good for lunch
+**Text**: Looking for a cafe that's mid-priced, with takeout, has reviews mentioning 'gelato', and good for lunch
 
 **Structure**:
 ```json
@@ -631,7 +631,7 @@ Complete reference for all 80 benchmark requests.
 ### R12
 **Gold**: [1] Tria Cafe Rittenhouse
 
-**Text**: Looking for a cafe with takeout, where reviews mention 'wine bar', offers delivery, and takes reservations
+**Text**: Looking for a cafe with takeout, has reviews mentioning 'wine bar', offers delivery, and takes reservations
 
 **Structure**:
 ```json
@@ -685,7 +685,7 @@ Complete reference for all 80 benchmark requests.
 ### R13
 **Gold**: [19] Sabrina's Café
 
-**Text**: Looking for a cafe with free WiFi, where reviews mention 'challah', good for breakfast, without TVs, and offers delivery
+**Text**: Looking for a cafe with free WiFi, has reviews mentioning 'challah', good for breakfast, without TVs, and offers delivery
 
 **Structure**:
 ```json
@@ -750,7 +750,7 @@ Complete reference for all 80 benchmark requests.
 ### R14
 **Gold**: [13] Steap and Grind
 
-**Text**: Looking for a cafe with TVs, with takeout, with a casual atmosphere, where reviews mention 'dog friendly', and accepts credit cards
+**Text**: Looking for a cafe with TVs, with takeout, with a casual atmosphere, has reviews mentioning 'dog friendly', and accepts credit cards
 
 **Structure**:
 ```json
@@ -815,7 +815,7 @@ Complete reference for all 80 benchmark requests.
 ### R15
 **Gold**: [17] United By Blue
 
-**Text**: Looking for a cafe that's mid-priced, where reviews mention 'matcha latte', and without TVs
+**Text**: Looking for a cafe that's mid-priced, has reviews mentioning 'matcha latte', and without TVs
 
 **Structure**:
 ```json
@@ -858,7 +858,7 @@ Complete reference for all 80 benchmark requests.
 ### R16
 **Gold**: [10] Thirsty Dice
 
-**Text**: Looking for a cafe that's kid-friendly, wheelchair accessible, with free WiFi, where reviews mention 'midnight', and takes reservations
+**Text**: Looking for a cafe that's kid-friendly, wheelchair accessible, with free WiFi, has reviews mentioning 'midnight', and takes reservations
 
 **Structure**:
 ```json
@@ -923,7 +923,7 @@ Complete reference for all 80 benchmark requests.
 ### R17
 **Gold**: [2] Front Street Cafe
 
-**Text**: Looking for a cafe with coat check, mid-priced, with bike parking, where reviews mention 'banh mi', and good for brunch
+**Text**: Looking for a cafe with coat check, mid-priced, with bike parking, has reviews mentioning 'banh mi', and good for brunch
 
 **Structure**:
 ```json
@@ -988,7 +988,7 @@ Complete reference for all 80 benchmark requests.
 ### R18
 **Gold**: [2] Front Street Cafe
 
-**Text**: Looking for a cafe with free WiFi, with a casual atmosphere, where reviews mention 'terrace', and good for breakfast
+**Text**: Looking for a cafe with free WiFi, with a casual atmosphere, has reviews mentioning 'terrace', and good for breakfast
 
 **Structure**:
 ```json
@@ -1042,7 +1042,7 @@ Complete reference for all 80 benchmark requests.
 ### R19
 **Gold**: [18] Chapterhouse Café & Gallery
 
-**Text**: Looking for a cafe that's budget-friendly, where reviews mention 'bring your dog', and accepts credit cards
+**Text**: Looking for a cafe that's budget-friendly, has reviews mentioning 'bring your dog', and accepts credit cards
 
 **Structure**:
 ```json
@@ -1691,7 +1691,7 @@ Complete reference for all 80 benchmark requests.
 ### R30
 **Gold**: [0] Milkcrate Cafe
 
-**Text**: Looking for a cafe with a drive-thru, hipster vibe, where experienced reviewers mention 'coffee', and no dogs allowed
+**Text**: Looking for a cafe with a drive-thru, hipster vibe, has experienced reviewers mentioning 'coffee', and no dogs allowed
 
 **Structure**:
 ```json
@@ -1751,7 +1751,7 @@ Complete reference for all 80 benchmark requests.
 ### R31
 **Gold**: [3] MilkBoy
 
-**Text**: Looking for a cafe that's lively, not aimed at kids, with a casual atmosphere, where popular reviewers mention 'work', and without WiFi
+**Text**: Looking for a cafe that's lively, not aimed at kids, with a casual atmosphere, has popular reviewers mentioning 'work', and without WiFi
 
 **Structure**:
 ```json
@@ -1822,7 +1822,7 @@ Complete reference for all 80 benchmark requests.
 ### R32
 **Gold**: [9] Gran Caffe L'Aquila
 
-**Text**: Looking for a cafe with a full bar, where elite reviewers mention 'love', without coat check, and offers delivery, and good for dinner
+**Text**: Looking for a cafe with a full bar, has elite reviewers mentioning 'love', without coat check, and offers delivery, and good for dinner
 
 **Structure**:
 ```json
@@ -1963,7 +1963,7 @@ Complete reference for all 80 benchmark requests.
 ### R34
 **Gold**: [4] Kung Fu Tea
 
-**Text**: Looking for a cafe that's lively, budget-friendly, with bike parking, with TVs, and where elite reviewers mention 'bubble'
+**Text**: Looking for a cafe that's lively, budget-friendly, with bike parking, with TVs, and has elite reviewers mentioning 'bubble'
 
 **Structure**:
 ```json
@@ -2034,7 +2034,7 @@ Complete reference for all 80 benchmark requests.
 ### R35
 **Gold**: [16] Elixr Coffee Roasters
 
-**Text**: Looking for a cafe that's quiet, trendy, with free WiFi, and where experienced reviewers mention 'work'
+**Text**: Looking for a cafe that's quiet, trendy, with free WiFi, and has experienced reviewers mentioning 'work'
 
 **Structure**:
 ```json
@@ -2094,7 +2094,7 @@ Complete reference for all 80 benchmark requests.
 ### R36
 **Gold**: [7] Swiss Haus Cafe & Pastry Bar
 
-**Text**: Looking for a cafe that's quiet, with beer and wine, and where experienced reviewers mention 'work'
+**Text**: Looking for a cafe that's quiet, with beer and wine, and has experienced reviewers mentioning 'work'
 
 **Structure**:
 ```json
@@ -2143,7 +2143,7 @@ Complete reference for all 80 benchmark requests.
 ### R37
 **Gold**: [10] Thirsty Dice
 
-**Text**: Looking for a cafe that's kid-friendly, wheelchair accessible, with a full bar, where elite reviewers mention 'game', and takes reservations
+**Text**: Looking for a cafe that's kid-friendly, wheelchair accessible, with a full bar, has elite reviewers mentioning 'game', and takes reservations
 
 **Structure**:
 ```json
@@ -2214,7 +2214,7 @@ Complete reference for all 80 benchmark requests.
 ### R38
 **Gold**: [11] Cafe La Maude
 
-**Text**: Looking for a cafe that's BYOB, with a classy atmosphere, where elite reviewers mention 'brunch', and good for breakfast
+**Text**: Looking for a cafe that's BYOB, with a classy atmosphere, has elite reviewers mentioning 'brunch', and good for breakfast
 
 **Structure**:
 ```json
@@ -2274,7 +2274,7 @@ Complete reference for all 80 benchmark requests.
 ### R39
 **Gold**: [2] Front Street Cafe
 
-**Text**: Looking for a cafe with a hipster vibe, with a full bar, where experienced reviewers mention 'brunch', and good for lunch
+**Text**: Looking for a cafe with a hipster vibe, with a full bar, has experienced reviewers mentioning 'brunch', and good for lunch
 
 **Structure**:
 ```json
@@ -2336,7 +2336,7 @@ Complete reference for all 80 benchmark requests.
 ### R40
 **Gold**: [0] Milkcrate Cafe
 
-**Text**: Looking for a cafe with a drive-thru that either where reviews mention 'love', where reviews mention 'breakfast', where popular reviewers mention 'best', or where elite reviewers mention 'love'
+**Text**: Looking for a cafe with a drive-thru that either has reviews mentioning 'love' or has reviews mentioning 'breakfast' or has popular reviewers mentioning 'best' or has elite reviewers mentioning 'love'
 
 **Structure**:
 ```json
@@ -2406,7 +2406,7 @@ Complete reference for all 80 benchmark requests.
 ### R41
 **Gold**: [1] Tria Cafe Rittenhouse
 
-**Text**: Looking for a cafe that's upscale that either where reviews mention 'cozy', where elite reviewers mention 'love', where elite reviewers mention 'recommend', or where reviews mention 'latte'
+**Text**: Looking for a cafe that's upscale that either has reviews mentioning 'cozy' or has elite reviewers mentioning 'love' or has elite reviewers mentioning 'recommend' or has reviews mentioning 'latte'
 
 **Structure**:
 ```json
@@ -2476,7 +2476,7 @@ Complete reference for all 80 benchmark requests.
 ### R42
 **Gold**: [21] K'Far Cafe
 
-**Text**: Looking for a cafe that's intimate that either where popular reviewers mention 'love', where reviews mention 'favorite', where reviews mention 'art', or where reviews mention 'cocktail'
+**Text**: Looking for a cafe that's intimate that either has popular reviewers mentioning 'love' or has reviews mentioning 'favorite' or has reviews mentioning 'art' or has reviews mentioning 'cocktail'
 
 **Structure**:
 ```json
@@ -2540,7 +2540,7 @@ Complete reference for all 80 benchmark requests.
 ### R43
 **Gold**: [25] Frieda
 
-**Text**: Looking for a cafe with paid WiFi that either where reviews mention 'slow', where experienced reviewers mention 'coffee', where reviews mention 'brunch', or where reviews mention 'pastry'
+**Text**: Looking for a cafe with paid WiFi that either has reviews mentioning 'slow' or has experienced reviewers mentioning 'coffee' or has reviews mentioning 'brunch' or has reviews mentioning 'pastry'
 
 **Structure**:
 ```json
@@ -2604,7 +2604,7 @@ Complete reference for all 80 benchmark requests.
 ### R44
 **Gold**: [32] Saxbys
 
-**Text**: Looking for a cafe that's dine-in only that either where reviews mention 'fast', where reviews mention 'latte', where reviews mention 'friendly', or where elite reviewers mention 'work'
+**Text**: Looking for a cafe that's dine-in only that either has reviews mentioning 'fast' or has reviews mentioning 'latte' or has reviews mentioning 'friendly' or has elite reviewers mentioning 'work'
 
 **Structure**:
 ```json
@@ -2668,7 +2668,7 @@ Complete reference for all 80 benchmark requests.
 ### R45
 **Gold**: [2] Front Street Cafe
 
-**Text**: Looking for a cafe with a hipster vibe with coat check that either where reviews mention 'music', where popular reviewers mention 'recommend', where reviews mention 'meeting', or where reviews mention 'loud'
+**Text**: Looking for a cafe with a hipster vibe with coat check that either has reviews mentioning 'music' or has popular reviewers mentioning 'recommend' or has reviews mentioning 'meeting' or has reviews mentioning 'loud'
 
 **Structure**:
 ```json
@@ -2743,7 +2743,7 @@ Complete reference for all 80 benchmark requests.
 ### R46
 **Gold**: [3] MilkBoy
 
-**Text**: Looking for a cafe that's where reviews mention 'breakfast', adult-oriented that either where experienced reviewers mention 'work', where reviews mention 'music', where reviews mention 'love', or where reviews mention 'tea'
+**Text**: Looking for a cafe that's has reviews mentioning 'breakfast', adult-oriented that either has experienced reviewers mentioning 'work' or has reviews mentioning 'music' or has reviews mentioning 'love' or has reviews mentioning 'tea'
 
 **Structure**:
 ```json
@@ -2814,7 +2814,7 @@ Complete reference for all 80 benchmark requests.
 ### R47
 **Gold**: [4] Kung Fu Tea
 
-**Text**: Looking for a cafe that's where reviews mention 'wine', lively that either where reviews mention 'book', where reviews mention 'romantic', where experienced reviewers mention 'love', or where reviews mention 'wifi'
+**Text**: Looking for a cafe that's has reviews mentioning 'wine', lively that either has reviews mentioning 'book' or has reviews mentioning 'romantic' or has experienced reviewers mentioning 'love' or has reviews mentioning 'wifi'
 
 **Structure**:
 ```json
@@ -2885,7 +2885,7 @@ Complete reference for all 80 benchmark requests.
 ### R48
 **Gold**: [5] Function Coffee Labs
 
-**Text**: Looking for a cafe that's dog-friendly with a hipster vibe that either where elite reviewers mention 'coffee', where experienced reviewers mention 'coffee', where reviews mention 'recommend', or where elite reviewers mention 'work'
+**Text**: Looking for a cafe that's dog-friendly with a hipster vibe that either has elite reviewers mentioning 'coffee' or has experienced reviewers mentioning 'coffee' or has reviews mentioning 'recommend' or has elite reviewers mentioning 'work'
 
 **Structure**:
 ```json
@@ -2972,7 +2972,7 @@ Complete reference for all 80 benchmark requests.
 ### R49
 **Gold**: [7] Swiss Haus Cafe & Pastry Bar
 
-**Text**: Looking for a quiet cafe with beer and wine that either where reviews mention 'coffee', where reviews mention 'pastry', where reviews mention 'work', or where reviews mention 'friendly'
+**Text**: Looking for a quiet cafe with beer and wine that either has reviews mentioning 'coffee' or has reviews mentioning 'pastry' or has reviews mentioning 'work' or has reviews mentioning 'friendly'
 
 **Structure**:
 ```json
@@ -3043,7 +3043,7 @@ Complete reference for all 80 benchmark requests.
 ### R50
 **Gold**: [32] Saxbys
 
-**Text**: Looking for a cafe that's dine-in only that's either (where reviews mention 'romantic' and where reviews mention 'coffee') or (where reviews mention 'espresso' and where reviews mention 'latte')
+**Text**: Looking for a cafe that's dine-in only that either (has reviews mentioning 'romantic' and has reviews mentioning 'coffee') or (has reviews mentioning 'espresso' and has reviews mentioning 'latte')
 
 **Structure**:
 ```json
@@ -3111,7 +3111,7 @@ Complete reference for all 80 benchmark requests.
 ### R51
 **Gold**: [25] Frieda
 
-**Text**: Looking for a cafe that's with paid WiFi that's either (where reviews mention 'quiet' and where reviews mention 'romantic') or (where reviews mention 'coffee' and where reviews mention 'latte')
+**Text**: Looking for a cafe that's with paid WiFi that either (has reviews mentioning 'quiet' and has reviews mentioning 'romantic') or (has reviews mentioning 'coffee' and has reviews mentioning 'latte')
 
 **Structure**:
 ```json
@@ -3179,7 +3179,7 @@ Complete reference for all 80 benchmark requests.
 ### R52
 **Gold**: [21] K'Far Cafe
 
-**Text**: Looking for a cafe that's intimate that's either (where reviews mention 'romantic' and where reviews mention 'coffee') or (where reviews mention 'espresso' and where reviews mention 'latte')
+**Text**: Looking for a cafe that's intimate that either (has reviews mentioning 'romantic' and has reviews mentioning 'coffee') or (has reviews mentioning 'espresso' and has reviews mentioning 'latte')
 
 **Structure**:
 ```json
@@ -3247,7 +3247,7 @@ Complete reference for all 80 benchmark requests.
 ### R53
 **Gold**: [18] Chapterhouse Café & Gallery
 
-**Text**: Looking for a cafe that's dog-friendly and indoor-only that's either (where reviews mention 'cozy' and where reviews mention 'quiet') or (where reviews mention 'loud' and where reviews mention 'romantic')
+**Text**: Looking for a cafe that's dog-friendly and indoor-only that either (has reviews mentioning 'cozy' and has reviews mentioning 'quiet') or (has reviews mentioning 'loud' and has reviews mentioning 'romantic')
 
 **Structure**:
 ```json
@@ -3326,7 +3326,7 @@ Complete reference for all 80 benchmark requests.
 ### R54
 **Gold**: [19] Sabrina's Café
 
-**Text**: Looking for a cafe that's dog-friendly and where reviews mention 'meeting' that's either (where reviews mention 'cozy' and where reviews mention 'quiet') or (where reviews mention 'loud' and where reviews mention 'coffee')
+**Text**: Looking for a cafe that's dog-friendly and has reviews mentioning 'meeting' that either (has reviews mentioning 'cozy' and has reviews mentioning 'quiet') or (has reviews mentioning 'loud' and has reviews mentioning 'coffee')
 
 **Structure**:
 ```json
@@ -3401,7 +3401,7 @@ Complete reference for all 80 benchmark requests.
 ### R55
 **Gold**: [14] La Colombe Coffee
 
-**Text**: Looking for a cafe that's adult-oriented and indoor-only that's either (where reviews mention 'cozy' and where reviews mention 'quiet') or (where reviews mention 'loud' and where reviews mention 'romantic')
+**Text**: Looking for a cafe that's adult-oriented and indoor-only that either (has reviews mentioning 'cozy' and has reviews mentioning 'quiet') or (has reviews mentioning 'loud' and has reviews mentioning 'romantic')
 
 **Structure**:
 ```json
@@ -3480,7 +3480,7 @@ Complete reference for all 80 benchmark requests.
 ### R56
 **Gold**: [12] Hinge Cafe
 
-**Text**: Looking for a cafe that's that's BYOB and where reviews mention 'music' that's either (where reviews mention 'cozy' and where reviews mention 'quiet') or (where reviews mention 'romantic' and where reviews mention 'coffee')
+**Text**: Looking for a cafe that's BYOB and has reviews mentioning 'music' that either (has reviews mentioning 'cozy' and has reviews mentioning 'quiet') or (has reviews mentioning 'romantic' and has reviews mentioning 'coffee')
 
 **Structure**:
 ```json
@@ -3555,7 +3555,7 @@ Complete reference for all 80 benchmark requests.
 ### R57
 **Gold**: [11] Cafe La Maude
 
-**Text**: Looking for a cafe that's that's BYOB and classy that's either (where reviews mention 'cozy' and where reviews mention 'romantic') or (where reviews mention 'coffee' and where reviews mention 'latte')
+**Text**: Looking for a cafe that's BYOB and classy that either (has reviews mentioning 'cozy' and has reviews mentioning 'romantic') or (has reviews mentioning 'coffee' and has reviews mentioning 'latte')
 
 **Structure**:
 ```json
@@ -3634,7 +3634,7 @@ Complete reference for all 80 benchmark requests.
 ### R58
 **Gold**: [5] Function Coffee Labs
 
-**Text**: Looking for a cafe that's budget-friendly and that's BYOB that's either (where reviews mention 'cozy' and where reviews mention 'romantic') or (where reviews mention 'coffee' and where reviews mention 'espresso')
+**Text**: Looking for a cafe that's budget-friendly and that's BYOB that either (has reviews mentioning 'cozy' and has reviews mentioning 'romantic') or (has reviews mentioning 'coffee' and has reviews mentioning 'espresso')
 
 **Structure**:
 ```json
@@ -3713,7 +3713,7 @@ Complete reference for all 80 benchmark requests.
 ### R59
 **Gold**: [17] United By Blue
 
-**Text**: Looking for a cafe that's mid-priced and dog-friendly and trendy that's either (where reviews mention 'romantic' and where reviews mention 'coffee') or (where reviews mention 'latte' and where reviews mention 'tea')
+**Text**: Looking for a cafe that's mid-priced and dog-friendly and trendy that either (has reviews mentioning 'romantic' and has reviews mentioning 'coffee') or (has reviews mentioning 'latte' and has reviews mentioning 'tea')
 
 **Structure**:
 ```json
@@ -3805,7 +3805,7 @@ Complete reference for all 80 benchmark requests.
 ### R60
 **Gold**: [32] Saxbys
 
-**Text**: Looking for a cafe that's dine-in only that's either where reviews mention 'romantic' or where reviews mention 'coffee', and either where reviews mention 'espresso' or where reviews mention 'latte'
+**Text**: Looking for a cafe that's dine-in only that either has reviews mentioning 'romantic' or has reviews mentioning 'coffee', and either has reviews mentioning 'espresso' or has reviews mentioning 'latte'
 
 **Structure**:
 ```json
@@ -3868,7 +3868,7 @@ Complete reference for all 80 benchmark requests.
 ### R61
 **Gold**: [25] Frieda
 
-**Text**: Looking for a cafe that's with paid WiFi that's either where reviews mention 'quiet' or where reviews mention 'romantic', and either where reviews mention 'coffee' or where reviews mention 'latte'
+**Text**: Looking for a cafe that's with paid WiFi that either has reviews mentioning 'quiet' or has reviews mentioning 'romantic', and either has reviews mentioning 'coffee' or has reviews mentioning 'latte'
 
 **Structure**:
 ```json
@@ -3931,7 +3931,7 @@ Complete reference for all 80 benchmark requests.
 ### R62
 **Gold**: [21] K'Far Cafe
 
-**Text**: Looking for a cafe that's intimate that's either where reviews mention 'romantic' or where reviews mention 'coffee', and either where reviews mention 'espresso' or where reviews mention 'latte'
+**Text**: Looking for a cafe that's intimate that either has reviews mentioning 'romantic' or has reviews mentioning 'coffee', and either has reviews mentioning 'espresso' or has reviews mentioning 'latte'
 
 **Structure**:
 ```json
@@ -3994,7 +3994,7 @@ Complete reference for all 80 benchmark requests.
 ### R63
 **Gold**: [18] Chapterhouse Café & Gallery
 
-**Text**: Looking for a cafe that's dog-friendly and indoor-only that's either where reviews mention 'cozy' or where reviews mention 'quiet', and either where reviews mention 'loud' or where reviews mention 'romantic'
+**Text**: Looking for a cafe that's dog-friendly and indoor-only that either has reviews mentioning 'cozy' or has reviews mentioning 'quiet', and either has reviews mentioning 'loud' or has reviews mentioning 'romantic'
 
 **Structure**:
 ```json
@@ -4068,7 +4068,7 @@ Complete reference for all 80 benchmark requests.
 ### R64
 **Gold**: [19] Sabrina's Café
 
-**Text**: Looking for a cafe that's dog-friendly and where reviews mention 'meeting' that's either where reviews mention 'cozy' or where reviews mention 'quiet', and either where reviews mention 'loud' or where reviews mention 'coffee'
+**Text**: Looking for a cafe that's dog-friendly and has reviews mentioning 'meeting' that either has reviews mentioning 'cozy' or has reviews mentioning 'quiet', and either has reviews mentioning 'loud' or has reviews mentioning 'coffee'
 
 **Structure**:
 ```json
@@ -4138,7 +4138,7 @@ Complete reference for all 80 benchmark requests.
 ### R65
 **Gold**: [14] La Colombe Coffee
 
-**Text**: Looking for a cafe that's adult-oriented and indoor-only that's either where reviews mention 'cozy' or where reviews mention 'quiet', and either where reviews mention 'loud' or where reviews mention 'romantic'
+**Text**: Looking for a cafe that's adult-oriented and indoor-only that either has reviews mentioning 'cozy' or has reviews mentioning 'quiet', and either has reviews mentioning 'loud' or has reviews mentioning 'romantic'
 
 **Structure**:
 ```json
@@ -4212,7 +4212,7 @@ Complete reference for all 80 benchmark requests.
 ### R66
 **Gold**: [12] Hinge Cafe
 
-**Text**: Looking for a cafe that's that's BYOB and where reviews mention 'music' that's either where reviews mention 'cozy' or where reviews mention 'quiet', and either where reviews mention 'romantic' or where reviews mention 'coffee'
+**Text**: Looking for a cafe that's BYOB and has reviews mentioning 'music' that either has reviews mentioning 'cozy' or has reviews mentioning 'quiet', and either has reviews mentioning 'romantic' or has reviews mentioning 'coffee'
 
 **Structure**:
 ```json
@@ -4282,7 +4282,7 @@ Complete reference for all 80 benchmark requests.
 ### R67
 **Gold**: [11] Cafe La Maude
 
-**Text**: Looking for a cafe that's that's BYOB and classy that's either where reviews mention 'cozy' or where reviews mention 'romantic', and either where reviews mention 'coffee' or where reviews mention 'latte'
+**Text**: Looking for a cafe that's BYOB and classy that either has reviews mentioning 'cozy' or has reviews mentioning 'romantic', and either has reviews mentioning 'coffee' or has reviews mentioning 'latte'
 
 **Structure**:
 ```json
@@ -4356,7 +4356,7 @@ Complete reference for all 80 benchmark requests.
 ### R68
 **Gold**: [5] Function Coffee Labs
 
-**Text**: Looking for a cafe that's budget-friendly and that's BYOB that's either where reviews mention 'cozy' or where reviews mention 'romantic', and either where reviews mention 'coffee' or where reviews mention 'espresso'
+**Text**: Looking for a cafe that's budget-friendly and that's BYOB that either has reviews mentioning 'cozy' or has reviews mentioning 'romantic', and either has reviews mentioning 'coffee' or has reviews mentioning 'espresso'
 
 **Structure**:
 ```json
@@ -4430,7 +4430,7 @@ Complete reference for all 80 benchmark requests.
 ### R69
 **Gold**: [17] United By Blue
 
-**Text**: Looking for a cafe that's where reviews mention 'slow', dog-friendly, where helpful reviews mention 'love' that's either where reviews mention 'gluten' or where helpful reviews mention 'love', and either where reviews mention 'best' or where experienced reviewers mention 'work', with outdoor seating
+**Text**: Looking for a cafe that's has reviews mentioning 'slow', dog-friendly, where helpful reviews mention 'love' that either has reviews mentioning 'gluten' or where helpful reviews mention 'love', and either has reviews mentioning 'best' or has experienced reviewers mentioning 'work', with outdoor seating
 
 **Structure**:
 ```json
@@ -4536,7 +4536,7 @@ Complete reference for all 80 benchmark requests.
 ### R70
 **Gold**: [7] Swiss Haus Cafe & Pastry Bar
 
-**Text**: Looking for a cafe that's quiet with beer and wine that's either where reviews mention 'slow', or both where elite reviewers mention 'work' and where reviews mention 'best'
+**Text**: Looking for a cafe that's quiet with beer and wine that either has reviews mentioning 'slow', or both has elite reviewers mentioning 'work' and has reviews mentioning 'best'
 
 **Structure**:
 ```json
@@ -4609,7 +4609,7 @@ Complete reference for all 80 benchmark requests.
 ### R71
 **Gold**: [9] Gran Caffe L'Aquila
 
-**Text**: Looking for a cafe that's where reviews mention 'slow', good for dinner that's either where reviews mention 'book', or both where popular reviewers mention 'love' and where reviews mention 'beer'
+**Text**: Looking for a cafe that's has reviews mentioning 'slow', good for dinner that either has reviews mentioning 'book', or both has popular reviewers mentioning 'love' and has reviews mentioning 'beer'
 
 **Structure**:
 ```json
@@ -4678,7 +4678,7 @@ Complete reference for all 80 benchmark requests.
 ### R72
 **Gold**: [10] Thirsty Dice
 
-**Text**: Looking for a cafe that's where reviews mention 'quiet', open Friday late night that's either where reviews mention 'quiet', or both where elite reviewers mention 'best' and where reviews mention 'beer'
+**Text**: Looking for a cafe that's has reviews mentioning 'quiet', open Friday late night that either has reviews mentioning 'quiet', or both has elite reviewers mentioning 'best' and has reviews mentioning 'beer'
 
 **Structure**:
 ```json
@@ -4747,7 +4747,7 @@ Complete reference for all 80 benchmark requests.
 ### R73
 **Gold**: [11] Cafe La Maude
 
-**Text**: Looking for a cafe that's where helpful reviews mention 'recommend', that's BYOB that's either where reviews mention 'fast', or both where elite reviewers mention 'work' and where reviews mention 'brunch', without delivery
+**Text**: Looking for a cafe that's where helpful reviews mention 'recommend', that's BYOB that either has reviews mentioning 'fast', or both has elite reviewers mentioning 'work' and has reviews mentioning 'brunch', without delivery
 
 **Structure**:
 ```json
@@ -4832,7 +4832,7 @@ Complete reference for all 80 benchmark requests.
 ### R74
 **Gold**: [12] Hinge Cafe
 
-**Text**: Looking for a cafe that's where reviews mention 'hidden gem', that's BYOB that's either where popular reviewers mention 'love', or both where reviews mention 'favorite' and where reviews mention 'music'
+**Text**: Looking for a cafe that's has reviews mentioning 'hidden gem', that's BYOB that either has popular reviewers mentioning 'love', or both has reviews mentioning 'favorite' and has reviews mentioning 'music'
 
 **Structure**:
 ```json
@@ -4901,7 +4901,7 @@ Complete reference for all 80 benchmark requests.
 ### R75
 **Gold**: [13] Steap and Grind
 
-**Text**: Looking for a cafe that's dog-friendly with TVs that's either where reviews mention 'sandwich', or both where reviews mention 'tea' and where reviews mention 'art'
+**Text**: Looking for a cafe that's dog-friendly with TVs that either has reviews mentioning 'sandwich', or both has reviews mentioning 'tea' and has reviews mentioning 'art'
 
 **Structure**:
 ```json
@@ -4968,7 +4968,7 @@ Complete reference for all 80 benchmark requests.
 ### R76
 **Gold**: [14] La Colombe Coffee
 
-**Text**: Looking for a cafe that's where reviews mention 'quiet', adult-oriented that's either where reviews mention 'work', or both where helpful reviews mention 'coffee' and where elite reviewers mention 'work'
+**Text**: Looking for a cafe that's has reviews mentioning 'quiet', adult-oriented that either has reviews mentioning 'work', or both where helpful reviews mention 'coffee' and has elite reviewers mentioning 'work'
 
 **Structure**:
 ```json
@@ -5042,7 +5042,7 @@ Complete reference for all 80 benchmark requests.
 ### R77
 **Gold**: [16] Elixr Coffee Roasters
 
-**Text**: Looking for a cafe that's where reviews mention 'hidden gem' with TVs that's either where reviews mention 'favorite', or both where elite reviewers mention 'coffee' and where reviews mention 'loud'
+**Text**: Looking for a cafe that's has reviews mentioning 'hidden gem' with TVs that either has reviews mentioning 'favorite', or both has elite reviewers mentioning 'coffee' and has reviews mentioning 'loud'
 
 **Structure**:
 ```json
@@ -5111,7 +5111,7 @@ Complete reference for all 80 benchmark requests.
 ### R78
 **Gold**: [18] Chapterhouse Café & Gallery
 
-**Text**: Looking for a cafe that's where reviews mention 'organic', indoor-only that's either where reviews mention 'gluten', or both where reviews mention 'love' and where reviews mention 'music'
+**Text**: Looking for a cafe that's has reviews mentioning 'organic', indoor-only that either has reviews mentioning 'gluten', or both has reviews mentioning 'love' and has reviews mentioning 'music'
 
 **Structure**:
 ```json
@@ -5174,7 +5174,7 @@ Complete reference for all 80 benchmark requests.
 ### R79
 **Gold**: [19] Sabrina's Café
 
-**Text**: Looking for a cafe that's where reviews mention 'quiet', where elite reviewers mention 'recommend' that's either where reviews mention 'fast', or both where helpful reviews mention 'love' and where reviews mention 'latte', and dog-friendly
+**Text**: Looking for a cafe that's has reviews mentioning 'quiet' or has elite reviewers mentioning 'recommend' that either has reviews mentioning 'fast', or both where helpful reviews mention 'love' and has reviews mentioning 'latte', and dog-friendly
 
 **Structure**:
 ```json
