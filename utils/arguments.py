@@ -116,6 +116,10 @@ def parse_args():
     args.parallel = PARALLEL_MODE and not args.sequential
     args.benchmark = BENCHMARK_MODE and not args.dev
 
+    # Forbid dummy method in benchmark mode
+    if args.method == "dummy" and args.benchmark:
+        parser.error("dummy method cannot be used in benchmark mode (use --dev)")
+
     # Resolve data path
     if not Path(args.data).is_absolute():
         data_path = DATA_DIR / args.data

@@ -1,2 +1,0 @@
-{"request_id": "R01", "pred_indices": [3], "shuffled_preds": [7], "gold_idx": 0, "shuffled_gold_pos": 6, "gold_restaurant": "e-ZyZc24wgkKafM3pguR2w", "prompt_tokens": 96672, "completion_tokens": 6945, "tokens": 103617, "cost_usd": 0.0186678, "latency_ms": 61185.282945632935}
-{"request_id": "R02", "pred_indices": [18], "shuffled_preds": [7], "gold_idx": 1, "shuffled_gold_pos": 6, "gold_restaurant": "eJaeTZlIdM3HWCq__Ve4Wg", "prompt_tokens": 96734, "completion_tokens": 7403, "tokens": 104137, "cost_usd": 0.018951899999999997, "latency_ms": 65266.75891876221}
