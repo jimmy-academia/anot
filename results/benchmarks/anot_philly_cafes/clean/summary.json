@@ -1,0 +1,100 @@
+{
+  "type": "ranking",
+  "k": 5,
+  "hits_at": {
+    "1": {
+      "mean": 0.20618556701030927,
+      "std": 0.0,
+      "values": [
+        0.20618556701030927
+      ]
+    },
+    "2": {
+      "mean": 0.26804123711340205,
+      "std": 0.0,
+      "values": [
+        0.26804123711340205
+      ]
+    },
+    "3": {
+      "mean": 0.29896907216494845,
+      "std": 0.0,
+      "values": [
+        0.29896907216494845
+      ]
+    },
+    "4": {
+      "mean": 0.32989690721649484,
+      "std": 0.0,
+      "values": [
+        0.32989690721649484
+      ]
+    },
+    "5": {
+      "mean": 0.3711340206185567,
+      "std": 0.0,
+      "values": [
+        0.3711340206185567
+      ]
+    }
+  },
+  "per_run": [
+    {
+      "total": 97,
+      "k": 5,
+      "hits_at": {
+        "1": {
+          "hits": 20,
+          "accuracy": 0.20618556701030927
+        },
+        "2": {
+          "hits": 26,
+          "accuracy": 0.26804123711340205
+        },
+        "3": {
+          "hits": 29,
+          "accuracy": 0.29896907216494845
+        },
+        "4": {
+          "hits": 32,
+          "accuracy": 0.32989690721649484
+        },
+        "5": {
+          "hits": 36,
+          "accuracy": 0.3711340206185567
+        }
+      }
+    }
+  ],
+  "runs": 1,
+  "method": "anot",
+  "data": "philly_cafes",
+  "attack": "clean",
+  "usage": {
+    "total_calls": 232,
+    "total_prompt_tokens": 3787221,
+    "total_completion_tokens": 514413,
+    "total_tokens": 4301634,
+    "total_cost_usd": 0.876731,
+    "mean_cost_per_run": 0.876731,
+    "per_run": [
+      {
+        "total_calls": 232,
+        "total_prompt_tokens": 3787221,
+        "total_completion_tokens": 514413,
+        "total_tokens": 4301634,
+        "total_cost_usd": 0.876731,
+        "total_latency_ms": 7781956.35,
+        "avg_latency_ms": 33542.92,
+        "by_model": {
+          "gpt-5-nano": {
+            "calls": 232,
+            "prompt_tokens": 3787221,
+            "completion_tokens": 514413,
+            "cost_usd": 0.876731
+          }
+        }
+      }
+    ]
+  }
+}

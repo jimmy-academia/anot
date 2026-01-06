@@ -256,6 +256,9 @@ def run_scaling_experiment(args, log):
                 n_candidates, len(merged_results), stats,
                 tokens=cached_tokens, cost=cached_cost, latency_ms=cached_latency
             ))
+            # Print accuracy summary for cached results
+            hits = extract_hits_at(stats, k=5)
+            print(f"  → Scale {n_candidates} (cached): {hits['hits_at_1']:.0%} @1, {hits['hits_at_2']:.0%} @2, {hits['hits_at_3']:.0%} @3, {hits['hits_at_4']:.0%} @4, {hits['hits_at_5']:.0%} @5")
             # Print if --full
             if getattr(args, 'full', False):
                 cached_usage = {
@@ -293,6 +296,10 @@ def run_scaling_experiment(args, log):
             cost=usage.get('total_cost_usd', 0),
             latency_ms=usage.get('total_latency_ms', 0)
         ))
+
+        # Print accuracy summary for this scale point
+        hits = extract_hits_at(stats, k=5)
+        print(f"  → Scale {n_candidates}: {hits['hits_at_1']:.0%} @1, {hits['hits_at_2']:.0%} @2, {hits['hits_at_3']:.0%} @3, {hits['hits_at_4']:.0%} @4, {hits['hits_at_5']:.0%} @5")
 
         # Print if --full
         if getattr(args, 'full', False):
