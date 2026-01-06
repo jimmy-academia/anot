@@ -69,8 +69,12 @@ def tool_lwt_delete(idx: int, lwt_steps: List[str]) -> str:
 
 
 def tool_lwt_insert(idx: int, step: str, lwt_steps: List[str]) -> str:
-    """Insert step at index (shifts others down). Returns status."""
-    if idx < 0 or idx > len(lwt_steps):
-        return f"Error: index {idx} out of range (0-{len(lwt_steps)})"
+    """Insert step at index (or append if idx >= len). Returns status."""
+    if idx < 0:
+        return f"Error: index {idx} cannot be negative"
+    # Clamp idx to valid range - append if beyond end
+    if idx >= len(lwt_steps):
+        lwt_steps.append(step)
+        return f"Appended at index {len(lwt_steps) - 1}"
     lwt_steps.insert(idx, step)
     return f"Inserted at index {idx}"

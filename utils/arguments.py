@@ -12,7 +12,7 @@ DEFAULT_DATA = "philly_cafes"
 DATA_DIR = Path(__file__).parent.parent / "data"
 
 # Method choices - champions only
-METHOD_CHOICES = ["cot", "ps", "plan_act", "listwise", "weaver", "anot", "dummy"]
+METHOD_CHOICES = ["cot", "ps", "plan_act", "listwise", "weaver", "anot", "react", "dummy"]
 
 # Attack choices - import from attack.py for consistency
 # Note: heterogeneity requires --attack-target-len

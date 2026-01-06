@@ -55,13 +55,13 @@ class AdaptiveNetworkOfThought(BaseMethod):
         self._debug_log_file = None
         self._debug_log_path = None
 
-        # Always open debug log file (overwrites each run)
+        # Always open debug log file (append mode to avoid overwriting during scaling)
         if run_dir:
             self._debug_log_path = os.path.join(run_dir, "debug.log")
             try:
-                self._debug_log_file = open(self._debug_log_path, "w", buffering=1)
+                self._debug_log_file = open(self._debug_log_path, "a", buffering=1)
                 from datetime import datetime
-                self._debug_log_file.write(f"=== ANoT Debug Log @ {datetime.now().isoformat()} ===\n")
+                self._debug_log_file.write(f"\n=== ANoT Debug Log @ {datetime.now().isoformat()} ===\n")
                 self._debug_log_file.flush()
             except Exception:
                 pass  # Silent fail - debug log is optional

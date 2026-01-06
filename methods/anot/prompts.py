@@ -57,61 +57,27 @@ Brief notes for Phase 2 (optional)
 # =============================================================================
 # PHASE 2: LWT Generation (Item-Aware Execution Plan)
 # =============================================================================
-# Phase 2 receives the strategy and generates concrete LWT steps with batching.
+# Phase 2 receives the strategy and generates concrete LWT steps.
 
-PHASE2_PROMPT = """Generate LWT execution steps from the strategy.
+PHASE2_PROMPT = """Generate LWT steps to evaluate {n_items} items against conditions.
 
-[STRATEGY FROM PHASE 1]
+[STRATEGY]
 {strategy}
 
-[DATA ACCESS]
-- Total items: {n_items}
-- Access item: {{(items)}}[idx] where idx is 1 to {n_items}
-- Item fields: name, attributes, hours, reviews[], categories
+[LWT STEP FORMAT]
+Each step MUST include {{(items)}} to access item data:
+(step_id)=LLM('Items: {{(items)}}. Check condition X. Output matching indices: [indices]')
 
-[STEP PATTERNS BY CONDITION TYPE]
+Example steps:
+(c1)=LLM('Items: {{(items)}}. List indices where attributes.GoodForKids=True. Output: [indices]')
+(c2)=LLM('Items: {{(items)}}. List indices where attributes.Ambience.hipster=True. Output: [indices]')
+(c3)=LLM('Items: {{(items)}}. Check reviews for keyword work. Output: [indices]')
+(final)=LLM('Results: c1={{(c1)}}, c2={{(c2)}}, c3={{(c3)}}. Intersect all. If empty, rank by partial match count. Output top-5: [indices]')
 
-For [ATTR] conditions (simple attribute check):
-(c1)=LLM("For items 1-{n_items}, list indices where attributes.GoodForKids=True. Output format: [indices]")
-
-For [AMBIENCE] conditions (nested dict check):
-(c2)=LLM("For items 1-{n_items}, list indices where attributes.Ambience.hipster=True. Output format: [indices]")
-
-For [MEAL] conditions (nested dict check):
-(c3)=LLM("For items 1-{n_items}, list indices where attributes.GoodForMeal.brunch=True. Output format: [indices]")
-
-For [HOURS] conditions (time parsing):
-(c4)=LLM("For items 1-{n_items}, list indices open on Friday after 21:00. Hours format: day=start-end (e.g., Friday=12:0-22:0 means 12pm-10pm). Output format: [indices]")
-
-For [REVIEW_TEXT] conditions (MUST use batching for {n_items} > 10):
-(c5.b1)=LLM("For items 1-10, check if any review text contains 'work'. Output matching indices: [indices]")
-(c5.b2)=LLM("For items 11-20, check if any review text contains 'work'. Output matching indices: [indices]")
-(c5.b3)=LLM("For items 21-30, check if any review text contains 'work'. Output matching indices: [indices]")
-(c5.b4)=LLM("For items 31-40, check if any review text contains 'work'. Output matching indices: [indices]")
-(c5.b5)=LLM("For items 41-{n_items}, check if any review text contains 'work'. Output matching indices: [indices]")
-(c5.agg)=LLM("Merge these lists into one: {{(c5.b1)}}, {{(c5.b2)}}, {{(c5.b3)}}, {{(c5.b4)}}, {{(c5.b5)}}. Output combined [indices]")
-
-[AGGREGATION STEP]
-After generating steps for all conditions, add a final aggregation step:
-
-For AND logic:
-(final)=LLM("Find intersection of {{(c1)}} AND {{(c2)}} AND {{(c3.agg)}}. If empty, list items by partial match count. Output best index or top-5: [indices]")
-
-For OR logic:
-(final)=LLM("Find union of {{(c1)}} OR {{(c2)}}. Output best index or top-5: [indices]")
-
-[TOOLS]
-- lwt_list() → show current LWT steps
-- lwt_insert(idx, "step") → add step at position idx
-- lwt_set(idx, "step") → replace step at position idx
-- done() → finish when LWT is complete
-
-[TASK]
-Generate the complete LWT for the strategy above:
-1. For each condition, add appropriate evaluation step(s)
-2. Use BATCHING for [REVIEW_TEXT] conditions (batches of 10 items)
-3. Add final aggregation step with the correct LOGIC
-4. Call done() when complete
-
-Start by using lwt_insert() to add steps, then call done().
+[OUTPUT - Use single quotes inside step string]
+lwt_insert(1, "(c1)=LLM('Items: {{(items)}}. List indices where ...')")
+lwt_insert(2, "(c2)=LLM('Items: {{(items)}}. ...')")
+...
+lwt_insert(N, "(final)=LLM('Results: c1={{(c1)}}, c2={{(c2)}}, ... Intersect. Output top-5: [indices]')")
+done()
 """
