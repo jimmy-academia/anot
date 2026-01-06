@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Data loading and formatting utilities for philly_cafes dataset."""
 
+import ast
 import json
 from pathlib import Path
 from typing import Any
@@ -9,6 +10,61 @@ from utils.io import loadjl
 
 
 DATA_DIR = Path(__file__).parent
+
+
+def _parse_string_value(value: str):
+    """Parse string-encoded Python values from Yelp data.
+
+    Handles:
+    - Dict strings: "{'hipster': True, ...}" -> dict
+    - List strings: "['a', 'b']" -> list
+    - Boolean strings: 'True', 'False' -> bool
+    - Unicode prefix: "u'average'" -> "average"
+    - None string: 'None' -> None
+    """
+    if not isinstance(value, str):
+        return value
+
+    s = value.strip()
+
+    # Handle None
+    if s == 'None':
+        return None
+
+    # Handle booleans
+    if s == 'True':
+        return True
+    if s == 'False':
+        return False
+
+    # Handle unicode prefix: u'value' -> value
+    if s.startswith("u'") and s.endswith("'"):
+        return s[2:-1]
+    if s.startswith('u"') and s.endswith('"'):
+        return s[2:-1]
+
+    # Try to parse as dict or list (nested structures only)
+    if (s.startswith('{') and s.endswith('}')) or (s.startswith('[') and s.endswith(']')):
+        try:
+            parsed = ast.literal_eval(s)
+            if isinstance(parsed, (dict, list)):
+                return parsed
+        except (ValueError, SyntaxError):
+            pass
+
+    # Keep as string (leaf value)
+    return value
+
+
+def _parse_attributes(attrs: dict) -> dict:
+    """Parse all string-encoded values in attributes dict."""
+    if not isinstance(attrs, dict):
+        return attrs
+
+    parsed = {}
+    for k, v in attrs.items():
+        parsed[k] = _parse_string_value(v)
+    return parsed
 
 
 class Dataset:
@@ -159,6 +215,10 @@ def load_dataset(data_name: str, review_limit: int = None) -> Dataset:
         # Pass-through restaurant dict, remove blocked fields
         item = {k: v for k, v in rest.items() if k not in RESTAURANT_BLOCKLIST}
 
+        # Parse string-encoded attributes (Yelp data has dicts as strings)
+        if "attributes" in item:
+            item["attributes"] = _parse_attributes(item["attributes"])
+
         # Parse categories string → list
         if isinstance(item.get("categories"), str):
             cats_str = item["categories"]
@@ -302,12 +362,12 @@ def format_ranking_query(items: list[dict], mode: str = "string") -> tuple[Any, 
         (query, item_count) where query has items indexed 1 to N
     """
     if mode == "dict":
-        # Pass-through items, just add index field
+        # Dict format for 1-indexed access: items["1"], items["2"], etc.
         return {
-            "items": [
-                {**item, "index": i + 1}
+            "items": {
+                str(i + 1): {**item, "index": i + 1}
                 for i, item in enumerate(items)
-            ]
+            }
         }, len(items)
 
     # String mode - serialize full item dicts as JSON (pass-through with index)

@@ -30,7 +30,7 @@ def run_evaluation_loop(args, dataset, method, experiment, attack_config=None):
     dict_mode_methods = {"anot", "weaver"}
     eval_mode = "dict" if args.method in dict_mode_methods else "string"
     k = getattr(args, 'k', 5)
-    shuffle = getattr(args, 'shuffle', 'middle')
+    shuffle = getattr(args, 'shuffle', 'random')
     parallel = getattr(args, 'parallel', True)
     max_workers = getattr(args, 'max_concurrent', 40)
 

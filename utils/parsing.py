@@ -10,10 +10,16 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 
-def substitute_variables(instruction: str, query, context: str, cache: dict) -> str:
+def substitute_variables(instruction: str, items, user_query: str, cache: dict) -> str:
     """Substitute {(var)}[key][index] patterns with actual values.
 
     Supports hierarchical step IDs like {(2.rev.0)} and {(final)}.
+
+    Args:
+        instruction: Template string with {(var)} patterns
+        items: Item data dict (for {(input)} or {(items)} access)
+        user_query: User's request text (for {(query)} substitution)
+        cache: Cache of previous step outputs
     """
     pattern = r'\{\(([a-zA-Z0-9_.]+)\)\}((?:\[[^\]]+\])*)'
 
@@ -22,10 +28,13 @@ def substitute_variables(instruction: str, query, context: str, cache: dict) -> 
         accessors = match.group(2) or ''
 
         # Get base value
-        if var == 'input':
-            val = query
+        if var == 'query':
+            val = user_query
+        elif var in ('input', 'items'):
+            val = items
         elif var == 'context':
-            val = context
+            # Legacy: context also maps to user_query
+            val = user_query
         else:
             val = cache.get(var, '')
 

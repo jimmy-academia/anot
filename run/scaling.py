@@ -151,7 +151,7 @@ def _run_scale_point(args, run_dir: Path, n_candidates: int, k: int, tracker, lo
     # Run evaluation
     dict_mode_methods = {"anot", "weaver"}
     eval_mode = "dict" if args.method in dict_mode_methods else "string"
-    shuffle = getattr(args, 'shuffle', 'middle')
+    shuffle = getattr(args, 'shuffle', 'random')
     eval_result = evaluate_ranking(
         dataset.items,
         method,

@@ -27,7 +27,7 @@ from utils.parsing import parse_script, substitute_variables
 from utils.usage import get_usage_tracker
 
 from .prompts import SYSTEM_PROMPT, PHASE1_PROMPT, PHASE2_PROMPT, RANKING_TASK_COMPACT
-from .helpers import build_execution_layers, format_items_compact
+from .helpers import build_execution_layers, format_items_compact, filter_items_for_ranking
 from .tools import (
     tool_read, tool_lwt_list, tool_lwt_get,
     tool_lwt_set, tool_lwt_delete, tool_lwt_insert
@@ -233,32 +233,64 @@ class AdaptiveNetworkOfThought(BaseMethod):
                     self._last_display_update = now
 
     def _render_table(self) -> Table:
-        """Build current display table."""
-        table = Table(title=self._display_title, box=None, padding=(0, 1))
-        table.add_column("Req", style="cyan", width=5)
-        table.add_column("Context", style="dim", width=35, overflow="ellipsis")
-        table.add_column("Phase", style="bold", width=6, justify="center")
-        table.add_column("Status", width=15)
+        """Build current display table with 4-column layout for compact view."""
+        # Calculate dynamic widths based on console width
+        console_width = self._console.width or 120
+        # With padding=0:
+        # Fixed per group: Req(4) + Ph(2) = 6, times 4 groups = 24
+        # Plus 3 separators (width=1 each) = 3, total fixed = 27
+        # Remaining split: Query gets 2x, St gets 1x (ratio 2:1)
+        available = max(40, console_width - 27)  # minimum 40 for flexible
+        # 4 groups * (2 + 1) = 12 ratio units
+        unit = available // 12
+        query_width = max(10, unit * 2)
+        status_width = max(6, unit)
+
+        table = Table(title=self._display_title, box=None, padding=0, collapse_padding=True)
+
+        # 4 repeated column groups: Req, Query, Ph, St (with separator)
+        for i in range(4):
+            table.add_column("Req", style="cyan", width=4, no_wrap=True)
+            table.add_column("Query", style="dim", width=query_width, no_wrap=True)
+            table.add_column("Ph", style="bold", width=2, justify="center", no_wrap=True)
+            table.add_column("St", width=status_width, no_wrap=True)
+            if i < 3:
+                table.add_column("|", width=1, style="dim")
+
+        def phase_text(phase):
+            if phase == "✓":
+                return Text("✓", style="green bold")
+            elif phase == "P1":
+                return Text("1", style="yellow")
+            elif phase == "P2":
+                return Text("2", style="blue")
+            elif phase == "P3":
+                return Text("3", style="magenta")
+            return Text("-", style="dim")
 
         with self._display_lock:
-            for req_id, row in sorted(self._display_rows.items()):
-                phase = row["phase"]
-                if phase == "✓":
-                    phase_text = Text("✓", style="green bold")
-                elif phase == "P1":
-                    phase_text = Text("P1", style="yellow")
-                elif phase == "P2":
-                    phase_text = Text("P2", style="blue")
-                elif phase == "P3":
-                    phase_text = Text("P3", style="magenta")
-                else:
-                    phase_text = Text("---", style="dim")
-
-                ctx = row["context"][:32] + "..." if len(row["context"]) > 35 else row["context"]
-                table.add_row(req_id, ctx, phase_text, row["status"])
+            items = sorted(self._display_rows.items())
+            # Group into rows of 4
+            for i in range(0, len(items), 4):
+                row_data = []
+                for j in range(4):
+                    if i + j < len(items):
+                        req_id, row = items[i + j]
+                        query = row["context"].replace("\n", " ")
+                        # Show END of query (more distinctive), adapt to column width
+                        q_chars = query_width - 2  # room for ".."
+                        q_text = ".." + query[-q_chars:] if len(query) > query_width else query
+                        # Compact status
+                        status = row["status"][:status_width]
+                        row_data.extend([req_id, q_text, phase_text(row["phase"]), status])
+                    else:
+                        row_data.extend(["", "", "", ""])
+                    if j < 3:
+                        row_data.append("|")
+                table.add_row(*row_data)
 
         stats = self._display_stats
-        footer = f"Progress: {stats['complete']}/{stats['total']} | Tokens: {stats['tokens']:,} | ${stats['cost']:.4f}"
+        footer = f"{stats['complete']}/{stats['total']} | {stats['tokens']:,}tok | ${stats['cost']:.4f}"
         table.caption = footer
         return table
 
@@ -266,14 +298,21 @@ class AdaptiveNetworkOfThought(BaseMethod):
     # Phase 1: Planning (LWT Skeleton + Message)
     # =========================================================================
 
-    def phase1_plan(self, context: str, items: List[dict], k: int = 1) -> Tuple[List[str], str]:
-        """Phase 1: Generate LWT skeleton and message for Phase 2."""
-        self._debug(1, "P1", f"Planning for: {context[:60]}...")
+    def phase1_plan(self, query: str, items: List[dict], k: int = 1) -> Tuple[List[str], str]:
+        """Phase 1: Generate LWT skeleton and message for Phase 2.
 
-        items_compact = format_items_compact(items)
+        Args:
+            query: User request text (e.g., "Looking for a cafe...")
+            items: List of item dicts
+            k: Number of top predictions
+        """
+        self._debug(1, "P1", f"Planning for: {query[:60]}...")
+
+        filtered_items = filter_items_for_ranking(items)
+        items_compact = format_items_compact(filtered_items)
         self._debug(2, "P1", f"Compact items:\n{items_compact[:500]}...")
 
-        task_desc = RANKING_TASK_COMPACT.format(context=context, k=k)
+        task_desc = RANKING_TASK_COMPACT.format(query=query, k=k)
         prompt = PHASE1_PROMPT.format(
             task_description=task_desc,
             items_compact=items_compact
@@ -352,12 +391,12 @@ class AdaptiveNetworkOfThought(BaseMethod):
                 action_result = tool_lwt_list(lwt_steps)
             elif match := re.search(r'lwt_get\((\d+)\)', response):
                 action_result = tool_lwt_get(int(match.group(1)), lwt_steps)
-            elif match := re.search(r'lwt_set\((\d+),\s*"(.+?)"\)', response, re.DOTALL):
+            elif match := re.search(r'lwt_set\((\d+),\s*"((?:[^"\\]|\\.)*)"\)', response, re.DOTALL):
                 step = match.group(2).replace('\\"', '"').replace('\\n', '\n')
                 action_result = tool_lwt_set(int(match.group(1)), step, lwt_steps)
             elif match := re.search(r'lwt_delete\((\d+)\)', response):
                 action_result = tool_lwt_delete(int(match.group(1)), lwt_steps)
-            elif match := re.search(r'lwt_insert\((\d+),\s*"(.+?)"\)', response, re.DOTALL):
+            elif match := re.search(r'lwt_insert\((\d+),\s*"((?:[^"\\]|\\.)*)"\)', response, re.DOTALL):
                 step = match.group(2).replace('\\"', '"').replace('\\n', '\n')
                 action_result = tool_lwt_insert(int(match.group(1)), step, lwt_steps)
             elif match := re.search(r'read\("([^"]+)"\)', response):
@@ -384,9 +423,9 @@ class AdaptiveNetworkOfThought(BaseMethod):
     # Phase 3: Pure LWT Execution
     # =========================================================================
 
-    async def _execute_step_async(self, idx: str, instr: str, query: dict, context: str) -> Tuple[str, str]:
+    async def _execute_step_async(self, idx: str, instr: str, items: dict, user_query: str) -> Tuple[str, str]:
         """Execute a single LWT step asynchronously."""
-        filled = substitute_variables(instr, query, context, self._get_cache())
+        filled = substitute_variables(instr, items, user_query, self._get_cache())
         self._debug(3, "P3", f"Step {idx} filled:", filled)
 
         start = time.time()
@@ -426,7 +465,7 @@ class AdaptiveNetworkOfThought(BaseMethod):
 
         return idx, output
 
-    async def _execute_parallel(self, lwt: str, query: dict, context: str) -> str:
+    async def _execute_parallel(self, lwt: str, items: dict, user_query: str) -> str:
         """Execute LWT with DAG parallel execution."""
         self._set_cache({})
         steps = parse_script(lwt)
@@ -440,7 +479,7 @@ class AdaptiveNetworkOfThought(BaseMethod):
 
         final = ""
         for layer in layers:
-            tasks = [self._execute_step_async(idx, instr, query, context) for idx, instr in layer]
+            tasks = [self._execute_step_async(idx, instr, items, user_query) for idx, instr in layer]
             results = await asyncio.gather(*tasks)
             for idx, output in results:
                 self._cache_set(idx, output)
@@ -448,14 +487,20 @@ class AdaptiveNetworkOfThought(BaseMethod):
 
         return final
 
-    def phase3_execute(self, lwt: str, query: dict, context: str) -> str:
-        """Execute the LWT script."""
+    def phase3_execute(self, lwt: str, items: dict, user_query: str) -> str:
+        """Execute the LWT script.
+
+        Args:
+            lwt: The LWT script to execute
+            items: Restaurant data dict (for {(items)} substitution)
+            user_query: User's request text (for {(query)} substitution)
+        """
         req_id = getattr(self._thread_local, 'request_id', None)
         if req_id:
             self._update_display(req_id, "P3", "executing")
 
         try:
-            return asyncio.run(self._execute_parallel(lwt, query, context))
+            return asyncio.run(self._execute_parallel(lwt, items, user_query))
         except RuntimeError:
             # Already in async context, run sequentially
             self._set_cache({})
@@ -465,7 +510,7 @@ class AdaptiveNetworkOfThought(BaseMethod):
 
             final = ""
             for idx, instr in steps:
-                filled = substitute_variables(instr, query, context, self._get_cache())
+                filled = substitute_variables(instr, items, user_query, self._get_cache())
                 output = call_llm(
                     filled,
                     system=SYSTEM_PROMPT,
@@ -485,26 +530,41 @@ class AdaptiveNetworkOfThought(BaseMethod):
         """Single item evaluation (not used for ranking)."""
         return 0
 
-    def evaluate_ranking(self, query, context: str, k: int = 1, request_id: str = "R01") -> str:
-        """Ranking evaluation: Phase 1 → Phase 2 → Phase 3."""
-        self._init_trace(request_id, context)
+    def evaluate_ranking(self, query, context, k: int = 1, request_id: str = "R01") -> str:
+        """Ranking evaluation: Phase 1 → Phase 2 → Phase 3.
+
+        Args:
+            query: User request text (e.g., "Looking for a cafe...")
+            context: Restaurant data dict {"items": {...}} or JSON string
+            k: Number of top predictions
+            request_id: Request identifier for tracing
+        """
+        self._init_trace(request_id, query)
         self._thread_local.request_id = request_id
 
-        if isinstance(query, str):
-            data = json.loads(query)
+        # Parse restaurant data from context (not query!)
+        if isinstance(context, str):
+            data = json.loads(context)
         else:
-            data = query
-        items = data.get('items', [data]) if isinstance(data, dict) else [data]
+            data = context
+
+        # Extract items - handle both list and dict formats
+        raw_items = data.get('items', [data]) if isinstance(data, dict) else [data]
+        if isinstance(raw_items, dict):
+            # Dict format: {"1": item1, "2": item2, ...} - convert to list ordered by key
+            items = [raw_items[k] for k in sorted(raw_items.keys(), key=lambda x: int(x))]
+        else:
+            items = raw_items
         n_items = len(items)
 
-        self._debug(1, "INIT", f"Ranking {n_items} items for: {context[:60]}...")
-        self._update_display(request_id, "---", "starting", context)
+        self._debug(1, "INIT", f"Ranking {n_items} items for: {query[:60]}...")
+        self._update_display(request_id, "---", "starting", query)
         trace = self._get_trace()
 
         # Phase 1
         self._update_display(request_id, "P1", "planning")
         p1_start = time.time()
-        lwt_skeleton, message = self.phase1_plan(context, items, k)
+        lwt_skeleton, message = self.phase1_plan(query, items, k)
         p1_latency = (time.time() - p1_start) * 1000
 
         if trace:
@@ -524,23 +584,23 @@ class AdaptiveNetworkOfThought(BaseMethod):
             trace["phase2"]["latency_ms"] = p2_latency
             self._save_trace_incremental(request_id)
 
-        # Phase 3
+        # Phase 3: Execute with items data and user query text
         self._update_display(request_id, "P3", "executing")
         p3_start = time.time()
-        output = self.phase3_execute(expanded_lwt, data, context)
+        output = self.phase3_execute(expanded_lwt, data, query)
         p3_latency = (time.time() - p3_start) * 1000
 
-        # Parse final output
+        # Parse final output (LLM outputs 1-indexed)
         indices = []
         for match in re.finditer(r'\b(\d+)\b', output):
             idx = int(match.group(1))
-            if 0 <= idx < n_items and idx not in indices:
+            if 1 <= idx <= n_items and idx not in indices:
                 indices.append(idx)
 
         if not indices:
-            indices = list(range(min(k, n_items)))
+            indices = list(range(1, min(k, n_items) + 1))  # 1-indexed fallback
 
-        top_k = [str(idx + 1) for idx in indices[:k]]
+        top_k = [str(idx) for idx in indices[:k]]  # Already 1-indexed
         self._debug(1, "P3", f"Final ranking: {','.join(top_k)}")
 
         if trace:

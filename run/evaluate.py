@@ -122,6 +122,8 @@ def evaluate_ranking_single(method, items: list, mode: str, shuffle: str,
         error_str = str(e)
         if "context_length_exceeded" in error_str or "too many tokens" in error_str.lower():
             raise ContextLengthExceeded(error_str)
+        # Log error instead of silent swallow
+        print(f"[ERROR] {req_id}: {type(e).__name__}: {error_str[:200]}", flush=True)
         shuffled_preds = []
 
     # Compute usage for this request
@@ -170,7 +172,7 @@ def _run_with_progress(generator, has_rich_display: bool, description: str, tota
 
 def evaluate_ranking(items: list[dict], method: Callable, requests: list[dict],
                      groundtruth: dict, mode: str = "string", k: int = 5,
-                     shuffle: str = "middle", parallel: bool = True,
+                     shuffle: str = "random", parallel: bool = True,
                      max_workers: int = 40, attack_config: dict = None) -> dict:
     """Evaluate using ranking (Hits@K accuracy).
 
@@ -181,7 +183,7 @@ def evaluate_ranking(items: list[dict], method: Callable, requests: list[dict],
         groundtruth: {request_id: {"gold_restaurant": str, "gold_idx": int}}
         mode: "string" or "dict" for formatting
         k: Number of top predictions to check (default 5 for Hits@5)
-        shuffle: Shuffle strategy ("none", "middle", "random") - default "middle"
+        shuffle: Shuffle strategy ("none", "middle", "random") - default "random"
         parallel: Whether to use parallel execution (default True)
         max_workers: Maximum number of worker threads (default 40)
         attack_config: Optional attack configuration for per-request attacks

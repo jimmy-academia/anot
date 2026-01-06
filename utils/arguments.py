@@ -81,8 +81,8 @@ def parse_args():
     # Ranking/evaluation arguments
     parser.add_argument("--k", type=int, default=5,
                         help="Number of predictions for Hits@K evaluation (default: 5)")
-    parser.add_argument("--shuffle", choices=["none", "middle", "random"], default="middle",
-                        help="Shuffle strategy for candidates (default: middle)")
+    parser.add_argument("--shuffle", choices=["none", "middle", "random"], default="random",
+                        help="Shuffle strategy for candidates (default: random)")
 
     # Execution arguments
     parser.add_argument("--max-concurrent", type=int, default=200,

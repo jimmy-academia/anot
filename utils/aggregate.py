@@ -339,27 +339,32 @@ def _print_per_request_details(results: List[Dict]):
     sorted_results = sorted(results, key=lambda x: x.get("request_id", ""))
     half = (len(sorted_results) + 1) // 2
 
+    # Pre-calculate left entries and max width for alignment
+    left_entries = [_format_result_entry(sorted_results[i]) for i in range(half)]
+    max_width = max(len(e) for e in left_entries) if left_entries else 35
+
     if HAS_RICH:
         console = Console()
         console.print("\n[bold]Per-request:[/bold]")
         for i in range(half):
-            left = _format_result_entry(sorted_results[i])
-            left = left.replace("✓", "[green]✓[/green]").replace("✗", "[red]✗[/red]")
+            # Pad BEFORE adding colors (Rich markup adds non-display chars)
+            left_padded = left_entries[i].ljust(max_width)
+            left_colored = left_padded.replace("✓", "[green]✓[/green]").replace("✗", "[red]✗[/red]")
             if i + half < len(sorted_results):
                 right = _format_result_entry(sorted_results[i + half])
-                right = right.replace("✓", "[green]✓[/green]").replace("✗", "[red]✗[/red]")
-                console.print(f"  {left:<40} | {right}")
+                right_colored = right.replace("✓", "[green]✓[/green]").replace("✗", "[red]✗[/red]")
+                console.print(f"  {left_colored} | {right_colored}")
             else:
-                console.print(f"  {left}")
+                console.print(f"  {left_colored}")
     else:
         print("\nPer-request:")
         for i in range(half):
-            left = _format_result_entry(sorted_results[i])
+            left_padded = left_entries[i].ljust(max_width)
             if i + half < len(sorted_results):
                 right = _format_result_entry(sorted_results[i + half])
-                print(f"  {left:<40} | {right}")
+                print(f"  {left_padded} | {right}")
             else:
-                print(f"  {left}")
+                print(f"  {left_padded}")
 
 
 def _print_ranking_rich(summary: Dict[str, Any]):
