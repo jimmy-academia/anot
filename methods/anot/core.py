@@ -27,7 +27,7 @@ from utils.parsing import parse_script, substitute_variables
 from utils.usage import get_usage_tracker
 
 from .prompts import SYSTEM_PROMPT, PHASE1_PROMPT, PHASE2_PROMPT, RANKING_TASK_COMPACT
-from .helpers import build_execution_layers, format_items_compact, filter_items_for_ranking
+from .helpers import build_execution_layers, format_items_compact, format_schema_compact, filter_items_for_ranking
 from .tools import (
     tool_read, tool_lwt_list, tool_lwt_get,
     tool_lwt_set, tool_lwt_delete, tool_lwt_insert
@@ -98,7 +98,7 @@ class AdaptiveNetworkOfThought(BaseMethod):
         trace = {
             "request_id": request_id,
             "context": context,
-            "phase1": {"skeleton": [], "message": "", "latency_ms": 0},
+            "phase1": {"strategy": "", "message": "", "latency_ms": 0},
             "phase2": {"expanded_lwt": [], "react_iterations": 0, "latency_ms": 0},
             "phase3": {"step_results": {}, "top_k": [], "final_output": "", "latency_ms": 0},
         }
@@ -298,24 +298,35 @@ class AdaptiveNetworkOfThought(BaseMethod):
     # Phase 1: Planning (LWT Skeleton + Message)
     # =========================================================================
 
-    def phase1_plan(self, query: str, items: List[dict], k: int = 1) -> Tuple[List[str], str]:
-        """Phase 1: Generate LWT skeleton and message for Phase 2.
+    def phase1_plan(self, query: str, items: List[dict], k: int = 1) -> Tuple[str, str]:
+        """Phase 1: Generate evaluation STRATEGY (not execution).
+
+        Strategy-centric design: Phase 1 sees schema but does NOT scan items.
+        It outputs a strategy describing what conditions to check.
 
         Args:
             query: User request text (e.g., "Looking for a cafe...")
-            items: List of item dicts
+            items: List of item dicts (used for schema only)
             k: Number of top predictions
+
+        Returns:
+            Tuple of (strategy, message) for Phase 2
         """
         self._debug(1, "P1", f"Planning for: {query[:60]}...")
 
+        n_items = len(items)
+
+        # Show schema (1-2 example items) so LLM knows available fields
+        # But don't ask LLM to scan all items
         filtered_items = filter_items_for_ranking(items)
-        items_compact = format_items_compact(filtered_items)
-        self._debug(2, "P1", f"Compact items:\n{items_compact[:500]}...")
+        schema_compact = format_schema_compact(filtered_items[:2], num_examples=2, truncate=50)
+        self._debug(2, "P1", f"Schema:\n{schema_compact[:500]}...")
 
         task_desc = RANKING_TASK_COMPACT.format(query=query, k=k)
         prompt = PHASE1_PROMPT.format(
             task_description=task_desc,
-            items_compact=items_compact
+            schema_compact=schema_compact,
+            n_items=n_items
         )
 
         response = call_llm(
@@ -328,43 +339,56 @@ class AdaptiveNetworkOfThought(BaseMethod):
         self._log_llm_call("P1", "plan", prompt, response)
         self._debug(3, "P1", "Plan response:", response)
 
-        # Parse response by delimiters
-        lwt_skeleton = []
+        # Parse response - now looking for ===STRATEGY=== instead of ===LWT_SKELETON===
+        strategy = ""
         message = ""
 
-        if "===LWT_SKELETON===" in response:
-            skel_start = response.index("===LWT_SKELETON===") + len("===LWT_SKELETON===")
-            skel_end = response.find("===MESSAGE===", skel_start) if "===MESSAGE===" in response else len(response)
-            skeleton_str = response[skel_start:skel_end].strip()
-            for line in skeleton_str.split("\n"):
-                line = line.strip()
-                if line and line.startswith("("):
-                    lwt_skeleton.append(line)
+        if "===STRATEGY===" in response:
+            strat_start = response.index("===STRATEGY===") + len("===STRATEGY===")
+            strat_end = response.find("===MESSAGE===", strat_start) if "===MESSAGE===" in response else len(response)
+            strategy = response[strat_start:strat_end].strip()
 
         if "===MESSAGE===" in response:
             msg_start = response.index("===MESSAGE===") + len("===MESSAGE===")
             message = response[msg_start:].strip()
 
-        self._debug(1, "P1", f"LWT skeleton: {len(lwt_skeleton)} steps")
-        return lwt_skeleton, message
+        self._debug(1, "P1", f"Strategy extracted: {len(strategy)} chars")
+        return strategy, message
 
     # =========================================================================
     # Phase 2: ReAct LWT Expansion
     # =========================================================================
 
-    def phase2_expand(self, lwt_skeleton: List[str], message: str, query: dict) -> List[str]:
-        """Phase 2: Expand LWT skeleton using ReAct loop with LWT manipulation tools."""
-        self._debug(1, "P2", f"ReAct expansion: {len(lwt_skeleton)} initial steps...")
+    def phase2_expand(self, strategy: str, message: str, n_items: int, query: dict) -> List[str]:
+        """Phase 2: Generate batched LWT from strategy using ReAct loop.
+
+        Args:
+            strategy: Evaluation strategy from Phase 1 (conditions + logic)
+            message: Additional notes from Phase 1
+            n_items: Total number of items to evaluate
+            query: Full query dict (for read() tool if needed)
+
+        Returns:
+            List of LWT steps
+        """
+        self._debug(1, "P2", f"ReAct expansion from strategy ({len(strategy)} chars)...")
         req_id = getattr(self._thread_local, 'request_id', None)
         if req_id:
             self._update_display(req_id, "P2", "ReAct expand")
 
-        lwt_steps = list(lwt_skeleton)
-        skeleton_str = "\n".join(f"{i}: {step}" for i, step in enumerate(lwt_steps)) if lwt_steps else "(empty)"
-        prompt = PHASE2_PROMPT.format(message=message, lwt_skeleton=skeleton_str)
+        # Start with EMPTY LWT - Phase 2 generates it from strategy
+        lwt_steps = []
+
+        # Combine strategy and message for prompt
+        full_strategy = strategy
+        if message:
+            full_strategy += f"\n\nNotes: {message}"
+
+        prompt = PHASE2_PROMPT.format(strategy=full_strategy, n_items=n_items)
         conversation = [prompt]
 
         max_iterations = 50
+        iteration = 0
         for iteration in range(max_iterations):
             self._debug(2, "P2", f"ReAct iteration {iteration + 1}")
             full_prompt = "\n".join(conversation)
@@ -381,31 +405,51 @@ class AdaptiveNetworkOfThought(BaseMethod):
                 self._debug(1, "P2", "Empty response, breaking")
                 break
 
-            action_result = None
+            # Process ALL tool calls in this response before checking done()
+            action_results = []
 
+            # Check for lwt_list()
+            if "lwt_list()" in response:
+                action_results.append(("lwt_list()", tool_lwt_list(lwt_steps)))
+
+            # Process ALL lwt_insert() calls (common when LLM outputs multiple steps at once)
+            for match in re.finditer(r'lwt_insert\((\d+),\s*"((?:[^"\\]|\\.)*)"\)', response, re.DOTALL):
+                step = match.group(2).replace('\\"', '"').replace('\\n', '\n')
+                result = tool_lwt_insert(int(match.group(1)), step, lwt_steps)
+                action_results.append((f"lwt_insert({match.group(1)})", result))
+
+            # Process ALL lwt_set() calls
+            for match in re.finditer(r'lwt_set\((\d+),\s*"((?:[^"\\]|\\.)*)"\)', response, re.DOTALL):
+                step = match.group(2).replace('\\"', '"').replace('\\n', '\n')
+                result = tool_lwt_set(int(match.group(1)), step, lwt_steps)
+                action_results.append((f"lwt_set({match.group(1)})", result))
+
+            # Process ALL lwt_delete() calls
+            for match in re.finditer(r'lwt_delete\((\d+)\)', response):
+                result = tool_lwt_delete(int(match.group(1)), lwt_steps)
+                action_results.append((f"lwt_delete({match.group(1)})", result))
+
+            # Process ALL lwt_get() calls
+            for match in re.finditer(r'lwt_get\((\d+)\)', response):
+                result = tool_lwt_get(int(match.group(1)), lwt_steps)
+                action_results.append((f"lwt_get({match.group(1)})", result))
+
+            # Process ALL read() calls
+            for match in re.finditer(r'read\("([^"]+)"\)', response):
+                result = tool_read(match.group(1), query)
+                if len(result) > 2000:
+                    result = result[:2000] + "... (truncated)"
+                action_results.append((f"read(\"{match.group(1)}\")", result))
+
+            # Now check for done() - AFTER processing all other actions
             if "done()" in response.lower():
-                self._debug(1, "P2", f"ReAct done after {iteration + 1} iterations")
+                self._debug(1, "P2", f"ReAct done after {iteration + 1} iterations, processed {len(action_results)} actions")
                 break
 
-            if "lwt_list()" in response:
-                action_result = tool_lwt_list(lwt_steps)
-            elif match := re.search(r'lwt_get\((\d+)\)', response):
-                action_result = tool_lwt_get(int(match.group(1)), lwt_steps)
-            elif match := re.search(r'lwt_set\((\d+),\s*"((?:[^"\\]|\\.)*)"\)', response, re.DOTALL):
-                step = match.group(2).replace('\\"', '"').replace('\\n', '\n')
-                action_result = tool_lwt_set(int(match.group(1)), step, lwt_steps)
-            elif match := re.search(r'lwt_delete\((\d+)\)', response):
-                action_result = tool_lwt_delete(int(match.group(1)), lwt_steps)
-            elif match := re.search(r'lwt_insert\((\d+),\s*"((?:[^"\\]|\\.)*)"\)', response, re.DOTALL):
-                step = match.group(2).replace('\\"', '"').replace('\\n', '\n')
-                action_result = tool_lwt_insert(int(match.group(1)), step, lwt_steps)
-            elif match := re.search(r'read\("([^"]+)"\)', response):
-                action_result = tool_read(match.group(1), query)
-                if len(action_result) > 2000:
-                    action_result = action_result[:2000] + "... (truncated)"
-
-            if action_result is not None:
-                conversation.append(f"\n{response}\n\nRESULT: {action_result}\n\nContinue:")
+            if action_results:
+                # Combine all results into conversation
+                results_text = "\n".join([f"{name}: {result}" for name, result in action_results])
+                conversation.append(f"\n{response}\n\nRESULTS:\n{results_text}\n\nContinue:")
             else:
                 self._debug(1, "P2", "No action found, prompting for action")
                 conversation.append(f"\n{response}\n\nNo valid action found. Use lwt_list(), lwt_get(idx), lwt_set(idx, step), lwt_delete(idx), lwt_insert(idx, step), read(path), or done():")
@@ -561,22 +605,22 @@ class AdaptiveNetworkOfThought(BaseMethod):
         self._update_display(request_id, "---", "starting", query)
         trace = self._get_trace()
 
-        # Phase 1
+        # Phase 1: Strategy extraction (schema-aware, no item scanning)
         self._update_display(request_id, "P1", "planning")
         p1_start = time.time()
-        lwt_skeleton, message = self.phase1_plan(query, items, k)
+        strategy, message = self.phase1_plan(query, items, k)
         p1_latency = (time.time() - p1_start) * 1000
 
         if trace:
-            trace["phase1"]["skeleton"] = lwt_skeleton
+            trace["phase1"]["strategy"] = strategy[:500] if strategy else ""
             trace["phase1"]["message"] = message[:500] if message else ""
             trace["phase1"]["latency_ms"] = p1_latency
             self._save_trace_incremental(request_id)
 
-        # Phase 2
+        # Phase 2: Generate batched LWT from strategy
         self._update_display(request_id, "P2", "expanding")
         p2_start = time.time()
-        expanded_lwt_steps = self.phase2_expand(lwt_skeleton, message, data)
+        expanded_lwt_steps = self.phase2_expand(strategy, message, n_items, data)
         p2_latency = (time.time() - p2_start) * 1000
         expanded_lwt = "\n".join(expanded_lwt_steps)
 

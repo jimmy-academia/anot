@@ -7,10 +7,11 @@ from pathlib import Path
 from rich.console import Console
 from rich.table import Table
 
-from data.loader import load_dataset, filter_by_candidates
+from data.loader import load_dataset, filter_by_candidates, DICT_MODE_METHODS
 from utils.parsing import parse_limit_spec
 from utils.aggregate import print_ranking_results
 from utils.usage import get_usage_tracker
+from utils.llm import get_token_budget, get_configured_model
 
 from .evaluate import evaluate_ranking, compute_multi_k_stats, extract_hits_at
 from .io import (
@@ -149,9 +150,17 @@ def _run_scale_point(args, run_dir: Path, n_candidates: int, k: int, tracker, lo
     )
 
     # Run evaluation
-    dict_mode_methods = {"anot", "weaver"}
-    eval_mode = "dict" if args.method in dict_mode_methods else "string"
+    eval_mode = "dict" if args.method in DICT_MODE_METHODS else "string"
     shuffle = getattr(args, 'shuffle', 'random')
+
+    # Build token budget for string-mode methods (pack-to-budget truncation)
+    token_budget = None
+    model = None
+    if args.method not in DICT_MODE_METHODS:
+        model = get_configured_model()
+        token_budget = get_token_budget(model)
+        log.info(f"Token budget: {token_budget:,} (model: {model})")
+
     eval_result = evaluate_ranking(
         dataset.items,
         method,
@@ -162,7 +171,9 @@ def _run_scale_point(args, run_dir: Path, n_candidates: int, k: int, tracker, lo
         shuffle=shuffle,
         parallel=args.parallel,
         max_workers=getattr(args, 'max_concurrent', 200),
-        attack_config=attack_config
+        attack_config=attack_config,
+        token_budget=token_budget,
+        model=model
     )
 
     # Merge with existing

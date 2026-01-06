@@ -172,6 +172,52 @@ def method(query, context: str) -> int
 - **R1**: Allergy-conscious, needs clear ingredient labeling
 - **R2**: Chicago tourist seeking authentic local experience
 
+## Context Truncation (Pack-to-Budget)
+
+String-mode methods (cot, ps, listwise, etc.) use dynamic pack-to-budget truncation to fit context within model limits.
+
+### Policy (Fixed)
+
+- **Priority**: Metadata first, then reviews
+- **Order**: Restaurants in shuffled order, reviews in original order
+- **Selection**: First N reviews that fit (no semantic ranking)
+- **Budget**: Model-specific input token limit
+
+### Token Limits
+
+Defined in `utils/llm.py`:
+- `MODEL_INPUT_LIMITS`: Fixed input budgets (e.g., gpt-5-nano → 270k)
+- `MODEL_CONTEXT_LIMITS`: Context windows for formula-based calculation
+- `get_token_budget(model)`: Returns input token budget
+
+### Implementation
+
+- `data/loader.py:format_ranking_query_packed()` - Two-pass packing:
+  1. Include all restaurants with metadata (ensures fair evaluation)
+  2. Add reviews round-robin until budget exhausted
+- Uses `tiktoken` for accurate token counting
+
+### Coverage Stats
+
+Each result includes coverage stats when truncation is applied:
+```json
+{
+  "coverage": {
+    "restaurants": 50,
+    "reviews_included": 127,
+    "reviews_total": 500,
+    "tokens_used": 245000
+  }
+}
+```
+
+### Which Methods Use Truncation
+
+- **String mode** (truncated): cot, ps, plan_act, listwise, etc.
+- **Dict mode** (no truncation): anot, weaver - they access data selectively
+
+Defined in `data/loader.py:DICT_MODE_METHODS`.
+
 ## Attack Implementation
 
 **Status**: Core infrastructure done, testing in progress. See `doc/internal/attack_plan.md` for full plan.

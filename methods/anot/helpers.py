@@ -246,3 +246,34 @@ def format_items_compact(items: list, truncate: int = DEFAULT_LEAF_TRUNCATE) -> 
         lines.append(f"Item {i+1}: {formatted}")
 
     return "\n".join(lines)
+
+
+def format_schema_compact(items: list, num_examples: int = 2, truncate: int = 50) -> str:
+    """Format 1-2 example items with FULL structure to show available schema.
+
+    Unlike format_items_compact, this uses longer truncation (50 chars) to show
+    more detail, helping LLM understand what fields are available.
+
+    Args:
+        items: List of item dicts
+        num_examples: How many example items to show (default 2)
+        truncate: Max chars for leaf string values (default 50 - more detail)
+
+    Returns:
+        Formatted string with schema examples
+
+    Example output:
+        [EXAMPLE ITEM 1]
+        {name:Milkcrate Cafe,attributes:{GoodForKids:True,WiFi:free,Ambience:{hipster:True,casual:True,...}},hours:{Monday:8:0-18:0,Tuesday:8:0-18:0,...},reviews:[{text:Great coffee and atmosphere...,user:{name:John,elite:[2019,2020]}}]}
+
+        [EXAMPLE ITEM 2]
+        ...
+    """
+    lines = []
+    for i, item in enumerate(items[:num_examples]):
+        formatted = _format_value(item, truncate)
+        lines.append(f"[EXAMPLE ITEM {i+1}]")
+        lines.append(formatted)
+        lines.append("")  # blank line between items
+
+    return "\n".join(lines)

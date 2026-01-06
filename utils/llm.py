@@ -84,6 +84,67 @@ MODEL_CONFIG = {
 }
 
 # -----------------------------
+# Token limits by model
+# -----------------------------
+# MODEL_CONTEXT_LIMITS: Total context window (input + output).
+# Used with formula: input_budget = context - output_reserve - safety_margin
+MODEL_CONTEXT_LIMITS = {
+    # OpenAI
+    "gpt-4o": 128000,
+    "gpt-4o-mini": 128000,
+    "gpt-4-turbo": 128000,
+    "gpt-4": 8192,
+    "gpt-3.5-turbo": 16385,
+    "o1": 200000,
+    "o1-mini": 128000,
+    "o3-mini": 200000,
+    # Anthropic
+    "claude-3-5-sonnet-20241022": 200000,
+    "claude-3-opus-20240229": 200000,
+    "claude-3-sonnet-20240229": 200000,
+    "claude-3-haiku-20240307": 200000,
+}
+
+# Default context limit for unknown models
+DEFAULT_CONTEXT_LIMIT = 128000
+
+# MODEL_INPUT_LIMITS: Fixed input token budgets for models with explicit caps.
+# These override the formula calculation in get_token_budget().
+# Use when a model has a hard input limit separate from context window.
+MODEL_INPUT_LIMITS = {
+    "gpt-5-nano": 270000,  # 400k context, but 270k input / 32k output split
+}
+
+
+def get_token_budget(model: str = None, output_reserve: int = 2000, safety_pct: float = 0.05) -> int:
+    """Get input token budget for a model.
+
+    Args:
+        model: Model name. If None, uses configured model.
+        output_reserve: Tokens to reserve for output (default: 2000)
+        safety_pct: Safety margin as fraction of limit (default: 5%)
+
+    Returns:
+        Max input tokens to use
+    """
+    if model is None:
+        model = _config.get("model") or MODEL_CONFIG.get("default", "gpt-4o")
+
+    # Check for fixed input limit first
+    if model in MODEL_INPUT_LIMITS:
+        return MODEL_INPUT_LIMITS[model]
+
+    # Otherwise use formula: context - output - margin
+    limit = MODEL_CONTEXT_LIMITS.get(model, DEFAULT_CONTEXT_LIMIT)
+    safety_margin = int(limit * safety_pct)
+    return limit - output_reserve - safety_margin
+
+
+def get_configured_model() -> str:
+    """Get the currently configured model name."""
+    return _config.get("model") or MODEL_CONFIG.get("default", "gpt-4o")
+
+# -----------------------------
 # Global config (set via configure())
 # -----------------------------
 _config = {

@@ -6,6 +6,20 @@ This document tracks baseline methods for comparison with ANoT.
 
 ---
 
+## Context Handling
+
+Methods are categorized by how they handle context:
+
+- **String mode**: Receive full context as text. Use pack-to-budget truncation (reviews trimmed round-robin to fit token limit). See `CLAUDE.md` for details.
+- **Dict mode**: Receive structured data, access selectively. No truncation needed.
+
+| Mode | Methods | Truncation |
+|------|---------|------------|
+| String | cot, ps, plan_act, listwise, react, decomp, l2m, selfask, pal, pot, cot_table | Yes (pack-to-budget) |
+| Dict | anot, weaver | No |
+
+---
+
 ## Full-context (monolithic evidence per call)
 
 | Method | Paper | Venue | Year | File |

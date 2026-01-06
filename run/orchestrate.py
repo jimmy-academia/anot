@@ -4,10 +4,11 @@
 import json
 from pathlib import Path
 
-from data.loader import load_dataset, filter_by_candidates
+from data.loader import load_dataset, filter_by_candidates, DICT_MODE_METHODS
 from utils.parsing import parse_limit_spec
 from utils.aggregate import print_ranking_results
 from utils.usage import get_usage_tracker
+from utils.llm import get_token_budget, get_configured_model
 
 from .evaluate import evaluate_ranking, compute_multi_k_stats
 from .io import load_existing_results, load_usage, save_usage, extract_usage_from_results
@@ -27,18 +28,25 @@ def run_evaluation_loop(args, dataset, method, experiment, attack_config=None):
         Dict with stats
     """
     # Use dict mode for methods that need structured access
-    dict_mode_methods = {"anot", "weaver"}
-    eval_mode = "dict" if args.method in dict_mode_methods else "string"
+    eval_mode = "dict" if args.method in DICT_MODE_METHODS else "string"
     k = getattr(args, 'k', 5)
     shuffle = getattr(args, 'shuffle', 'random')
     parallel = getattr(args, 'parallel', True)
     max_workers = getattr(args, 'max_concurrent', 40)
 
+    # Build token budget for string-mode methods (pack-to-budget truncation)
+    token_budget = None
+    model = None
+    if args.method not in DICT_MODE_METHODS:
+        model = get_configured_model()
+        token_budget = get_token_budget(model)
+
     # Ranking evaluation (default)
     mode_str = "parallel" if parallel else "sequential"
     shuffle_str = f", shuffle={shuffle}" if shuffle != "none" else ""
     attack_str = f", attack={attack_config['attack']}" if attack_config else ""
-    print(f"\nRunning ranking evaluation (k={k}, {mode_str}{shuffle_str}{attack_str})...", flush=True)
+    trunc_str = f", budget={token_budget:,}" if token_budget else ""
+    print(f"\nRunning ranking evaluation (k={k}, {mode_str}{shuffle_str}{attack_str}{trunc_str})...", flush=True)
     eval_out = evaluate_ranking(
         dataset.items,
         method,
@@ -49,7 +57,9 @@ def run_evaluation_loop(args, dataset, method, experiment, attack_config=None):
         shuffle=shuffle,
         parallel=parallel,
         max_workers=max_workers,
-        attack_config=attack_config
+        attack_config=attack_config,
+        token_budget=token_budget,
+        model=model
     )
     # Get current usage for display
     usage_for_display = get_usage_tracker().get_summary()

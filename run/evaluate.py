@@ -5,7 +5,7 @@ import inspect
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Callable
 
-from data.loader import format_ranking_query
+from data.loader import format_ranking_query, format_ranking_query_packed
 from utils.parsing import parse_indices
 from utils.usage import get_usage_tracker
 
@@ -60,7 +60,8 @@ def compute_multi_k_stats(results: list[dict], k: int) -> dict:
 
 def evaluate_ranking_single(method, items: list, mode: str, shuffle: str,
                             query: str, k: int, req: dict,
-                            groundtruth: dict, attack_config: dict = None) -> dict | None:
+                            groundtruth: dict, attack_config: dict = None,
+                            token_budget: int = None, model: str = None) -> dict | None:
     """Evaluate a single request (thread-safe helper).
 
     Args:
@@ -73,6 +74,8 @@ def evaluate_ranking_single(method, items: list, mode: str, shuffle: str,
         req: Request dict with 'id'
         groundtruth: {request_id: {"gold_restaurant": str, "gold_idx": int}}
         attack_config: Optional attack configuration for per-request attacks
+        token_budget: Optional token budget for pack-to-budget truncation (string mode only)
+        model: Model name for tokenizer (required if token_budget is set)
 
     Returns:
         Result dict or None if no ground truth
@@ -100,7 +103,14 @@ def evaluate_ranking_single(method, items: list, mode: str, shuffle: str,
     shuffled_items, mapping, shuffled_gold_pos = apply_shuffle(items, gold_idx, shuffle)
 
     # Format items as context (restaurant data)
-    context, item_count = format_ranking_query(shuffled_items, mode)
+    coverage_stats = None
+    if token_budget and mode == "string":
+        # Use pack-to-budget formatting for string mode
+        context, item_count, coverage_stats = format_ranking_query_packed(
+            shuffled_items, token_budget, model or "gpt-4o"
+        )
+    else:
+        context, item_count = format_ranking_query(shuffled_items, mode)
 
     # Track per-request token usage
     tracker = get_usage_tracker()
@@ -137,7 +147,7 @@ def evaluate_ranking_single(method, items: list, mode: str, shuffle: str,
     # Map predictions back to original indices
     pred_indices = unmap_predictions(shuffled_preds, mapping)
 
-    return {
+    result = {
         "request_id": req_id,
         "pred_indices": pred_indices,
         "shuffled_preds": shuffled_preds,
@@ -150,6 +160,9 @@ def evaluate_ranking_single(method, items: list, mode: str, shuffle: str,
         "cost_usd": request_cost,
         "latency_ms": request_latency,
     }
+    if coverage_stats:
+        result["coverage"] = coverage_stats
+    return result
 
 
 def _run_with_progress(generator, has_rich_display: bool, description: str, total: int):
@@ -173,7 +186,8 @@ def _run_with_progress(generator, has_rich_display: bool, description: str, tota
 def evaluate_ranking(items: list[dict], method: Callable, requests: list[dict],
                      groundtruth: dict, mode: str = "string", k: int = 5,
                      shuffle: str = "random", parallel: bool = True,
-                     max_workers: int = 40, attack_config: dict = None) -> dict:
+                     max_workers: int = 40, attack_config: dict = None,
+                     token_budget: int = None, model: str = None) -> dict:
     """Evaluate using ranking (Hits@K accuracy).
 
     Args:
@@ -187,6 +201,8 @@ def evaluate_ranking(items: list[dict], method: Callable, requests: list[dict],
         parallel: Whether to use parallel execution (default True)
         max_workers: Maximum number of worker threads (default 40)
         attack_config: Optional attack configuration for per-request attacks
+        token_budget: Optional token budget for pack-to-budget truncation (string mode only)
+        model: Model name for tokenizer (required if token_budget is set)
 
     Returns:
         Dict with results and accuracy stats
@@ -199,14 +215,15 @@ def evaluate_ranking(items: list[dict], method: Callable, requests: list[dict],
 
     try:
         return _evaluate_ranking_inner(
-            items, method, requests, groundtruth, mode, k, shuffle, parallel, max_workers, has_rich_display, attack_config
+            items, method, requests, groundtruth, mode, k, shuffle, parallel, max_workers,
+            has_rich_display, attack_config, token_budget, model
         )
     finally:
         if has_rich_display:
             method.stop_display()
 
 
-def _evaluate_ranking_inner(items, method, requests, groundtruth, mode, k, shuffle, parallel, max_workers, has_rich_display, attack_config=None):
+def _evaluate_ranking_inner(items, method, requests, groundtruth, mode, k, shuffle, parallel, max_workers, has_rich_display, attack_config=None, token_budget=None, model=None):
     """Inner implementation of evaluate_ranking (wrapped by display context)."""
     req_ids = [r["id"] for r in requests]
     context_exceeded = False
@@ -221,7 +238,7 @@ def _evaluate_ranking_inner(items, method, requests, groundtruth, mode, k, shuff
                         evaluate_ranking_single,
                         method, items, mode, shuffle,
                         req.get("context") or req.get("text", ""),  # query = user request
-                        k, req, groundtruth, attack_config
+                        k, req, groundtruth, attack_config, token_budget, model
                     ): req
                     for req in requests
                 }
@@ -246,7 +263,8 @@ def _evaluate_ranking_inner(items, method, requests, groundtruth, mode, k, shuff
                 query = req.get("context") or req.get("text", "")  # query = user request
                 try:
                     result = evaluate_ranking_single(
-                        method, items, mode, shuffle, query, k, req, groundtruth, attack_config
+                        method, items, mode, shuffle, query, k, req, groundtruth,
+                        attack_config, token_budget, model
                     )
                     if result:
                         results.append(result)

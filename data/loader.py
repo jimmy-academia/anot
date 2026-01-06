@@ -378,3 +378,123 @@ def format_ranking_query(items: list[dict], mode: str = "string") -> tuple[Any, 
         parts.append("")
 
     return "\n".join(parts), len(items)
+
+
+# Methods using dict mode (don't need truncation - they access data selectively)
+DICT_MODE_METHODS = {"anot", "weaver"}
+
+
+def format_ranking_query_packed(
+    items: list[dict],
+    token_budget: int,
+    model: str = "gpt-4o"
+) -> tuple[str, int, dict]:
+    """Pack items into context up to token budget.
+
+    Uses deterministic two-pass policy to ensure ALL restaurants are included:
+    - Pass 1: Include all restaurants with metadata (no reviews)
+    - Pass 2: Add reviews round-robin until budget exhausted
+
+    This ensures fair evaluation where all candidates are visible to the model.
+
+    Args:
+        items: List of item dicts (restaurants to rank)
+        token_budget: Maximum tokens for the context
+        model: Model name for tokenizer selection
+
+    Returns:
+        (context_str, item_count, coverage_stats)
+    """
+    import tiktoken
+
+    try:
+        enc = tiktoken.encoding_for_model(model)
+    except KeyError:
+        # Fallback to cl100k_base for unknown models
+        enc = tiktoken.get_encoding("cl100k_base")
+
+    def count_tokens(text: str) -> int:
+        return len(enc.encode(text))
+
+    # Track total reviews for coverage stats
+    total_reviews = sum(len(item.get("reviews", [])) for item in items)
+
+    # Pass 1: Build all items with metadata only
+    item_data = []  # List of (metadata_dict, reviews_list, included_reviews_list)
+    for i, item in enumerate(items, 1):
+        metadata = {k: v for k, v in item.items() if k != "reviews"}
+        metadata["index"] = i
+        reviews = item.get("reviews", [])
+        item_data.append({"metadata": metadata, "reviews": reviews, "included": []})
+
+    def build_context() -> str:
+        """Build context string from current item_data state."""
+        parts = ["Restaurants:\n"]
+        for data in item_data:
+            item_dict = {**data["metadata"]}
+            if data["included"]:
+                item_dict["reviews"] = data["included"]
+            parts.append(json.dumps(item_dict, indent=2))
+            parts.append("")
+        return "\n".join(parts)
+
+    # Check if metadata-only fits
+    context = build_context()
+    current_tokens = count_tokens(context)
+
+    if current_tokens > token_budget:
+        # Even metadata doesn't fit - return what we can with warning
+        coverage_stats = {
+            "restaurants": len(items),
+            "reviews_included": 0,
+            "reviews_total": total_reviews,
+            "reviews_truncated_count": len(items),
+            "tokens_used": current_tokens,
+            "budget_exceeded": True,
+        }
+        return context, len(items), coverage_stats
+
+    # Pass 2: Add reviews round-robin until budget exhausted
+    # Track next review index for each restaurant
+    review_indices = [0] * len(item_data)
+    made_progress = True
+
+    while made_progress:
+        made_progress = False
+        for idx, data in enumerate(item_data):
+            review_idx = review_indices[idx]
+            if review_idx >= len(data["reviews"]):
+                continue  # No more reviews for this restaurant
+
+            # Try adding next review
+            test_review = data["reviews"][review_idx]
+            data["included"].append(test_review)
+            test_context = build_context()
+            test_tokens = count_tokens(test_context)
+
+            if test_tokens > token_budget:
+                # Remove the review, can't fit
+                data["included"].pop()
+            else:
+                # Keep it, move to next review
+                review_indices[idx] += 1
+                current_tokens = test_tokens
+                made_progress = True
+
+    # Build final context
+    context = build_context()
+    reviews_included = sum(len(data["included"]) for data in item_data)
+    truncated_count = sum(
+        1 for data in item_data
+        if len(data["included"]) < len(data["reviews"])
+    )
+
+    coverage_stats = {
+        "restaurants": len(items),
+        "reviews_included": reviews_included,
+        "reviews_total": total_reviews,
+        "reviews_truncated_count": truncated_count,
+        "tokens_used": count_tokens(context),
+    }
+
+    return context, len(items), coverage_stats
