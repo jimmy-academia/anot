@@ -131,10 +131,10 @@ class Weaver(BaseMethod):
         rows = []
 
         attrs = data.get('attributes', {})
-        name = data.get('item_name', 'Unknown')
+        name = data.get('name', 'Unknown')
         categories = data.get('categories', [])
 
-        reviews = data.get('item_data', [])
+        reviews = data.get('reviews', [])
         if not reviews:
             return pd.DataFrame([{
                 'restaurant': name,
@@ -153,7 +153,7 @@ class Weaver(BaseMethod):
                 'noise_level': attrs.get('NoiseLevel', 'unknown'),
                 'wifi': attrs.get('WiFi', 'unknown'),
                 'price_range': attrs.get('RestaurantsPriceRange2', 'unknown'),
-                'review': review.get('review', '')[:300],
+                'review': review.get('text', '')[:300],
                 'stars': review.get('stars', 0),
                 'date': review.get('date', '')
             })

@@ -172,18 +172,38 @@ def method(query, context: str) -> int
 - **R1**: Allergy-conscious, needs clear ingredient labeling
 - **R2**: Chicago tourist seeking authentic local experience
 
-## WIP: Attack Implementation
+## Attack Implementation
 
-**Status**: Planned, not yet integrated. See `doc/attack_plan.md` for details.
+**Status**: Core infrastructure done, testing in progress. See `doc/internal/attack_plan.md` for full plan.
 
 **Goal**: Test robustness - attacks should cause CoT to fail while ANoT resists.
 
-**Key files**:
-- `oldsrc/attack.py` - Existing attack implementations (typo, injection, fake_review, sarcastic)
-- `utils/arguments.py` - Already has `--attack`, `--seed`, `--defense` flags (parsed but unused)
+### What's Done
+- ✅ `attack.py` - Full implementation (typo, injection ×4, fake_review, sarcastic, heterogeneity)
+- ✅ `run/evaluate.py:91-97` - Per-request attack application (protects gold item)
+- ✅ Attack config stored in `config.json` for reproducibility
 
-**Next steps**:
-1. Copy `oldsrc/attack.py` → `attack.py`
-2. Wire into `run/scaling.py` and `run/orchestrate.py` (after `filter_by_candidates`)
-3. For injection attacks, target = OPPOSITE of ground truth (gold item gets -1, others get 1)
-4. Test: CoT fails with attacks, ANoT resists, defense on CoT doesn't help
+### What's In Progress
+- ⚠️ Testing: Previous tests used only 2 requests (inconclusive)
+- ❌ Defense testing: `--defense` flag exists but untested
+
+### Available Attacks
+```bash
+# Noise attacks
+python main.py --method cot --attack typo_10    # 10% word typos
+python main.py --method cot --attack typo_20    # 20% word typos
+
+# Injection attacks (target non-gold items)
+python main.py --method cot --attack inject_override      # "IGNORE INSTRUCTIONS"
+python main.py --method cot --attack inject_fake_sys      # Fake system messages
+python main.py --method cot --attack inject_hidden        # Hidden instructions
+python main.py --method cot --attack inject_manipulation  # Authority/FOMO
+
+# Fake review attacks
+python main.py --method cot --attack fake_positive   # Add glowing review
+python main.py --method cot --attack fake_negative   # Add terrible review
+python main.py --method cot --attack sarcastic_all   # Misleading sentiment
+```
+
+### Key Constraint
+**NEVER modify gold items** - all attacks target non-gold items only.

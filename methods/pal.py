@@ -30,8 +30,8 @@ IMPORTANT RULES:
 3. Return exactly: 1 (recommend), 0 (neutral), or -1 (not recommend)
 4. Use descriptive variable names that explain your reasoning
 5. You can use: json, re, math, collections, statistics (already imported)
-6. Access data using: data['attributes'], data['hours'], data['item_data'], etc.
-7. Reviews are in data['item_data'] - each has 'review', 'stars', 'date' keys
+6. Access data using: data['attributes'], data['hours'], data['reviews'], etc.
+7. Reviews are in data['reviews'] - each has 'text', 'stars', 'date' keys
 
 Example structure:
 def evaluate(data: dict, request: str) -> int:
@@ -39,7 +39,7 @@ def evaluate(data: dict, request: str) -> int:
     noise_level = data['attributes'].get('NoiseLevel', 'unknown')
 
     # Step 2: Analyze reviews
-    reviews = data.get('item_data', [])
+    reviews = data.get('reviews', [])
     positive_count = sum(1 for r in reviews if r.get('stars', 0) >= 4)
 
     # Step 3: Check specific criteria from request
@@ -127,9 +127,9 @@ Output ONLY the Python code:"""
     def _truncate_data(self, data: dict, max_reviews: int = 5) -> dict:
         """Truncate data to avoid token limits while preserving structure."""
         truncated = dict(data)
-        if 'item_data' in truncated and len(truncated['item_data']) > max_reviews:
-            truncated['item_data'] = truncated['item_data'][:max_reviews]
-            truncated['_truncated'] = f"Showing {max_reviews} of {len(data['item_data'])} reviews"
+        if 'reviews' in truncated and len(truncated['reviews']) > max_reviews:
+            truncated['reviews'] = truncated['reviews'][:max_reviews]
+            truncated['_truncated'] = f"Showing {max_reviews} of {len(data['reviews'])} reviews"
         return truncated
 
     def _extract_code(self, response: str) -> str:

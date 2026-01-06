@@ -155,11 +155,11 @@ Provide final recommendation: ANSWER: 1 (recommend), 0 (neutral), or -1 (not rec
 
         # Get restaurant-level attributes
         attrs = data.get('attributes', {})
-        name = data.get('item_name', 'Unknown')
+        name = data.get('name', 'Unknown')
         categories = data.get('categories', [])
 
         # Create one row per review
-        reviews = data.get('item_data', [])
+        reviews = data.get('reviews', [])
         if not reviews:
             # No reviews - create single row with attributes only
             return [{
@@ -180,7 +180,7 @@ Provide final recommendation: ANSWER: 1 (recommend), 0 (neutral), or -1 (not rec
                 'noise_level': attrs.get('NoiseLevel', 'unknown'),
                 'wifi': attrs.get('WiFi', 'unknown'),
                 'price_range': attrs.get('RestaurantsPriceRange2', 'unknown'),
-                'review': review.get('review', '')[:200],  # Truncate long reviews
+                'review': review.get('text', '')[:200],  # Truncate long reviews
                 'stars': review.get('stars', 0),
                 'date': review.get('date', '')
             }
@@ -344,7 +344,7 @@ Provide final recommendation: ANSWER: 1 (recommend), 0 (neutral), or -1 (not rec
 Think of each restaurant as a row in a table with columns:
 - attributes (NoiseLevel, WiFi, etc.)
 - hours (operating hours)
-- reviews (from item_data)
+- reviews (from reviews list, text field)
 
 Compare each restaurant's table data against the user's criteria.
 

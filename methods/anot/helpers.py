@@ -70,7 +70,7 @@ def format_items_compact(items: list) -> str:
     """
     lines = []
     for i, item in enumerate(items):
-        name = item.get("item_name", f"Item {i}")
+        name = item.get("name", f"Item {i}")
         attrs = item.get("attributes", {})
         hours = item.get("hours", {})
 

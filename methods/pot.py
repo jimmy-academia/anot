@@ -30,7 +30,7 @@ IMPORTANT RULES:
    - -1 (not recommend)
 
 Available variables:
-- `restaurant`: dict with keys like 'attributes', 'hours', 'item_data' (reviews)
+- `restaurant`: dict with keys like 'attributes', 'hours', 'reviews'
 - `user_request`: string describing what the user wants
 
 Output ONLY the Python code block, no explanations."""

@@ -11,7 +11,7 @@ def tool_read(path: str, data: dict) -> str:
     def resolve_path(p: str, d):
         if not p:
             return d
-        # Parse path like items[2].item_data[0].review
+        # Parse path like items[2].reviews[0].text
         parts = re.split(r'\.|\[|\]', p)
         parts = [x for x in parts if x]
         val = d

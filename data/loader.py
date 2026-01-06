@@ -143,7 +143,10 @@ def load_dataset(data_name: str, review_limit: int = None) -> Dataset:
             reviews_by_biz[biz_id] = []
         reviews_by_biz[biz_id].append(review)
 
-    # Assemble items (restaurant + reviews)
+    # Fields to remove (ground-truth / evaluation-only)
+    RESTAURANT_BLOCKLIST = {"llm_score", "llm_reasoning"}
+
+    # Assemble items (restaurant + reviews) - pass-through with blocklist
     items = []
     for rest in restaurants:
         biz_id = rest["business_id"]
@@ -153,36 +156,18 @@ def load_dataset(data_name: str, review_limit: int = None) -> Dataset:
         if review_limit:
             reviews = reviews[:review_limit]
 
-        # Parse categories string to list
-        cats_str = rest.get("categories", "")
-        categories = [c.strip() for c in cats_str.split(",") if c.strip()] if cats_str else []
+        # Pass-through restaurant dict, remove blocked fields
+        item = {k: v for k, v in rest.items() if k not in RESTAURANT_BLOCKLIST}
 
-        items.append({
-            "item_id": biz_id,
-            "item_name": rest.get("name", ""),
-            "address": rest.get("address", ""),
-            "city": rest.get("city", ""),
-            "state": rest.get("state", ""),
-            "postal_code": rest.get("postal_code", ""),
-            "latitude": rest.get("latitude"),
-            "longitude": rest.get("longitude"),
-            "stars": rest.get("stars"),
-            "review_count": rest.get("review_count"),
-            "is_open": rest.get("is_open"),
-            "attributes": rest.get("attributes", {}),
-            "categories": categories,
-            "hours": rest.get("hours"),
-            "reviews": [
-                {
-                    "review_id": r.get("review_id", ""),
-                    "review": r.get("text", ""),
-                    "stars": r.get("stars", 0),
-                    "date": r.get("date", ""),
-                    "user_id": r.get("user_id", ""),
-                }
-                for r in reviews
-            ]
-        })
+        # Parse categories string → list
+        if isinstance(item.get("categories"), str):
+            cats_str = item["categories"]
+            item["categories"] = [c.strip() for c in cats_str.split(",") if c.strip()]
+
+        # Attach full reviews (pass-through, no field renaming)
+        item["reviews"] = reviews
+
+        items.append(item)
 
     # Load requests
     requests = load_requests(data_name)
@@ -269,30 +254,14 @@ def format_query(item: dict, mode: str = "string") -> tuple[Any, int]:
     reviews = item.get("reviews", [])
 
     if mode == "dict":
-        # Return clean dict for structured access (ANoT, Weaver, etc.)
-        return {
-            "item_id": item.get("item_id", "unknown"),
-            "item_name": item.get("item_name", "Unknown"),
-            "city": item.get("city", "Unknown"),
-            "address": item.get("address", ""),
-            "attributes": item.get("attributes", {}),
-            "hours": item.get("hours"),
-            "categories": item.get("categories", []),
-            "item_data": [
-                {
-                    "review_id": r.get("review_id", ""),
-                    "review": r.get("review", ""),
-                    "stars": r.get("stars", 0),
-                    "date": r.get("date", ""),
-                }
-                for r in reviews
-            ]
-        }, len(reviews)
+        # Pass-through item dict (already cleaned in load_dataset)
+        # Reviews already attached as "reviews" with original field names
+        return item, len(reviews)
 
     # String mode (default) - for CoT, PS, Listwise
     parts = [
         "Restaurant:",
-        f"Name: {item.get('item_name', 'Unknown')}",
+        f"Name: {item.get('name', 'Unknown')}",
         f"City: {item.get('city', 'Unknown')}",
         f"Address: {item.get('address', 'Unknown')}",
     ]
@@ -314,8 +283,8 @@ def format_query(item: dict, mode: str = "string") -> tuple[Any, int]:
     parts.append(f"Reviews ({len(reviews)}):")
     for r in reviews[:10]:  # Limit to first 10 reviews in string mode
         stars = r.get("stars", "?")
-        text = r.get("review", "")[:300]
-        if len(r.get("review", "")) > 300:
+        text = r.get("text", "")[:300]
+        if len(r.get("text", "")) > 300:
             text += "..."
         parts.append(f"  [{stars} stars] {text}")
 
@@ -333,53 +302,18 @@ def format_ranking_query(items: list[dict], mode: str = "string") -> tuple[Any, 
         (query, item_count) where query has items indexed 1 to N
     """
     if mode == "dict":
+        # Pass-through items, just add index field
         return {
             "items": [
-                {
-                    "index": i + 1,
-                    "item_id": item.get("item_id"),
-                    "item_name": item.get("item_name", "Unknown"),
-                    "city": item.get("city", "Unknown"),
-                    "address": item.get("address", ""),
-                    "attributes": item.get("attributes", {}),
-                    "categories": item.get("categories", []),
-                    "hours": item.get("hours"),
-                    "item_data": [
-                        {
-                            "review_id": r.get("review_id", ""),
-                            "review": r.get("review", ""),
-                            "stars": r.get("stars", 0),
-                            "date": r.get("date", ""),
-                        }
-                        for r in item.get("reviews", [])
-                    ]
-                }
+                {**item, "index": i + 1}
                 for i, item in enumerate(items)
             ]
         }, len(items)
 
-    # String mode - serialize full item dicts as JSON (no truncation)
+    # String mode - serialize full item dicts as JSON (pass-through with index)
     parts = ["Restaurants:\n"]
     for i, item in enumerate(items, 1):
-        item_dict = {
-            "index": i,
-            "item_id": item.get("item_id"),
-            "item_name": item.get("item_name", "Unknown"),
-            "city": item.get("city", "Unknown"),
-            "address": item.get("address", ""),
-            "attributes": item.get("attributes", {}),
-            "categories": item.get("categories", []),
-            "hours": item.get("hours"),
-            "reviews": [
-                {
-                    "review_id": r.get("review_id", ""),
-                    "review": r.get("review", ""),
-                    "stars": r.get("stars", 0),
-                    "date": r.get("date", ""),
-                }
-                for r in item.get("reviews", [])
-            ]
-        }
+        item_dict = {**item, "index": i}
         parts.append(json.dumps(item_dict, indent=2))
         parts.append("")
 
