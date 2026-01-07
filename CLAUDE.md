@@ -1,214 +1,331 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+LLM evaluation framework comparing prompting methods on restaurant recommendations.
 
-## Project Overview
+## Quick Reference
 
-This is a Python-based LLM evaluation framework comparing prompting methodologies on a restaurant recommendation task. The system evaluates LLMs against a dataset with ground-truth labels for three user personas.
-
-## Commands
-
-**IMPORTANT: Always use `.venv/bin/python` or activate the virtual environment first!**
-
-### Run Evaluation
 ```bash
-# ALWAYS use the virtual environment
-source .venv/bin/activate
-# OR prefix commands with .venv/bin/python
-
-# Development mode (default): creates results/dev/{NNN}_{run-name}/
-.venv/bin/python main.py --method cot --run-name baseline
-python main.py --method anot --run-name experiment1
-
-# Benchmark mode: set BENCHMARK_MODE=True in utils/arguments.py
-# Creates results/benchmarks/{run-name}/ (tracked in git)
-
-# Custom data paths
-python main.py --method anot --data data/processed/complex_data.jsonl --run-name complex
-
-# With pre-generated attacks
-python main.py --method anot --attack typo_10 --run-name robustness
-
-# Test with dummy method
-python main.py --method dummy --limit 5 -v
-```
-
-### Generate Attacked Data
-```bash
-# Pre-generate attacked datasets (one-time)
-python data/scripts/generate_attacks.py data/processed/real_data.jsonl
-# Creates: data/attacked/typo_10.jsonl, data/attacked/inject_override.jsonl, etc.
-```
-
-### Environment Setup
-```bash
-# IMPORTANT: Always activate the virtual environment first
+# Always use virtual environment
 source .venv/bin/activate
 
-# NOTE: Do not run pip install commands. If a package is missing, notify the user
-# and let them decide whether to install it.
+# Run evaluation
+python main.py --method anot --candidates 50
+python main.py --method cot --candidates 10 --attack typo_10
 
-# API key: llm.py auto-loads from ../.openaiapi (no manual export needed)
-# Or set manually:
-export OPENAI_API_KEY="sk-..."
-export ANTHROPIC_API_KEY="sk-ant-..."
+# Scaling experiment (default, no --candidates)
+python main.py --method anot
 
-# Optional LLM configuration
-export LLM_PROVIDER="openai"  # or "anthropic" or "local"
-export LLM_MODEL="gpt-4o-mini"
+# Dev mode (results/dev/)
+python main.py --method anot --candidates 50 --dev
 
-# Verbose terminal output (default: on, use --no-verbose to disable)
-python main.py --method anot --no-verbose
-
-# Structured logs written to {run_dir}/:
-#   results_{n}.jsonl   - predictions + per-request usage
-#   usage.jsonl         - consolidated usage across runs
-#   anot_trace.jsonl    - ANoT phase-level structured trace
-#   debug.log           - ANoT debug (always-on, file-only, overwrites each run)
-#   config.json         - run configuration
-#
-# ANoT debug.log: Full LLM prompts/responses, phase traces, timestamps.
-# No env var needed - always written when run_dir exists.
-# See doc/logging.md for full schema details
+# Attack sweep
+python main.py --method cot --attack all --candidates 10
 ```
 
-## Architecture
+**Key locations:**
+- Add method: `methods/newmethod.py` + `methods/__init__.py` (METHOD_REGISTRY)
+- Add attack: `attack.py` (ATTACK_CONFIGS)
+- Change models: `utils/llm.py` (MODEL_CONFIG)
+- Modify evaluation: `run/evaluate.py`
 
-### Core Files
+## Method System
 
-- **main.py** - Entry point: parses args, sets up experiment, delegates to run/.
+### BaseMethod Class
 
-- **run/** - Evaluation orchestration package:
-  - `orchestrate.py` - `run_single()`, `run_evaluation_loop()`
-  - `evaluate.py` - `evaluate_ranking()`, `compute_multi_k_stats()`
-  - `scaling.py` - `run_scaling_experiment()`
-  - `shuffle.py` - Shuffle utilities for position bias mitigation
-  - `io.py` - Result loading/saving
+All methods inherit from `BaseMethod` (`methods/base.py`):
 
-- **methods/anot/** - Adaptive Network of Thought package:
-  - `core.py` - Main `AdaptiveNetworkOfThought` class with 3 phases
-  - `helpers.py` - DAG building, formatting utilities
-  - `tools.py` - Phase 2 LWT manipulation tools
-  - `prompts.py` - LLM prompt constants
-
-- **utils/experiment.py** - `ExperimentManager` class for dev/benchmark mode directory handling.
-
-- **utils/llm.py** - Unified LLM API wrapper. Supports OpenAI, Anthropic, and local endpoints.
-
-- **methods/cot.py** - Chain-of-Thought using few-shot prompting.
-
-- **attack.py** - Attack functions (typo, injection, fake_review) and configs.
-
-### Directory Structure
-
-```
-data/
-├── raw/           # Raw Yelp data
-├── processed/     # Generated datasets (real_data.jsonl, complex_data.jsonl)
-├── attacked/      # Pre-generated attacked datasets
-├── requests/      # User persona definitions
-└── scripts/       # Data generation scripts
-
-results/
-├── dev/           # Development runs (gitignored)
-│   ├── 001_baseline/
-│   └── 002_experiment/
-└── benchmarks/    # Benchmark runs (tracked in git)
-    └── final_run/
-
-run/               # Evaluation orchestration package
-├── orchestrate.py # run_single, run_evaluation_loop
-├── evaluate.py    # evaluate_ranking, stats computation
-├── scaling.py     # Scaling experiment
-├── shuffle.py     # Shuffle utilities
-└── io.py          # Result I/O
-
-methods/           # Evaluation methods
-├── anot/          # ANoT package (core.py, helpers.py, tools.py, prompts.py)
-├── cot.py         # Chain-of-Thought
-├── listwise.py    # Listwise reranking
-├── weaver.py      # SQL+LLM hybrid
-└── ...
-
-utils/             # Utility modules
-doc/               # Implementation documentation (not for main paper)
-```
-
-**Note**: Documentation in `doc/` describes implementation details for code maintenance. These are not intended for the main research paper.
-
-### Method Interface
-
-All methods implement:
 ```python
-def method(query, context: str) -> int
-    # returns: -1 (not recommend), 0 (neutral), 1 (recommend)
+class BaseMethod(ABC):
+    name: str = "base"
+
+    def __init__(self, run_dir: str = None, defense: bool = False, verbose: bool = True, **kwargs):
+        ...
+
+    @abstractmethod
+    def evaluate(self, query: Any, context: str) -> int:
+        """Single item evaluation.
+        Returns: 1 (recommend), 0 (neutral), -1 (not recommend)
+        """
+
+    def evaluate_ranking(self, query: str, context: str, k: int = 1) -> str:
+        """Ranking task. Returns comma-separated indices e.g. '3, 1, 5'"""
+        return "1"  # Default
 ```
 
-### Variable Substitution (methods/anot/)
+### Method Registry
 
-ANoT uses path-based variable substitution for data access:
+Methods are registered in `methods/__init__.py`:
+
+```python
+METHOD_REGISTRY = {
+    "cot": (ChainOfThought, True),      # (class, supports_defense)
+    "ps": (PlanAndSolve, False),
+    "plan_act": (PlanAndAct, True),
+    "listwise": (ListwiseRanker, True),
+    "weaver": (Weaver, True),
+    "anot": (AdaptiveNetworkOfThought, True),
+    "react": (ReAct, False),
+    ...  # 17 total methods
+}
+
+# Factory function
+get_method(name, run_dir, defense, verbose) -> BaseMethod
+```
+
+**Defense-enabled methods** (5): cot, plan_act, listwise, weaver, anot
+
+### Adding a New Method
+
+1. Create `methods/mymethod.py`:
+```python
+from .base import BaseMethod
+
+class MyMethod(BaseMethod):
+    name = "mymethod"
+
+    def evaluate(self, query, context: str) -> int:
+        ...
+
+    def evaluate_ranking(self, query: str, context: str, k: int = 1) -> str:
+        ...
+```
+
+2. Register in `methods/__init__.py`:
+```python
+from .mymethod import MyMethod
+METHOD_REGISTRY["mymethod"] = (MyMethod, False)  # (class, supports_defense)
+```
+
+## Data Modes
+
+### String vs Dict Mode
+
+```python
+# data/loader.py
+DICT_MODE_METHODS = {"anot", "weaver", "react"}
+```
+
+| Mode | Methods | Context Type | Truncation |
+|------|---------|--------------|------------|
+| **String** | cot, ps, listwise, etc. | Pre-formatted text | Yes (pack-to-budget) |
+| **Dict** | anot, weaver, react | Raw dict | No (selective access) |
+
+Mode is determined in `run/orchestrate.py:42`:
+```python
+eval_mode = "dict" if args.method in DICT_MODE_METHODS else "string"
+```
+
+### Token Budget
+
+For string-mode methods, context is truncated to fit token budget.
+
+**Calculation** (`utils/llm.py:get_token_budget()`):
+1. If model in `MODEL_INPUT_LIMITS`: use fixed limit
+2. Else: `context_window - 2000 (output) - 5% (safety)`
+
+```python
+MODEL_INPUT_LIMITS = {"gpt-5-nano": 270000}
+MODEL_CONTEXT_LIMITS = {"gpt-4o": 128000, "claude-3-5-sonnet-20241022": 200000, ...}
+```
+
+**Pack-to-budget algorithm** (`data/loader.py:format_ranking_query_packed()`):
+1. Pass 1: Include all restaurants with metadata
+2. Pass 2: Add reviews round-robin until budget exhausted
+
+## Evaluation Flow
+
+```
+main.py
+  -> parse_args()                    [utils/arguments.py]
+  -> config_llm(args)                [utils/llm.py]
+  -> ExperimentManager()             [utils/experiment.py]
+  |
+  +-> run_scaling_experiment()       [run/scaling.py] (default, no --candidates)
+  +-> run_single()                   [run/orchestrate.py] (with --candidates)
+      -> load_dataset()              [data/loader.py]
+      -> get_method()                [methods/__init__.py]
+      -> run_evaluation_loop()       [run/orchestrate.py]
+         -> evaluate_ranking()       [run/evaluate.py]
+            -> apply_shuffle()       [run/shuffle.py]
+            -> format_context()      (string/dict based on DICT_MODE_METHODS)
+            -> method.evaluate_ranking()
+            -> parse_indices()       [utils/parsing.py]
+            -> unmap_predictions()   (reverse shuffle)
+```
+
+**Special case**: ANoT accepts `request_id` parameter, detected via `inspect.signature()` in `run/evaluate.py:134-137`.
+
+## ANoT Package
+
+`methods/anot/` contains the Adaptive Network of Thought implementation:
+
+- `core.py` - Main `AdaptiveNetworkOfThought` class (3-phase architecture)
+- `helpers.py` - DAG building, dependency analysis
+- `tools.py` - LWT manipulation tools (`tool_read`, `tool_lwt_*`)
+- `prompts.py` - LLM prompt constants
+
+### Variable Substitution (ANoT only)
+
+Path-based variable substitution for selective data access:
 
 | Variable | Maps to | Description |
 |----------|---------|-------------|
-| `{(context)}` | items dict | Restaurant data (1-indexed) |
-| `{(input)}` / `{(items)}` | items dict | Same as context |
+| `{(context)}` / `{(items)}` | items dict | Restaurant data (1-indexed) |
 | `{(query)}` | user_query | User's request text |
 | `{(step_id)}` | cache | Previous step output |
 
-**Path-based access**: Access single leaf values to minimize tokens
+**Path syntax**:
 ```
-# Access item 1's GoodForKids attribute
-{(context)}[1][attributes][GoodForKids] → True
-
-# Access nested attribute
-{(context)}[2][attributes][Ambience][hipster] → False
-
-# Reference previous step
-{(c1)} → "[1, 5, 10]"
+{(context)}[1][attributes][GoodForKids]  -> True
+{(context)}[2][reviews][0][text]         -> "Great place..."
+{(c1)}                                   -> "[1, 5, 10]"
 ```
 
-### Key Design Patterns
+### Thread Safety
 
-1. **Leakage Prevention**: `final_answers` and `condition_satisfy` never passed to LLM.
+ANoT uses `threading.local()` for per-request context isolation during parallel execution.
 
-2. **Variable Substitution**: `{(var)}[key][index]` for nested access in scripts.
+### Output Files
 
-3. **Dynamic Script Generation** (methods/anot/): LLM generates execution plan at runtime.
+- `anot_trace.jsonl` - Structured phase-level trace
+- `debug.log` - Full LLM prompts/responses (always-on when run_dir exists)
 
-### User Request Personas (R0, R1, R2)
+## Attack System
 
-- **R0**: Quiet dining, comfortable seating, budget-conscious
-- **R1**: Allergy-conscious, needs clear ingredient labeling
-- **R2**: Chicago tourist seeking authentic local experience
+13 attack types targeting non-gold items only:
 
-## Context Truncation (Pack-to-Budget)
+```bash
+# Noise
+--attack typo_10           # 10% word typos
+--attack typo_20           # 20% word typos
 
-String-mode methods (cot, ps, listwise, etc.) use dynamic pack-to-budget truncation to fit context within model limits.
+# Injection (4 types)
+--attack inject_override   # "IGNORE INSTRUCTIONS"
+--attack inject_fake_sys   # Fake system messages
+--attack inject_hidden     # Hidden in positive language
+--attack inject_manipulation  # Authority/FOMO
 
-### Policy (Fixed)
+# Fake reviews
+--attack fake_positive     # Glowing review
+--attack fake_negative     # Terrible review
 
-- **Priority**: Metadata first, then reviews
-- **Order**: Restaurants in shuffled order, reviews in original order
-- **Selection**: First N reviews that fit (no semantic ranking)
-- **Budget**: Model-specific input token limit
+# Sarcastic (misleading sentiment)
+--attack sarcastic_wifi    # WiFi-specific
+--attack sarcastic_noise   # Noise-specific
+--attack sarcastic_outdoor # Outdoor-specific
+--attack sarcastic_all     # All attributes
 
-### Token Limits
+# Length manipulation
+--attack heterogeneity     # Requires --attack-target-len
 
-Defined in `utils/llm.py`:
-- `MODEL_INPUT_LIMITS`: Fixed input budgets (e.g., gpt-5-nano → 270k)
-- `MODEL_CONTEXT_LIMITS`: Context windows for formula-based calculation
-- `get_token_budget(model)`: Returns input token budget
+# Batch modes
+--attack all               # Run all attacks
+--attack both              # Clean baseline + all attacks
+```
 
-### Implementation
+**Key constraint**: Gold items are NEVER attacked (protected in `run/evaluate.py`).
 
-- `data/loader.py:format_ranking_query_packed()` - Two-pass packing:
-  1. Include all restaurants with metadata (ensures fair evaluation)
-  2. Add reviews round-robin until budget exhausted
-- Uses `tiktoken` for accurate token counting
+**Per-request seeding**: Uses `hash(req_id) % (2**31)` for reproducibility.
 
-### Coverage Stats
+## Configuration
 
-Each result includes coverage stats when truncation is applied:
+### Global Flags
+
+```python
+# utils/arguments.py
+PARALLEL_MODE = True    # Enable parallel API calls
+BENCHMARK_MODE = True   # Use results/benchmarks/ (tracked in git)
+```
+
+Override via CLI: `--sequential`, `--dev`
+
+### LLM Configuration
+
+```python
+# utils/llm.py
+MODEL_CONFIG = {
+    "planner": "gpt-5-nano",
+    "worker": "gpt-5-nano",
+    "default": "gpt-5-nano",
+}
+
+_config = {
+    "temperature": 0.0,
+    "max_tokens": 1024,
+    "max_tokens_reasoning": 4096,
+    "provider": "openai",
+    "request_timeout": 90.0,
+    "max_retries": 6,
+}
+```
+
+**Rate limiting**: `init_rate_limiter(max_concurrent=200)` via semaphores.
+
+**Retry**: Exponential backoff on 429/5xx errors (up to 6 retries).
+
+### API Keys
+
+Auto-loaded from `../.openaiapi` if env vars not set. Or:
+```bash
+export OPENAI_API_KEY="sk-..."
+export ANTHROPIC_API_KEY="sk-ant-..."
+```
+
+## Directory Structure
+
+```
+data/
+├── {dataset}/         # e.g., philly_cafes/
+│   ├── restaurants.jsonl
+│   ├── reviews.jsonl
+│   ├── requests.jsonl
+│   ├── groundtruth.jsonl
+│   └── user_mapping.json  # Optional: G09/G10 social synthesis
+└── scripts/
+
+results/
+├── dev/               # Development runs (gitignored)
+│   └── {NNN}_{run-name}/
+└── benchmarks/        # Benchmark runs (tracked)
+    └── {method}_{data}/{attack}/run_{N}/
+
+methods/
+├── __init__.py        # METHOD_REGISTRY, get_method()
+├── base.py            # BaseMethod abstract class
+├── anot/              # ANoT package
+│   ├── core.py
+│   ├── helpers.py
+│   ├── tools.py
+│   └── prompts.py
+├── cot.py
+├── listwise.py
+└── ...                # 17 total methods
+
+run/
+├── orchestrate.py     # run_single(), run_evaluation_loop()
+├── evaluate.py        # evaluate_ranking(), stats computation
+├── scaling.py         # run_scaling_experiment()
+├── shuffle.py         # Position bias mitigation
+└── io.py              # Result I/O
+
+utils/
+├── arguments.py       # CLI parsing, PARALLEL_MODE, BENCHMARK_MODE
+├── experiment.py      # ExperimentManager
+├── llm.py             # LLM wrapper, MODEL_CONFIG, token limits
+├── parsing.py         # parse_indices(), parse_final_answer()
+└── usage.py           # Token tracking
+```
+
+## Output Files
+
+Each run produces in `{run_dir}/`:
+- `config.json` - Run configuration
+- `results_{n_candidates}.jsonl` - Predictions + per-request usage
+- `usage.jsonl` - Consolidated token usage
+- `debug.log` - LLM traces (method-specific)
+- `anot_trace.jsonl` - ANoT phase traces (if ANoT method)
+
+**Coverage stats** (string-mode only):
 ```json
 {
   "coverage": {
@@ -220,81 +337,32 @@ Each result includes coverage stats when truncation is applied:
 }
 ```
 
-### Which Methods Use Truncation
+## CLI Arguments
 
-- **String mode** (truncated): cot, ps, plan_act, listwise, etc.
-- **Dict mode** (no truncation): anot, weaver, react - they access data selectively
+**Data**: `--data`, `--run-name`, `--limit`, `--run`, `--force`, `--review-limit`, `--candidates`
 
-Defined in `data/loader.py:DICT_MODE_METHODS`.
+**Method**: `--method` (cot, ps, plan_act, listwise, weaver, anot, react, dummy)
+
+**Attack**: `--attack`, `--seed`, `--defense`, `--attack-restaurants`, `--attack-reviews`, `--attack-target-len`
+
+**LLM**: `--provider`, `--model`, `--temperature`, `--max-tokens`, `--max-tokens-reasoning`, `--base-url`
+
+**Evaluation**: `--k` (Hits@K), `--shuffle` (none/middle/random)
+
+**Execution**: `--max-concurrent`, `--sequential`, `--auto`, `--dev`
+
+**Output**: `--verbose`/`-v` (default: True), `--full`
 
 ## Data Preprocessing
 
-The data loader (`data/loader.py`) performs preprocessing during `load_dataset()`:
+### Field Stripping (~26% token savings)
 
-### Field Stripping
-
-Bloated fields are automatically removed to reduce token usage (~26% savings):
-
-**Review-level**: `review_id`, `business_id`, `user_id`
-**User-level**: `friends` (650+ bytes each), `user_id`, `elite`
-
-Defined in `STRIP_REVIEW_FIELDS` and `STRIP_USER_FIELDS`.
-
-### G09/G10 Social Data Synthesis
-
-Social filter requests (G09: 1-hop friends, G10: 2-hop friends-of-friends) require synthetic social data in reviews. The loader applies precalculated mappings from `user_mapping.json`:
-
-```json
-{
-  "user_names": {"USER_01": "Alice", "USER_02": "Bob", ...},
-  "friend_graph": {"USER_01": ["USER_02", "USER_03"], ...},
-  "restaurant_reviews": {
-    "0": [["USER_01", "cozy"], ["USER_02", "quiet"]],
-    ...
-  }
-}
+```python
+# data/loader.py
+STRIP_USER_FIELDS = {'friends', 'user_id'}
+STRIP_REVIEW_FIELDS = {'review_id', 'business_id', 'user_id'}
 ```
 
-For matching reviews (restaurant + pattern), the loader sets:
-- `user.name` → synthetic friend name (e.g., "Alice")
-- `user.friends` → translated friend list (e.g., ["Bob", "Carol"])
+### G09/G10 Social Synthesis
 
-This enables:
-- G09: "My friend Alice mentioned 'cozy'" → find review where name="Alice"
-- G10: "Bob or his friends mentioned 'recommend'" → find review where name is Bob OR name's friends include Bob
-
-## Attack Implementation
-
-**Status**: Core infrastructure done, testing in progress. See `doc/internal/attack_plan.md` for full plan.
-
-**Goal**: Test robustness - attacks should cause CoT to fail while ANoT resists.
-
-### What's Done
-- ✅ `attack.py` - Full implementation (typo, injection ×4, fake_review, sarcastic, heterogeneity)
-- ✅ `run/evaluate.py:91-97` - Per-request attack application (protects gold item)
-- ✅ Attack config stored in `config.json` for reproducibility
-
-### What's In Progress
-- ⚠️ Testing: Previous tests used only 2 requests (inconclusive)
-- ❌ Defense testing: `--defense` flag exists but untested
-
-### Available Attacks
-```bash
-# Noise attacks
-python main.py --method cot --attack typo_10    # 10% word typos
-python main.py --method cot --attack typo_20    # 20% word typos
-
-# Injection attacks (target non-gold items)
-python main.py --method cot --attack inject_override      # "IGNORE INSTRUCTIONS"
-python main.py --method cot --attack inject_fake_sys      # Fake system messages
-python main.py --method cot --attack inject_hidden        # Hidden instructions
-python main.py --method cot --attack inject_manipulation  # Authority/FOMO
-
-# Fake review attacks
-python main.py --method cot --attack fake_positive   # Add glowing review
-python main.py --method cot --attack fake_negative   # Add terrible review
-python main.py --method cot --attack sarcastic_all   # Misleading sentiment
-```
-
-### Key Constraint
-**NEVER modify gold items** - all attacks target non-gold items only.
+Optional `user_mapping.json` enables friend-based filtering requests. If missing, dataset works without social features.
