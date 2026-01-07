@@ -479,43 +479,60 @@ def evaluate_review_text_pattern(reviews: list, pattern: str) -> int:
     return -1
 
 
-def evaluate_social_filter(restaurant_idx: int, pattern: str, social_filter: dict) -> int:
-    """Evaluate review text pattern with social filter.
+def evaluate_social_filter_from_reviews(reviews: list, pattern: str, social_filter: dict) -> int:
+    """Evaluate review text pattern with social filter using actual review data.
 
-    Uses synthetic restaurant_reviews data from user_mapping.json.
+    Checks BOTH:
+    1. Review text contains the pattern
+    2. Reviewer qualifies under social filter (name in friends or friend-of-friend)
 
     Args:
-        restaurant_idx: Index of restaurant (0-49)
-        pattern: Pattern to match in review
+        reviews: Actual review dicts from loaded data
+        pattern: Pattern to match in review text
         social_filter: {"friends": ["Alice", "Bob"], "hops": 1 or 2}
 
     Returns: 1 if condition satisfied, -1 otherwise
     """
-    social = get_social_data()
-    restaurant_reviews = social.get("restaurant_reviews", {})
     friends = social_filter.get("friends", [])
     hops = social_filter.get("hops", 1)
     min_matches = social_filter.get("min_matches", 1)
 
-    # Get synthetic reviews for this restaurant
-    reviews = restaurant_reviews.get(str(restaurant_idx), [])
+    if not reviews:
+        return -1
 
-    # Count matching reviews
+    # Build pattern regex
+    try:
+        regex = re.compile(pattern, re.IGNORECASE)
+    except re.error:
+        regex = None
+
     matches = 0
-    user_names = social.get("user_names", {})
-
     for review in reviews:
-        # review is [user_id, pattern_mentioned]
-        user_id, mentioned_pattern = review
-        reviewer_name = user_names.get(user_id, "")
+        # 1. Check if review text contains pattern
+        text = review.get("text", "")
+        if regex:
+            if not regex.search(text):
+                continue
+        else:
+            if pattern.lower() not in text.lower():
+                continue
 
-        # Check if pattern matches
-        if pattern.lower() != mentioned_pattern.lower():
+        # 2. Check if reviewer qualifies under social filter
+        user = review.get("user", {})
+        reviewer_name = user.get("name", "")
+        reviewer_friends = user.get("friends", [])
+
+        # 1-hop: reviewer's name is in friend list
+        if reviewer_name in friends:
+            matches += 1
             continue
 
-        # Check if reviewer qualifies under social filter
-        if check_social_filter(reviewer_name, friends, hops):
-            matches += 1
+        # 2-hop: reviewer has a friend whose name is in the friend list
+        if hops >= 2:
+            for friend_name in reviewer_friends:
+                if friend_name in friends:
+                    matches += 1
+                    break
 
     return 1 if matches >= min_matches else -1
 
@@ -538,23 +555,11 @@ def evaluate_condition(item: dict, condition: dict, reviews: list = None) -> int
         weight_by = evidence_spec.get("weight_by")
         social_filter = evidence_spec.get("social_filter")
 
-        # If social_filter specified, use synthetic social data
+        # If social_filter specified, check actual review data
         if social_filter:
-            # Look up restaurant index from business_id
-            business_id = item.get("business_id", "")
-            social = get_social_data()
-            restaurant_reviews = social.get("restaurant_reviews", {})
-
-            # Find index by checking which index has this business_id
-            # We need to load restaurants to find the index
-            restaurants_path = DATA_DIR / "philly_cafes" / "restaurants.jsonl"
-            if restaurants_path.exists():
-                with open(restaurants_path) as f:
-                    for idx, line in enumerate(f):
-                        r = json.loads(line)
-                        if r.get("business_id") == business_id:
-                            return evaluate_social_filter(idx, pattern, social_filter)
-            return -1
+            if not reviews:
+                return -1
+            return evaluate_social_filter_from_reviews(reviews, pattern, social_filter)
 
         if not reviews:
             return 0
@@ -679,6 +684,8 @@ def load_jsonl(path: Path) -> list:
 
 def validate_dataset(name: str):
     """Validate a dataset and generate groundtruth.jsonl."""
+    from .loader import load_dataset
+
     dataset_dir = DATA_DIR / name
 
     # Check required files
@@ -691,22 +698,24 @@ def validate_dataset(name: str):
             print(f"Error: Missing {p}")
             sys.exit(1)
 
-    # Load data
-    restaurants = load_jsonl(restaurants_path)
-    reviews = load_jsonl(reviews_path)
-    requests = load_jsonl(requests_path)
+    # Load data using loader (applies synthetic user.name/friends for G09/G10)
+    dataset = load_dataset(name)
+    restaurants = [
+        {**item, "reviews": item.get("reviews", [])}
+        for item in dataset.items
+    ]
+    requests = dataset.requests
 
-    # Group reviews by business_id
+    # Group reviews by business_id (from loaded/transformed data)
     reviews_by_id = {}
-    for r in reviews:
-        bid = r.get("business_id", "")
-        if bid not in reviews_by_id:
-            reviews_by_id[bid] = []
-        reviews_by_id[bid].append(r)
+    for item in dataset.items:
+        bid = item.get("business_id", "")
+        reviews_by_id[bid] = item.get("reviews", [])
 
+    total_reviews = sum(len(item.get("reviews", [])) for item in dataset.items)
     print(f"Dataset: {name}")
     print(f"  Restaurants: {len(restaurants)}")
-    print(f"  Reviews: {len(reviews)}")
+    print(f"  Reviews: {total_reviews}")
     print(f"  Requests: {len(requests)}")
     print()
 
