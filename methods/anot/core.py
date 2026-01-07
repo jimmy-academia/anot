@@ -626,6 +626,8 @@ class AdaptiveNetworkOfThought(BaseMethod):
 
     async def _execute_step_async(self, idx: str, instr: str, items: dict, user_query: str) -> Tuple[str, str]:
         """Execute a single LWT step asynchronously."""
+        # Convert double braces to single (from LWT template escaping)
+        instr = instr.replace('{{', '{').replace('}}', '}')
         filled = substitute_variables(instr, items, user_query, self._get_cache())
         self._debug(3, "P3", f"Step {idx} filled:", filled)
 

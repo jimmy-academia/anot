@@ -118,26 +118,28 @@ STEP4_SKELETON_PROMPT = """Generate LWT skeleton for soft conditions on candidat
 
 [RULES]
 - Generate ONE step per item per soft condition
-- Each step checks ONE item independently using {{{{(context)}}}}[item_num][reviews]
+- Each step checks ONE item independently
 - Final step aggregates all results and outputs ranking as comma-separated numbers
 - IMPORTANT: In final step, map item numbers clearly (item 2=yes means output 2)
 
-[PATH SYNTAX]
-{{{{(context)}}}}[2][reviews] - Item 2's reviews array
+[VARIABLE SYNTAX]
+Use these exact patterns (with curly braces):
+- {{(context)}}[2][reviews] - Item 2's reviews array
+- {{(r2)}} - Result from step r2
 
 [OUTPUT FORMAT]
 ===LWT_SKELETON===
-(r2)=LLM('Item 2 reviews: {{{{(context)}}}}[2][reviews]. {soft_question} Answer: yes/no')
-(r4)=LLM('Item 4 reviews: {{{{(context)}}}}[4][reviews]. {soft_question} Answer: yes/no')
+(r2)=LLM('Item 2 reviews: {{(context)}}[2][reviews]. [soft_question] Answer: yes/no')
+(r4)=LLM('Item 4 reviews: {{(context)}}[4][reviews]. [soft_question] Answer: yes/no')
 ...
-(final)=LLM('Item 2={{{{(r2)}}}}, Item 4={{{{(r4)}}}}... Output the item NUMBERS with yes first, then others. Format: 2, 4, 6, ...')
+(final)=LLM('Item 2={{(r2)}}, Item 4={{(r4)}}... Output the item NUMBERS with yes first, then others. Format: 2, 4, 6, ...')
 
 [EXAMPLE for candidates [2,4,6] checking "mentions wifi"]
 ===LWT_SKELETON===
-(r2)=LLM('Item 2 reviews: {{{{(context)}}}}[2][reviews]. Mentions wifi? Answer: yes/no')
-(r4)=LLM('Item 4 reviews: {{{{(context)}}}}[4][reviews]. Mentions wifi? Answer: yes/no')
-(r6)=LLM('Item 6 reviews: {{{{(context)}}}}[6][reviews]. Mentions wifi? Answer: yes/no')
-(final)=LLM('Item 2={{{{(r2)}}}}, Item 4={{{{(r4)}}}}, Item 6={{{{(r6)}}}}. Output item NUMBERS with yes first, comma-separated: ')
+(r2)=LLM('Item 2 reviews: {{(context)}}[2][reviews]. Mentions wifi? Answer: yes/no')
+(r4)=LLM('Item 4 reviews: {{(context)}}[4][reviews]. Mentions wifi? Answer: yes/no')
+(r6)=LLM('Item 6 reviews: {{(context)}}[6][reviews]. Mentions wifi? Answer: yes/no')
+(final)=LLM('Item 2={{(r2)}}, Item 4={{(r4)}}, Item 6={{(r6)}}. Output item NUMBERS with yes first, comma-separated: ')
 
 [IF NO SOFT CONDITIONS]
 ===LWT_SKELETON===

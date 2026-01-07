@@ -2,6 +2,12 @@
 
 LLM evaluation framework comparing prompting methods on restaurant recommendations.
 
+## Important Rules for Claude
+
+- **NEVER use `rm -rf` on benchmark results** - Always prompt the user to delete files manually
+- **Use `--dev` flag for development testing** - Results go to `results/dev/` (gitignored)
+- Only commit benchmark results when explicitly requested
+
 ## Quick Reference
 
 ```bash
