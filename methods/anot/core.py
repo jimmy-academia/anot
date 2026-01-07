@@ -38,7 +38,8 @@ from .helpers import (
 )
 from .tools import (
     tool_read, tool_lwt_list, tool_lwt_get,
-    tool_lwt_set, tool_lwt_delete, tool_lwt_insert, tool_review_length
+    tool_lwt_set, tool_lwt_delete, tool_lwt_insert, tool_review_length,
+    tool_get_review_lengths, tool_keyword_search, tool_get_review_snippet
 )
 
 
@@ -515,15 +516,16 @@ class AdaptiveNetworkOfThought(BaseMethod):
     # =========================================================================
 
     def phase2_expand(self, skeleton_steps: list, candidates: list, query: dict) -> List[str]:
-        """Phase 2: Optionally refine LWT skeleton using ReAct loop.
+        """Phase 2: Refine LWT skeleton using ReAct loop with slice syntax for long reviews.
 
-        Phase 2 can use read() to check review content and delete steps for
-        items that clearly don't match soft conditions.
+        Phase 2 uses tools to check review lengths, search for keywords, and
+        modify LWT steps to use slice notation for truncating long reviews.
+        The LLM infers what keywords to search for from the LWT skeleton itself.
 
         Args:
             skeleton_steps: LWT skeleton from Phase 1 [(var_name, step), ...]
             candidates: List of candidate item numbers
-            query: Full query dict (for read() tool if needed)
+            query: Full query dict (for tools)
 
         Returns:
             List of LWT steps (formatted strings)
@@ -547,7 +549,7 @@ class AdaptiveNetworkOfThought(BaseMethod):
         lwt_skeleton_str = "\n".join(lwt_steps)
         self._debug(2, "P2", f"Initial LWT:\n{lwt_skeleton_str}")
 
-        # ReAct loop for refinement - check review lengths, add summarization if needed
+        # ReAct loop for refinement - check review lengths, use slice syntax for long reviews
         prompt = PHASE2_PROMPT.format(lwt_skeleton=lwt_skeleton_str)
         conversation = [prompt]
 
@@ -593,10 +595,28 @@ class AdaptiveNetworkOfThought(BaseMethod):
                 result = tool_lwt_insert(int(match.group(1)), step, lwt_steps)
                 action_results.append((f"lwt_insert({match.group(1)})", result))
 
-            # Process review_length() calls
+            # Process review_length() calls (legacy)
             for match in re.finditer(r'review_length\((\d+)\)', response):
                 result = tool_review_length(int(match.group(1)), query)
                 action_results.append((f"review_length({match.group(1)})", result))
+
+            # Process get_review_lengths() calls (new - per-review lengths)
+            for match in re.finditer(r'get_review_lengths\((\d+)\)', response):
+                result = tool_get_review_lengths(int(match.group(1)), query)
+                action_results.append((f"get_review_lengths({match.group(1)})", result))
+
+            # Process keyword_search() calls
+            for match in re.finditer(r'keyword_search\((\d+),\s*"([^"]+)"\)', response):
+                result = tool_keyword_search(int(match.group(1)), match.group(2), query)
+                action_results.append((f"keyword_search({match.group(1)}, \"{match.group(2)}\")", result))
+
+            # Process get_review_snippet() calls
+            for match in re.finditer(r'get_review_snippet\((\d+),\s*(\d+),\s*(\d+),\s*(\d+)\)', response):
+                result = tool_get_review_snippet(
+                    int(match.group(1)), int(match.group(2)),
+                    int(match.group(3)), int(match.group(4)), query
+                )
+                action_results.append((f"get_review_snippet({match.group(1)}, {match.group(2)}, {match.group(3)}, {match.group(4)})", result))
 
             # Process read() calls
             for match in re.finditer(r'read\("([^"]+)"\)', response):
@@ -831,7 +851,8 @@ class AdaptiveNetworkOfThought(BaseMethod):
             trace["phase1"]["latency_ms"] = p1_latency
             self._save_trace_incremental(request_id)
 
-        # Phase 2: Refine skeleton (optional)
+        # Phase 2: Refine skeleton with review length handling
+        # The LLM infers what keywords to search for from the LWT skeleton itself
         self._update_display(request_id, "P2", "refining")
         p2_start = time.time()
         expanded_lwt_steps = self.phase2_expand(skeleton_steps, candidates, data)

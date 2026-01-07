@@ -87,3 +87,97 @@ def tool_review_length(item_num: int, data: dict) -> str:
     reviews = item.get('reviews', [])
     total = sum(len(r.get('text', '')) for r in reviews if isinstance(r, dict))
     return str(total)
+
+
+def tool_get_review_lengths(item_num: int, data: dict) -> str:
+    """Return character count for EACH review in item.
+
+    Returns JSON array of lengths, e.g., [1200, 5400, 800]
+    """
+    items = data.get('items', data)
+    item = items.get(str(item_num), {})
+    reviews = item.get('reviews', [])
+    lengths = [len(r.get('text', '')) for r in reviews if isinstance(r, dict)]
+    return json.dumps(lengths)
+
+
+def tool_keyword_search(item_num: int, keyword: str, data: dict) -> str:
+    """Search for keyword in item's reviews.
+
+    Returns JSON with matches per review:
+    {
+        "matches": [
+            {"review": 0, "positions": [1234, 5678], "length": 2400},
+            {"review": 2, "positions": [100], "length": 800}
+        ],
+        "no_match_reviews": [1, 3],
+        "total_matches": 3
+    }
+    """
+    items = data.get('items', data)
+    item = items.get(str(item_num), {})
+    reviews = item.get('reviews', [])
+
+    matches = []
+    no_match = []
+    total = 0
+    keyword_lower = keyword.lower()
+
+    for i, review in enumerate(reviews):
+        if not isinstance(review, dict):
+            continue
+        text = review.get('text', '')
+        text_lower = text.lower()
+        length = len(text)
+
+        # Find all positions of keyword (case-insensitive)
+        positions = []
+        start = 0
+        while True:
+            pos = text_lower.find(keyword_lower, start)
+            if pos == -1:
+                break
+            positions.append(pos)
+            start = pos + 1
+
+        if positions:
+            matches.append({"review": i, "positions": positions, "length": length})
+            total += len(positions)
+        else:
+            no_match.append(i)
+
+    return json.dumps({
+        "matches": matches,
+        "no_match_reviews": no_match,
+        "total_matches": total
+    })
+
+
+def tool_get_review_snippet(item_num: int, review_idx: int, start: int, length: int, data: dict) -> str:
+    """Get a snippet of review text for inspection.
+
+    Args:
+        item_num: Item number (1-indexed)
+        review_idx: Review index within item (0-indexed)
+        start: Start position in text
+        length: Number of characters to return
+
+    Returns:
+        Text snippet or error message
+    """
+    items = data.get('items', data)
+    item = items.get(str(item_num), {})
+    reviews = item.get('reviews', [])
+
+    if review_idx < 0 or review_idx >= len(reviews):
+        return f"Error: review index {review_idx} out of range (0-{len(reviews)-1})"
+
+    text = reviews[review_idx].get('text', '')
+    end = min(start + length, len(text))
+    start = max(0, start)
+
+    snippet = text[start:end]
+    prefix = "..." if start > 0 else ""
+    suffix = "..." if end < len(text) else ""
+
+    return f"{prefix}{snippet}{suffix}"

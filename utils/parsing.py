@@ -47,12 +47,28 @@ def substitute_variables(instruction: str, items, user_query: str, cache: dict) 
             except Exception:
                 pass
 
-        # Apply accessors [key] or [index]
+        # Apply accessors [key], [index], or [start:end] slices
         for acc in re.findall(r'\[([^\]]+)\]', accessors):
             try:
-                if isinstance(val, dict):
+                # Check for slice notation (contains ':')
+                if ':' in acc:
+                    parts = acc.split(':')
+                    if len(parts) == 2:
+                        start = int(parts[0]) if parts[0] else None
+                        end = int(parts[1]) if parts[1] else None
+                        if isinstance(val, (str, list, tuple)):
+                            val = val[start:end]
+                        else:
+                            val = ''
+                    else:
+                        val = ''
+                elif isinstance(val, dict):
                     val = val.get(acc, val.get(int(acc)) if acc.isdigit() else '')
                 elif isinstance(val, (list, tuple)) and acc.isdigit():
+                    idx = int(acc)
+                    val = val[idx] if 0 <= idx < len(val) else ''
+                elif isinstance(val, str) and acc.isdigit():
+                    # Support string indexing like [text][0] - though unusual
                     idx = int(acc)
                     val = val[idx] if 0 <= idx < len(val) else ''
                 else:

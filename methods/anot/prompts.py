@@ -24,35 +24,43 @@ STEP1_EXTRACT_PROMPT = """Extract conditions from the user request.
 [RULES]
 - ONLY extract conditions the user EXPLICITLY wants
 - If user doesn't mention hours/timing, do NOT output any [HOURS] line
-- Use [REVIEW] for sentiment-based requirements:
-  - "is praised for X", "known for great X" → [REVIEW:POSITIVE] X
-  - "complaints about X", "criticized for X" → [REVIEW:NEGATIVE] X
+- Distinguish between review types:
+  - "is praised for X", "known for great X" → [REVIEW:POSITIVE] X (sentiment check)
+  - "complaints about X", "criticized for X" → [REVIEW:NEGATIVE] X (sentiment check)
+  - "has reviews mentioning X", "reviews mention X" → [REVIEW:MENTION] X (keyword check)
 - For attribute requirements like "quiet", "trendy", "hipster vibe", use [ATTR] not [REVIEW]
+- For social/friend filters like "my friend X reviewed", use [SOCIAL] friend_name, keyword
 - If a category isn't mentioned, simply omit it - do NOT write "not specified" or "none"
 
 [OUTPUT FORMAT]
 List each condition on a new line:
 [ATTR] description of attribute condition
-[REVIEW:POSITIVE] topic (only if user asks about praised/recommended aspects)
-[REVIEW:NEGATIVE] topic (only if user asks about complaints/criticisms)
+[REVIEW:POSITIVE] topic (only for praised/recommended aspects)
+[REVIEW:NEGATIVE] topic (only for complaints/criticisms)
+[REVIEW:MENTION] keyword (only for "reviews mention X" / "has reviews mentioning X")
 [HOURS] day and time range (only if user explicitly mentions hours)
+[SOCIAL] friend_name, keyword (only if user mentions friend's review)
 
 Example 1 - attribute query:
 User: "Looking for a quiet cafe with free WiFi"
 [ATTR] quiet
 [ATTR] free WiFi
 
-Example 2 - positive review query:
+Example 2 - positive sentiment review query:
 User: "Looking for a cafe praised for their coffee"
 [REVIEW:POSITIVE] coffee
 
-Example 3 - negative review query:
-User: "Looking for a cafe without complaints about service"
-[REVIEW:NEGATIVE] service (absence required)
+Example 3 - keyword mention query:
+User: "Looking for a cafe with reviews mentioning 'cozy'"
+[REVIEW:MENTION] cozy
 
 Example 4 - hours query:
 User: "Looking for a cafe open on Sunday morning"
 [HOURS] Sunday morning
+
+Example 5 - social filter query:
+User: "Looking for a cafe that my friend Kevin reviewed mentioning 'place'"
+[SOCIAL] Kevin, place
 """
 
 # =============================================================================
@@ -141,8 +149,9 @@ STEP4_SKELETON_PROMPT = """Generate LWT skeleton for soft conditions on candidat
 [RULES]
 - Generate ONE step per item per soft condition
 - Each step checks ONE item independently
-- For [REVIEW:POSITIVE], ask if reviews PRAISE/RECOMMEND the topic (not just mention it)
-- For [REVIEW:NEGATIVE], ask if reviews COMPLAIN/CRITICIZE the topic
+- For [REVIEW:POSITIVE], ask if reviews PRAISE/RECOMMEND the topic (sentiment check)
+- For [REVIEW:NEGATIVE], ask if reviews COMPLAIN/CRITICIZE the topic (sentiment check)
+- For [REVIEW:MENTION], ask if reviews MENTION the keyword (presence check, no sentiment)
 - Final step aggregates all results and outputs ranking as comma-separated numbers
 - IMPORTANT: In final step, map item numbers clearly (item 2=yes means output 2)
 
@@ -172,41 +181,73 @@ Use these exact patterns (with curly braces):
 (r5)=LLM('Item 5 reviews: {{(context)}}[5][reviews]. Do reviewers COMPLAIN about service (negative sentiment)? Answer: yes/no')
 (final)=LLM('Item 1={{(r1)}}, Item 3={{(r3)}}, Item 5={{(r5)}}. Output item NUMBERS with yes first, comma-separated: ')
 
+[EXAMPLE for candidates [2,4,6] checking "MENTION cozy" (reviews mention cozy)]
+===LWT_SKELETON===
+(r2)=LLM('Item 2 reviews: {{(context)}}[2][reviews]. Do reviews MENTION the word cozy? Answer: yes/no')
+(r4)=LLM('Item 4 reviews: {{(context)}}[4][reviews]. Do reviews MENTION the word cozy? Answer: yes/no')
+(r6)=LLM('Item 6 reviews: {{(context)}}[6][reviews]. Do reviews MENTION the word cozy? Answer: yes/no')
+(final)=LLM('Item 2={{(r2)}}, Item 4={{(r4)}}, Item 6={{(r6)}}. Output item NUMBERS with yes first, comma-separated: ')
+
 [IF NO SOFT CONDITIONS]
 ===LWT_SKELETON===
 (final)=LLM('Candidates: {candidates}. All passed hard conditions. Output top-{k}: [first {k} from list]')
 """
 
 # =============================================================================
-# PHASE 2: ReAct Expansion (refine skeleton with read() calls)
+# PHASE 2: ReAct Expansion (refine skeleton with slice syntax for long reviews)
 # =============================================================================
 
-PHASE2_PROMPT = """Refine the LWT skeleton by checking review lengths and adding summarization if needed.
+PHASE2_PROMPT = """Refine the LWT skeleton by handling long reviews using slice syntax.
 
 [LWT SKELETON]
 {lwt_skeleton}
 
+[TASK]
+Analyze the LWT skeleton above. For each step that references reviews:
+1. Identify the item number and what keyword/topic is being searched
+2. Check if reviews are long and need slicing
+3. Modify steps to use slice syntax for long reviews
+
 [AVAILABLE TOOLS]
-- review_length(item_num) - Get character count of item's reviews (e.g., review_length(2))
+- get_review_lengths(item_num) - Get per-review char counts, returns JSON array [1200, 5400, 800]
+- keyword_search(item_num, "keyword") - Find keyword positions in reviews, returns JSON with matches
+- get_review_snippet(item_num, review_idx, start, length) - Preview text snippet
+- lwt_set(idx, "step") - Replace step at index with new step
 - lwt_insert(idx, "step") - Insert new step at index
-- lwt_set(idx, "step") - Modify step at index
 - lwt_delete(idx) - Remove step at index
-- read("items[2].reviews") - Read actual review content
 - done() - Finish refinement
 
-[TASK]
-For each step that references reviews (contains [reviews]):
-1. Call review_length(item_num) to check size
-2. If length > 5000 chars:
-   - Insert summarization step: lwt_insert(idx, "(sN)=LLM('Summarize for [condition]: {{(context)}}[N][reviews]')")
-   - Modify original step to use summary: lwt_set(idx+1, "... {{(sN)}} ...")
-3. If length <= 5000: no change needed
-4. Call done() when all items checked
+[SLICE SYNTAX]
+Use Python-style slices in variable references to truncate:
+- {{{{(context)}}}}[N][reviews][R][text][start:end] - Slice review R's text from start to end
+- {{{{(context)}}}}[N][reviews][0:K] - Only first K reviews
+- {{{{(context)}}}}[N][reviews][R][text][:3000] - First 3000 chars of review R
+
+[STRATEGY]
+For each item step that references reviews:
+1. get_review_lengths(item_num) to find long reviews (> 3000 chars)
+2. If any review > 3000 chars:
+   a. Infer the keyword from the LWT step (e.g., "coffee" from "Praises coffee?")
+   b. keyword_search(item_num, "keyword") to find where keyword appears
+   c. If keyword found at position P in review R:
+      - Calculate slice: start = max(0, P - 1500), end = P + 1500
+      - lwt_set to use slice syntax: {{{{(context)}}}}[N][reviews][R][text][start:end]
+   d. If no keyword match in a long review: can skip that review or use [:3000]
+3. If all reviews are short (< 3000): no change needed
+4. done() when all items processed
 
 [EXAMPLE]
-review_length(1) → 12500
-lwt_insert(0, "(s1)=LLM('Summarize item 1 reviews for wifi mentions: {{(context)}}[1][reviews]')")
-lwt_set(1, "(r1)=LLM('Based on summary: {{(s1)}}. Mentions wifi? yes/no')")
-review_length(2) → 2100
+Initial LWT step 0:
+(r2)=LLM('Reviews: {{{{(context)}}}}[2][reviews]. Praises coffee? yes/no')
+
+get_review_lengths(2) → [1200, 5400, 800]
+# Review 1 is 5400 chars (> 3000), reviews 0 and 2 are short
+
+keyword_search(2, "coffee") → {{"matches": [{{"review": 1, "positions": [2100], "length": 5400}}], "no_match_reviews": [0, 2], "total_matches": 1}}
+# Found "coffee" at position 2100 in review 1
+
+lwt_set(0, "(r2)=LLM('Reviews: {{{{(context)}}}}[2][reviews][0], {{{{(context)}}}}[2][reviews][1][text][600:3600], {{{{(context)}}}}[2][reviews][2]. Praises coffee? yes/no')")
+# Keep reviews 0 and 2 full (short), slice review 1 around the keyword match (600 to 3600)
+
 done()
 """
