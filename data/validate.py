@@ -85,11 +85,11 @@ def parse_hours_range(hours_str: str) -> tuple[int, int] | None:
         return None
     try:
         start, end = hours_str.split("-")
-        def to_mins(t):
+        def to_mins(t: str) -> int:
             h, m = t.split(":")
             return int(h) * 60 + int(m)
         return to_mins(start), to_mins(end)
-    except:
+    except (ValueError, AttributeError):
         return None
 
 

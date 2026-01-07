@@ -2,19 +2,30 @@
 """Run orchestration for single evaluations."""
 
 import json
+import logging
+from argparse import Namespace
 from pathlib import Path
+from typing import Any
 
-from data.loader import load_dataset, filter_by_candidates, DICT_MODE_METHODS
+from data.loader import load_dataset, filter_by_candidates, Dataset, DICT_MODE_METHODS
 from utils.parsing import parse_limit_spec
 from utils.aggregate import print_ranking_results
 from utils.usage import get_usage_tracker
 from utils.llm import get_token_budget, get_configured_model
+from utils.experiment import ExperimentManager
+from methods.base import BaseMethod
 
 from .evaluate import evaluate_ranking, compute_multi_k_stats
 from .io import load_existing_results, load_usage, save_usage, extract_usage_from_results
 
 
-def run_evaluation_loop(args, dataset, method, experiment, attack_config=None):
+def run_evaluation_loop(
+    args: Namespace,
+    dataset: Dataset,
+    method: BaseMethod,
+    experiment: ExperimentManager,
+    attack_config: dict[str, Any] | None = None
+) -> dict[str, Any]:
     """Run evaluation on the dataset.
 
     Args:
@@ -95,7 +106,12 @@ def run_evaluation_loop(args, dataset, method, experiment, attack_config=None):
     return {"stats": eval_out["stats"]}
 
 
-def save_final_config(args, all_results, experiment, attack_config=None):
+def save_final_config(
+    args: Namespace,
+    all_results: dict[str, Any],
+    experiment: ExperimentManager,
+    attack_config: dict[str, Any] | None = None
+) -> None:
     """Construct and save the run configuration."""
     tracker = get_usage_tracker()
     usage_summary = tracker.get_summary()
@@ -121,7 +137,11 @@ def save_final_config(args, all_results, experiment, attack_config=None):
     print(f"Config saved to {config_path}")
 
 
-def run_single(args, experiment, log):
+def run_single(
+    args: Namespace,
+    experiment: ExperimentManager,
+    log: logging.Logger
+) -> dict[str, Any]:
     """Execute a single evaluation run.
 
     Args:
