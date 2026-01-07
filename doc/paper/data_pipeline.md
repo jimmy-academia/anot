@@ -198,6 +198,7 @@ results/{mode}/{run-name}/
 | File | Purpose |
 |------|---------|
 | `main.py` | Entry point |
+| `data/loader.py` | Data loading, field stripping, G09/G10 synthesis |
 | `run/orchestrate.py` | Evaluation loop |
 | `run/evaluate.py` | Metrics computation |
 | `run/scaling.py` | Scaling experiments |
@@ -231,10 +232,12 @@ results/{mode}/{run-name}/
 
 ### reviews.jsonl
 
+Raw schema (on disk):
 ```json
 {
   "business_id": "unique_id",
   "review_id": "review_unique_id",
+  "user_id": "user_unique_id",
   "text": "Great coffee and cozy atmosphere...",
   "stars": 5,
   "date": "2024-01-15",
@@ -246,10 +249,46 @@ results/{mode}/{run-name}/
     "name": "John D.",
     "review_count": 50,
     "fans": 10,
-    "elite": ["2023", "2024"]
+    "elite": ["2023", "2024"],
+    "friends": ["friend_id_1", "friend_id_2", ...]
   }
 }
 ```
+
+**After loading** (fields stripped by `load_dataset()`):
+```json
+{
+  "text": "Great coffee and cozy atmosphere...",
+  "stars": 5,
+  "date": "2024-01-15",
+  "useful": 10,
+  "funny": 2,
+  "cool": 5,
+  "user": {
+    "name": "John D.",
+    "review_count": 50,
+    "fans": 10,
+    "average_stars": 3.8,
+    "yelping_since": "2020-01-01"
+  }
+}
+```
+
+**For G09/G10 synthetic reviews**, `user` includes social data:
+```json
+{
+  "user": {
+    "name": "Alice",
+    "friends": ["Bob", "Carol"],
+    ...
+  }
+}
+```
+
+**Stripped fields** (~26% token savings):
+- Review-level: `review_id`, `business_id`, `user_id`
+- User-level: `friends` (original 650+ bytes), `user_id`, `elite`
+- Note: Synthetic `friends` (small list of names) added only for G09/G10 matching reviews
 
 ### requests.jsonl
 
@@ -283,22 +322,34 @@ results/{mode}/{run-name}/
 
 ### user_mapping.json (for G09-G10)
 
+Precalculated social data for G09 (1-hop friends) and G10 (2-hop friends-of-friends) requests.
+
 ```json
 {
   "user_names": {
-    "user_001": "Alice",
-    "user_002": "Bob"
+    "USER_01": "Alice",
+    "USER_02": "Bob"
   },
   "friend_graph": {
-    "user_001": ["user_002", "user_003"],
-    "user_002": ["user_001"]
+    "USER_01": ["USER_02", "USER_03"],
+    "USER_02": ["USER_01"]
   },
   "restaurant_reviews": {
-    "0": [["user_001", "cozy"], ["user_002", "recommend"]],
-    "1": [["user_003", "love"]]
+    "0": [["USER_01", "cozy"], ["USER_02", "quiet"]],
+    "1": [["USER_03", "latte"]]
   }
 }
 ```
+
+**Synthesis during loading**: `load_dataset()` applies this mapping automatically:
+1. For each review of restaurant `idx`
+2. If review text contains a pattern from `restaurant_reviews[idx]`
+3. Set `user.name` to the synthetic friend name (e.g., "Alice")
+4. Set `user.friends` to the translated friend list (e.g., ["Bob", "Carol"])
+
+This enables:
+- G09 (1-hop): "My friend Alice mentioned 'cozy'" → find review where name="Alice"
+- G10 (2-hop): "Bob or his friends mentioned 'recommend'" → find review where reviewer is Bob's friend
 
 ---
 

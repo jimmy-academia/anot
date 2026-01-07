@@ -144,18 +144,27 @@ def method(query, context: str) -> int
     # returns: -1 (not recommend), 0 (neutral), 1 (recommend)
 ```
 
-### Input Modes (methods/anot/)
+### Variable Substitution (methods/anot/)
 
-**String mode** (default): Input is formatted text, LLM extracts info
-```
-(0)=LLM("Extract reviews from: {(input)}")
-(1)=LLM("Analyze {(0)}[0]")
-```
+ANoT uses path-based variable substitution for data access:
 
-**Dict mode**: Input is dict, direct key/index access
+| Variable | Maps to | Description |
+|----------|---------|-------------|
+| `{(context)}` | items dict | Restaurant data (1-indexed) |
+| `{(input)}` / `{(items)}` | items dict | Same as context |
+| `{(query)}` | user_query | User's request text |
+| `{(step_id)}` | cache | Previous step output |
+
+**Path-based access**: Access single leaf values to minimize tokens
 ```
-(0)=LLM("Name is {(input)}[item_name]")
-(1)=LLM("Review: {(input)}[item_data][0][review]")
+# Access item 1's GoodForKids attribute
+{(context)}[1][attributes][GoodForKids] → True
+
+# Access nested attribute
+{(context)}[2][attributes][Ambience][hipster] → False
+
+# Reference previous step
+{(c1)} → "[1, 5, 10]"
 ```
 
 ### Key Design Patterns
@@ -214,9 +223,45 @@ Each result includes coverage stats when truncation is applied:
 ### Which Methods Use Truncation
 
 - **String mode** (truncated): cot, ps, plan_act, listwise, etc.
-- **Dict mode** (no truncation): anot, weaver - they access data selectively
+- **Dict mode** (no truncation): anot, weaver, react - they access data selectively
 
 Defined in `data/loader.py:DICT_MODE_METHODS`.
+
+## Data Preprocessing
+
+The data loader (`data/loader.py`) performs preprocessing during `load_dataset()`:
+
+### Field Stripping
+
+Bloated fields are automatically removed to reduce token usage (~26% savings):
+
+**Review-level**: `review_id`, `business_id`, `user_id`
+**User-level**: `friends` (650+ bytes each), `user_id`, `elite`
+
+Defined in `STRIP_REVIEW_FIELDS` and `STRIP_USER_FIELDS`.
+
+### G09/G10 Social Data Synthesis
+
+Social filter requests (G09: 1-hop friends, G10: 2-hop friends-of-friends) require synthetic social data in reviews. The loader applies precalculated mappings from `user_mapping.json`:
+
+```json
+{
+  "user_names": {"USER_01": "Alice", "USER_02": "Bob", ...},
+  "friend_graph": {"USER_01": ["USER_02", "USER_03"], ...},
+  "restaurant_reviews": {
+    "0": [["USER_01", "cozy"], ["USER_02", "quiet"]],
+    ...
+  }
+}
+```
+
+For matching reviews (restaurant + pattern), the loader sets:
+- `user.name` → synthetic friend name (e.g., "Alice")
+- `user.friends` → translated friend list (e.g., ["Bob", "Carol"])
+
+This enables:
+- G09: "My friend Alice mentioned 'cozy'" → find review where name="Alice"
+- G10: "Bob or his friends mentioned 'recommend'" → find review where name is Bob OR name's friends include Bob
 
 ## Attack Implementation
 

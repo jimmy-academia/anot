@@ -224,7 +224,13 @@ def load_dataset(data_name: str, review_limit: int = None) -> Dataset:
     # Load user mapping for G09/G10 social data synthesis
     user_mapping = _load_user_mapping(data_name)
     user_names = user_mapping.get("user_names", {}) if user_mapping else {}
+    friend_graph = user_mapping.get("friend_graph", {}) if user_mapping else {}
     restaurant_reviews_map = user_mapping.get("restaurant_reviews", {}) if user_mapping else {}
+
+    # Build translated friend graph (USER_01 -> ["Bob", "Carol"] instead of ["USER_02", "USER_03"])
+    translated_friends = {}
+    for user_id, friend_ids in friend_graph.items():
+        translated_friends[user_id] = [user_names.get(fid, fid) for fid in friend_ids]
 
     # Build restaurant index lookup (business_id -> index for user_mapping)
     biz_id_to_idx = {r["business_id"]: str(i) for i, r in enumerate(restaurants)}
@@ -237,15 +243,18 @@ def load_dataset(data_name: str, review_limit: int = None) -> Dataset:
         # Strip bloated fields
         review = _strip_review_fields(review)
 
-        # Apply G09/G10 social synthesis: rename user.name for matching reviews
+        # Apply G09/G10 social synthesis: set user.name and user.friends for matching reviews
         rest_idx = biz_id_to_idx.get(biz_id)
         if rest_idx and rest_idx in restaurant_reviews_map:
             review_text_lower = review.get("text", "").lower()
             for user_id, pattern in restaurant_reviews_map[rest_idx]:
                 if pattern in review_text_lower:
-                    # Apply friend name to this review
+                    # Apply synthetic user data to this review
                     if 'user' in review:
                         review['user']['name'] = user_names.get(user_id, review['user'].get('name'))
+                        # Add synthetic friends list for G10 (2-hop) lookups
+                        if user_id in translated_friends:
+                            review['user']['friends'] = translated_friends[user_id]
                     break  # Only apply first matching pattern
 
         if biz_id not in reviews_by_biz:
