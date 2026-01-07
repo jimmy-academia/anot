@@ -14,6 +14,7 @@ import os
 import json
 import time
 import random
+import logging
 import threading
 from pathlib import Path
 from typing import Optional
@@ -22,7 +23,9 @@ import httpx
 
 from utils.usage import get_usage_tracker
 
-# httpx/httpcore logging suppression moved to main.py (after basicConfig)
+# Suppress verbose HTTP client logs (tiktoken, openai, etc.)
+for _logger_name in ["httpx", "httpcore", "urllib3", "openai._base_client"]:
+    logging.getLogger(_logger_name).setLevel(logging.WARNING)
 
 # -----------------------------
 # Global rate limiter
@@ -218,8 +221,8 @@ def _get_openai_client():
 
         import openai
 
-        # Cap connection pool sizes to avoid FD blow-ups.
-        limits = httpx.Limits(max_connections=50, max_keepalive_connections=20)
+        # Match connection pool to semaphore limit
+        limits = httpx.Limits(max_connections=_max_concurrent, max_keepalive_connections=min(50, _max_concurrent))
         _openai_http_client = httpx.Client(
             timeout=_config["request_timeout"],
             limits=limits,
@@ -256,7 +259,7 @@ def _get_async_openai_client():
 
         import openai
 
-        limits = httpx.Limits(max_connections=50, max_keepalive_connections=20)
+        limits = httpx.Limits(max_connections=_max_concurrent, max_keepalive_connections=min(50, _max_concurrent))
         _async_openai_http_client = httpx.AsyncClient(
             timeout=_config["request_timeout"],
             limits=limits,

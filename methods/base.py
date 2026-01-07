@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """Abstract base class for all evaluation methods."""
 
+import os
+import threading
 from abc import ABC, abstractmethod
+from datetime import datetime
 from typing import Any
 
 
@@ -14,6 +17,43 @@ class BaseMethod(ABC):
         self.run_dir = run_dir
         self.defense = defense
         self.verbose = verbose
+        self._debug_log_file = None
+        self._debug_log_lock = threading.Lock()
+
+        # Initialize debug log for non-ANoT methods (ANoT has its own debug logging)
+        if run_dir and self.name != "anot":
+            try:
+                log_path = os.path.join(run_dir, "debug.log")
+                self._debug_log_file = open(log_path, "w", buffering=1)
+                self._debug_log_file.write(f"=== {self.name} Debug Log @ {datetime.now().isoformat()} ===\n\n")
+            except Exception:
+                pass
+
+    def __del__(self):
+        """Close debug log file on cleanup."""
+        if hasattr(self, '_debug_log_file') and self._debug_log_file:
+            try:
+                self._debug_log_file.close()
+            except Exception:
+                pass
+
+    def _log_llm_call(self, step: str, prompt: str, response: str, system: str = None):
+        """Log LLM call to debug file (thread-safe). No-op for ANoT."""
+        if not self._debug_log_file:
+            return
+        with self._debug_log_lock:
+            try:
+                ts = datetime.now().strftime("%H:%M:%S.%f")[:-3]
+                self._debug_log_file.write(f"{'='*60}\n")
+                self._debug_log_file.write(f"[{ts}] {step}\n")
+                self._debug_log_file.write(f"{'='*60}\n")
+                if system:
+                    self._debug_log_file.write(f"SYSTEM:\n{system}\n{'-'*40}\n")
+                self._debug_log_file.write(f"PROMPT:\n{prompt}\n{'-'*40}\n")
+                self._debug_log_file.write(f"RESPONSE:\n{response}\n\n")
+                self._debug_log_file.flush()
+            except Exception:
+                pass
 
     @abstractmethod
     def evaluate(self, query: Any, context: str) -> int:

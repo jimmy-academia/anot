@@ -1,0 +1,93 @@
+{
+  "type": "ranking",
+  "k": 5,
+  "hits_at": {
+    "1": {
+      "mean": 0.23636363636363636,
+      "std": 0.0,
+      "values": [
+        0.23636363636363636
+      ]
+    },
+    "2": {
+      "mean": 0.2909090909090909,
+      "std": 0.0,
+      "values": [
+        0.2909090909090909
+      ]
+    },
+    "3": {
+      "mean": 0.3090909090909091,
+      "std": 0.0,
+      "values": [
+        0.3090909090909091
+      ]
+    },
+    "4": {
+      "mean": 0.32727272727272727,
+      "std": 0.0,
+      "values": [
+        0.32727272727272727
+      ]
+    },
+    "5": {
+      "mean": 0.34545454545454546,
+      "std": 0.0,
+      "values": [
+        0.34545454545454546
+      ]
+    }
+  },
+  "per_run": [
+    {
+      "total": 55,
+      "k": 5,
+      "hits_at": {
+        "1": {
+          "hits": 13,
+          "accuracy": 0.23636363636363636
+        },
+        "2": {
+          "hits": 16,
+          "accuracy": 0.2909090909090909
+        },
+        "3": {
+          "hits": 17,
+          "accuracy": 0.3090909090909091
+        },
+        "4": {
+          "hits": 18,
+          "accuracy": 0.32727272727272727
+        },
+        "5": {
+          "hits": 19,
+          "accuracy": 0.34545454545454546
+        }
+      }
+    }
+  ],
+  "runs": 1,
+  "method": "cot",
+  "data": "philly_cafes",
+  "attack": "clean",
+  "usage": {
+    "total_calls": 0,
+    "total_prompt_tokens": 0,
+    "total_completion_tokens": 0,
+    "total_tokens": 0,
+    "total_cost_usd": 0.0,
+    "mean_cost_per_run": 0.0,
+    "per_run": [
+      {
+        "total_calls": 0,
+        "total_prompt_tokens": 0,
+        "total_completion_tokens": 0,
+        "total_tokens": 0,
+        "total_cost_usd": 0.0,
+        "total_latency_ms": 0.0,
+        "avg_latency_ms": 0.0,
+        "by_model": {}
+      }
+    ]
+  }
+}

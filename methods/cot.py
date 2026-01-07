@@ -134,4 +134,6 @@ class ChainOfThought(BaseMethod):
         system = SYSTEM_PROMPT_RANKING_DEFENSE if use_defense else SYSTEM_PROMPT_RANKING
         if _defense:
             system = _defense + "\n\n" + system
-        return call_llm(prompt, system=system)
+        response = call_llm(prompt, system=system)
+        self._log_llm_call("evaluate_ranking", prompt, response, system)
+        return response

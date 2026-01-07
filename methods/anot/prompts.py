@@ -58,26 +58,49 @@ Brief notes for Phase 2 (optional)
 # PHASE 2: LWT Generation (Item-Aware Execution Plan)
 # =============================================================================
 # Phase 2 receives the strategy and generates concrete LWT steps.
+# CRITICAL: Each step must be SELF-CONTAINED with the actual condition embedded.
 
 PHASE2_PROMPT = """Generate LWT steps to evaluate {n_items} items against conditions.
 
-[STRATEGY]
+[STRATEGY FROM PHASE 1]
 {strategy}
 
-[LWT STEP FORMAT]
-Each step MUST include {{(items)}} to access item data:
-(step_id)=LLM('Items: {{(items)}}. Check condition X. Output matching indices: [indices]')
+[AVAILABLE TOOLS]
+- read("items[0].attributes") - Probe data structure, see available fields
+- read("items[0].attributes.GoodForKids") - Get specific value from item 0
+- lwt_insert(idx, step) - Add LWT step
+- done() - Finish
 
-Example steps:
-(c1)=LLM('Items: {{(items)}}. List indices where attributes.GoodForKids=True. Output: [indices]')
-(c2)=LLM('Items: {{(items)}}. List indices where attributes.Ambience.hipster=True. Output: [indices]')
-(c3)=LLM('Items: {{(items)}}. Check reviews for keyword work. Output: [indices]')
-(final)=LLM('Results: c1={{(c1)}}, c2={{(c2)}}, c3={{(c3)}}. Intersect all. If empty, rank by partial match count. Output top-5: [indices]')
+[PATH SYNTAX for LWT steps]
+Use {{(context)}}[path] to access restaurant data in Phase 3:
+- {{(context)}}[1] - Item 1 (1-indexed)
+- {{(context)}}[1][attributes] - Item 1's attributes dict
+- {{(context)}}[1][attributes][GoodForKids] - Single value (True/False)
+- {{(context)}}[1][attributes][Ambience][hipster] - Nested value
+- {{(context)}}[1][hours] - Item 1's hours dict
 
-[OUTPUT - Use single quotes inside step string]
-lwt_insert(1, "(c1)=LLM('Items: {{(items)}}. List indices where ...')")
-lwt_insert(2, "(c2)=LLM('Items: {{(items)}}. ...')")
-...
-lwt_insert(N, "(final)=LLM('Results: c1={{(c1)}}, c2={{(c2)}}, ... Intersect. Output top-5: [indices]')")
+[STEP TEMPLATES]
+CRITICAL: You MUST list ALL items explicitly. Do NOT use "..." - it won't be expanded!
+
+For [ATTR] conditions - list EVERY item's value:
+  (c1)=LLM('1={{(context)}}[1][attributes][GoodForKids], 2={{(context)}}[2][attributes][GoodForKids], 3={{(context)}}[3][attributes][GoodForKids], 4={{(context)}}[4][attributes][GoodForKids], 5={{(context)}}[5][attributes][GoodForKids]. Which are True? Output: [indices]')
+
+For nested attributes (Ambience, GoodForMeal) - list ALL:
+  (c2)=LLM('1={{(context)}}[1][attributes][Ambience][hipster], 2={{(context)}}[2][attributes][Ambience][hipster], 3={{(context)}}[3][attributes][Ambience][hipster], 4={{(context)}}[4][attributes][Ambience][hipster], 5={{(context)}}[5][attributes][Ambience][hipster]. Which are True? Output: [indices]')
+
+Final aggregation:
+  (final)=LLM('c1={{(c1)}}, c2={{(c2)}}. Score items: +1 per condition matched. Rank by score DESC. Output top-5: [best,2nd,3rd,4th,5th]')
+
+[PROCESS]
+1. Optionally use read() to verify field paths exist
+2. Generate LWT steps for each condition
+3. Generate final aggregation step
+4. Call done()
+
+[EXAMPLE for 10 items]
+read("items[0].attributes")  # See available fields
+lwt_insert(1, "(c1)=LLM('GoodForKids: 1={{(context)}}[1][attributes][GoodForKids], 2={{(context)}}[2][attributes][GoodForKids], 3={{(context)}}[3][attributes][GoodForKids], 4={{(context)}}[4][attributes][GoodForKids], 5={{(context)}}[5][attributes][GoodForKids], 6={{(context)}}[6][attributes][GoodForKids], 7={{(context)}}[7][attributes][GoodForKids], 8={{(context)}}[8][attributes][GoodForKids], 9={{(context)}}[9][attributes][GoodForKids], 10={{(context)}}[10][attributes][GoodForKids]. Which are True? Output: [indices]')")
+lwt_insert(2, "(c2)=LLM('WiFi: 1={{(context)}}[1][attributes][WiFi], 2={{(context)}}[2][attributes][WiFi], 3={{(context)}}[3][attributes][WiFi], 4={{(context)}}[4][attributes][WiFi], 5={{(context)}}[5][attributes][WiFi], 6={{(context)}}[6][attributes][WiFi], 7={{(context)}}[7][attributes][WiFi], 8={{(context)}}[8][attributes][WiFi], 9={{(context)}}[9][attributes][WiFi], 10={{(context)}}[10][attributes][WiFi]. Which are free? Output: [indices]')")
+lwt_insert(3, "(final)=LLM('c1={{(c1)}}, c2={{(c2)}}. Score: +1 per match. Output top-5: [best,2nd,3rd,4th,5th]')")
 done()
 """

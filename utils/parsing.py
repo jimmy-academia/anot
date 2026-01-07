@@ -33,8 +33,8 @@ def substitute_variables(instruction: str, items, user_query: str, cache: dict) 
         elif var in ('input', 'items'):
             val = items
         elif var == 'context':
-            # Legacy: context also maps to user_query
-            val = user_query
+            # context maps to items (restaurant data)
+            val = items
         else:
             val = cache.get(var, '')
 

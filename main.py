@@ -67,9 +67,8 @@ def setup_logging(verbose: bool = False):
         level=level,
         format="%(levelname)s: %(message)s"
     )
-    # Suppress verbose logs (must be after basicConfig)
-    for logger_name in ["httpx", "httpcore", "openai", "httpx._client", "asyncio"]:
-        logging.getLogger(logger_name).setLevel(logging.WARNING)
+    # HTTP client logs suppressed in utils/llm.py
+    logging.getLogger("asyncio").setLevel(logging.WARNING)
     return logging.getLogger(__name__)
 
 

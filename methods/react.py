@@ -5,7 +5,7 @@ Reference: ReAct: Synergizing Reasoning and Acting in Language Models
 Yao et al., ICLR 2023
 https://arxiv.org/abs/2210.03629
 
-Redesigned to use dict mode with path-based data access (like ANoT).
+Redesigned to use dict mode with path-based data access (uses tool_read from ANoT).
 """
 
 import json
@@ -15,96 +15,23 @@ from typing import Tuple, List
 from .base import BaseMethod
 from .anot.tools import tool_read
 from utils.llm import call_llm
-from utils.parsing import parse_final_answer
 
 
-MAX_STEPS = 8
+MAX_STEPS = 5
 
-SYSTEM_PROMPT = """You are evaluating restaurants to find the best match for a user's request.
-Use the ReACT format: Thought, Action, Observation loop.
+SYSTEM_PROMPT_RANKING = """You are ranking restaurants for a user. Be efficient - aim to finish in 3-4 steps.
 
-Available actions:
-- read(path): Read data at path. Examples:
-  - read("items.1.name") → restaurant name
-  - read("items.1.reviews") → all reviews for restaurant 1
-  - read("items.1.reviews.0.text") → first review text
-  - read("items.1.attributes") → restaurant attributes
-  - read("items.1.categories") → restaurant categories
-- count(path): Count items at path. Example: count("items") → number of restaurants
-- schema(): Show data structure with example paths
-- finish(answer): Submit final answer (comma-separated indices, e.g., "3, 1, 5")
+Actions (items are 1-indexed):
+- read("items.1.name") → restaurant name
+- read("items.1.reviews") → all reviews (text, stars)
+- read("items.1.attributes") → NoiseLevel, WiFi, RestaurantsPriceRange2, etc.
+- read("items.1.categories") → category list
+- finish("3, 1, 5") → submit ranking (comma-separated, best first)
 
-Path format: Use dot notation. Items are 1-indexed (items.1, items.2, ...).
+Strategy: Read a few restaurants, compare to user needs, then finish().
 
-You MUST respond in this exact format:
-Thought: [your reasoning about what to do next]
-Action: [action with arguments]
-
-Example:
-Thought: I need to see how many restaurants there are.
-Action: count("items")"""
-
-SYSTEM_PROMPT_RANKING = """You are selecting the best restaurants for a user's request.
-You have access to structured restaurant data via path-based queries.
-
-Available actions:
-- read(path): Read data at path
-  - read("items.1.name") → restaurant 1's name
-  - read("items.1.reviews") → all reviews
-  - read("items.1.reviews.0.text") → first review text
-  - read("items.1.attributes.NoiseLevel") → noise level
-  - read("items.1.hours") → operating hours
-- count(path): Count items (e.g., count("items"), count("items.1.reviews"))
-- schema(): Show data structure
-- finish(answer): Submit final ranking as comma-separated indices (best first)
-
-Items are 1-indexed. Use systematic exploration to find the best matches.
-
-Format your response as:
 Thought: [reasoning]
-Action: [action call]"""
-
-
-def _extract_schema(data: dict, max_depth: int = 3) -> str:
-    """Extract schema from data dict showing available paths."""
-    lines = []
-
-    def traverse(obj, path="", depth=0):
-        if depth > max_depth:
-            return
-        if isinstance(obj, dict):
-            for k, v in list(obj.items())[:5]:  # Limit keys shown
-                new_path = f"{path}.{k}" if path else k
-                if isinstance(v, dict):
-                    lines.append(f"  {new_path}.* (dict with {len(v)} keys)")
-                    if depth < max_depth - 1:
-                        traverse(v, new_path, depth + 1)
-                elif isinstance(v, list):
-                    lines.append(f"  {new_path}[0..{len(v)-1}] (list of {len(v)})")
-                    if v and depth < max_depth - 1:
-                        traverse(v[0], f"{new_path}.0", depth + 1)
-                else:
-                    val_preview = str(v)[:50] + "..." if len(str(v)) > 50 else str(v)
-                    lines.append(f"  {new_path} = {val_preview}")
-        elif isinstance(obj, list) and obj:
-            traverse(obj[0], f"{path}.0", depth + 1)
-
-    traverse(data)
-    return "Data schema:\n" + "\n".join(lines[:30])  # Limit output
-
-
-def _count_at_path(path: str, data: dict) -> str:
-    """Count items at a path."""
-    result = tool_read(path, data)
-    if result.startswith("Error:"):
-        return result
-    try:
-        parsed = json.loads(result) if result.startswith(("[", "{")) else result
-        if isinstance(parsed, (list, dict)):
-            return str(len(parsed))
-        return "1"
-    except (json.JSONDecodeError, TypeError):
-        return "1"
+Action: [one action]"""
 
 
 class ReAct(BaseMethod):
@@ -157,12 +84,10 @@ class ReAct(BaseMethod):
         thought = ""
         action = ""
 
-        # Extract Thought
         thought_match = re.search(r"Thought:\s*(.+?)(?=\nAction:|\Z)", response, re.DOTALL | re.IGNORECASE)
         if thought_match:
             thought = thought_match.group(1).strip()
 
-        # Extract Action
         action_match = re.search(r"Action:\s*(.+?)(?=\nThought:|\nObservation:|\Z)", response, re.DOTALL | re.IGNORECASE)
         if action_match:
             action = action_match.group(1).strip()
@@ -170,7 +95,7 @@ class ReAct(BaseMethod):
         return thought, action
 
     def _execute_action(self, action: str, data: dict) -> Tuple[str, bool, str]:
-        """Execute an action and return (observation, is_finished, answer).
+        """Execute an action using tool_read from ANoT.
 
         Returns:
             Tuple of (observation, is_finished, final_answer)
@@ -183,7 +108,7 @@ class ReAct(BaseMethod):
             answer = finish_match.group(1).strip()
             return f"Final answer submitted: {answer}", True, answer
 
-        # Check for read action
+        # Check for read action - uses tool_read from ANoT
         read_match = re.search(r'read\s*\(\s*["\']([^"\']+)["\']\s*\)', action, re.IGNORECASE)
         if read_match:
             path = read_match.group(1)
@@ -193,21 +118,9 @@ class ReAct(BaseMethod):
                 result = result[:3000] + "\n... (truncated, use more specific path)"
             return result, False, ""
 
-        # Check for count action
-        count_match = re.search(r'count\s*\(\s*["\']([^"\']+)["\']\s*\)', action, re.IGNORECASE)
-        if count_match:
-            path = count_match.group(1)
-            result = _count_at_path(path, data)
-            return result, False, ""
-
-        # Check for schema action
-        if re.search(r'schema\s*\(\s*\)', action, re.IGNORECASE):
-            return _extract_schema(data), False, ""
-
-        # Unknown action
+        # Unknown action - guide user to valid actions
         return (
-            f"Unknown action: {action}. "
-            "Use read(\"path\"), count(\"path\"), schema(), or finish(\"answer\").",
+            f"Unknown action: {action}. Use read(\"path\") or finish(\"answer\").",
             False,
             ""
         )
@@ -260,19 +173,19 @@ class ReAct(BaseMethod):
         for step in range(MAX_STEPS):
             prompt = self._build_ranking_prompt(query, n_items, history, k)
             response = call_llm(prompt, system=SYSTEM_PROMPT_RANKING)
+            self._log_llm_call(f"step_{step+1}", prompt, response, SYSTEM_PROMPT_RANKING)
 
             thought, action = self._parse_response(response)
 
             if not action:
-                # No action found, prompt for one
-                action = "schema()"
+                # No action found, default to reading first item
+                action = 'read("items.1")'
 
             observation, is_finished, answer = self._execute_action(action, data)
 
             if is_finished:
                 indices = self._parse_indices(answer, max_index=n_items, k=k)
                 if not indices:
-                    # Try parsing from full response
                     indices = self._parse_indices(response, max_index=n_items, k=k)
                 return self._format_indices(indices, k)
 
@@ -289,5 +202,6 @@ class ReAct(BaseMethod):
         prompt += f"\nAction: finish(\""
 
         response = call_llm(prompt, system=SYSTEM_PROMPT_RANKING)
+        self._log_llm_call("force_finish", prompt, response, SYSTEM_PROMPT_RANKING)
         indices = self._parse_indices(response, max_index=n_items, k=k)
         return self._format_indices(indices, k)

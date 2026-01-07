@@ -509,7 +509,43 @@ class AdaptiveNetworkOfThought(BaseMethod):
 
         return idx, output
 
-    async def _execute_parallel(self, lwt: str, items: dict, user_query: str) -> str:
+    def _compute_partial_match_ranking(self, cache: dict, n_items: int, k: int = 5) -> str:
+        """Compute partial match ranking from condition step outputs.
+
+        For each item, count how many condition sets contain it.
+        Return top-k items ranked by count descending.
+        """
+        # Extract condition results (keys starting with 'c')
+        condition_sets = []
+        for key, value in cache.items():
+            if str(key).startswith('c') and key != 'final':
+                # Parse indices from output like "[1, 2, 3]" or "1, 2, 3"
+                indices = set()
+                for match in re.finditer(r'\b(\d+)\b', str(value)):
+                    idx = int(match.group(1))
+                    if 1 <= idx <= n_items:
+                        indices.add(idx)
+                if indices:  # Only add non-empty condition sets
+                    condition_sets.append(indices)
+
+        if not condition_sets:
+            self._debug(2, "P3", "No valid condition sets found, using default ranking")
+            return ", ".join(str(i) for i in range(1, min(k, n_items) + 1))
+
+        # Count matches per item
+        scores = {}
+        for item_idx in range(1, n_items + 1):
+            score = sum(1 for cond_set in condition_sets if item_idx in cond_set)
+            scores[item_idx] = score
+
+        # Rank by score descending
+        ranked = sorted(scores.keys(), key=lambda x: -scores[x])
+        top_k = ranked[:k]
+
+        self._debug(2, "P3", f"Partial match scores: {len(condition_sets)} conditions, top={top_k[:5]}")
+        return ", ".join(str(idx) for idx in top_k)
+
+    async def _execute_parallel(self, lwt: str, data_for_sub: dict, user_query: str, n_items: int = 50, k: int = 5) -> str:
         """Execute LWT with DAG parallel execution."""
         self._set_cache({})
         steps = parse_script(lwt)
@@ -523,7 +559,7 @@ class AdaptiveNetworkOfThought(BaseMethod):
 
         final = ""
         for layer in layers:
-            tasks = [self._execute_step_async(idx, instr, items, user_query) for idx, instr in layer]
+            tasks = [self._execute_step_async(idx, instr, data_for_sub, user_query) for idx, instr in layer]
             results = await asyncio.gather(*tasks)
             for idx, output in results:
                 self._cache_set(idx, output)
@@ -531,20 +567,40 @@ class AdaptiveNetworkOfThought(BaseMethod):
 
         return final
 
-    def phase3_execute(self, lwt: str, items: dict, user_query: str) -> str:
+    def phase3_execute(self, lwt: str, items: dict, user_query: str, n_items: int = 50, k: int = 5) -> str:
         """Execute the LWT script.
 
         Args:
             lwt: The LWT script to execute
-            items: Restaurant data dict (for {(items)} substitution)
+            items: Restaurant data dict (for {(input)} substitution)
             user_query: User's request text (for {(query)} substitution)
+            n_items: Number of items being ranked (for partial match)
+            k: Number of top items to return
         """
         req_id = getattr(self._thread_local, 'request_id', None)
         if req_id:
             self._update_display(req_id, "P3", "executing")
 
+        # Extract items list for programmatic ATTR evaluation
+        raw_items = items.get('items', items)
+        if isinstance(raw_items, dict):
+            item_list = [raw_items[k_] for k_ in sorted(raw_items.keys(), key=lambda x: int(x))]
+        else:
+            item_list = raw_items
+        filtered_items = filter_items_for_ranking(item_list)
+
+        # Create flat query dict: {1: item1, 2: item2, ...} (1-indexed)
+        # Strip reviews to reduce token usage
+        # Path access: {(query)}[1][attributes][GoodForKids] -> True
+        query_dict = {}
+        for i, item in enumerate(filtered_items):
+            item_stripped = {k: v for k, v in item.items() if k != 'reviews'}
+            query_dict[str(i + 1)] = item_stripped  # 1-indexed string keys
+
+        self._debug(2, "P3", f"Query: {len(query_dict)} items (reviews stripped)")
+
         try:
-            return asyncio.run(self._execute_parallel(lwt, items, user_query))
+            return asyncio.run(self._execute_parallel(lwt, query_dict, user_query, n_items, k))
         except RuntimeError:
             # Already in async context, run sequentially
             self._set_cache({})
@@ -554,7 +610,7 @@ class AdaptiveNetworkOfThought(BaseMethod):
 
             final = ""
             for idx, instr in steps:
-                filled = substitute_variables(instr, items, user_query, self._get_cache())
+                filled = substitute_variables(instr, query_dict, user_query, self._get_cache())
                 output = call_llm(
                     filled,
                     system=SYSTEM_PROMPT,
@@ -564,6 +620,7 @@ class AdaptiveNetworkOfThought(BaseMethod):
                 self._log_llm_call("P3", f"step_{idx}", filled, output)
                 self._cache_set(idx, output)
                 final = output
+
             return final
 
     # =========================================================================
@@ -631,7 +688,7 @@ class AdaptiveNetworkOfThought(BaseMethod):
         # Phase 3: Execute with items data and user query text
         self._update_display(request_id, "P3", "executing")
         p3_start = time.time()
-        output = self.phase3_execute(expanded_lwt, data, query)
+        output = self.phase3_execute(expanded_lwt, data, query, n_items=n_items, k=k)
         p3_latency = (time.time() - p3_start) * 1000
 
         # Parse final output (LLM outputs 1-indexed)

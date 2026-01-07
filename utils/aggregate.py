@@ -312,8 +312,8 @@ def print_summary(summary: Dict[str, Any], show_details: bool = False):
         if usage.get("mean_cost_per_run"):
             print(f"  Mean Cost/Run: ${usage.get('mean_cost_per_run', 0):.4f}")
 
-    # Show per-request details from latest run if requested
-    if show_details and summary.get("type") == "ranking":
+    # Load results from latest run for per-request details and coverage
+    if summary.get("type") == "ranking":
         method = summary.get("method")
         data = summary.get("data")
         attack = summary.get("attack", "clean")
@@ -328,7 +328,13 @@ def print_summary(summary: Dict[str, Any], show_details: bool = False):
                     results_file = max(results_files, key=lambda f: f.stat().st_mtime)
                     results = load_results_from_file(results_file)
                     if results:
-                        _print_per_request_details(results)
+                        # Show coverage stats (string-mode truncation)
+                        coverage_results = [r.get("coverage") for r in results if r.get("coverage")]
+                        if coverage_results:
+                            _print_coverage_summary(coverage_results)
+                        # Show per-request details
+                        if show_details:
+                            _print_per_request_details(results)
 
 
 def _print_per_request_details(results: List[Dict]):
@@ -545,3 +551,30 @@ def print_ranking_results(stats: Dict[str, Any], results: List[Dict] = None,
         if results and len(results) > 0:
             avg_tokens = usage.get('total_tokens', 0) / len(results)
             print(f"  Avg Tokens/Request: {avg_tokens:,.0f}")
+
+    # Print coverage summary if results have coverage data (string-mode truncation)
+    if results:
+        coverage_results = [r.get("coverage") for r in results if r.get("coverage")]
+        if coverage_results:
+            _print_coverage_summary(coverage_results)
+
+
+def _print_coverage_summary(coverage_results: List[Dict]):
+    """Print aggregated coverage stats from pack-to-budget truncation."""
+    total_reviews = sum(c.get("reviews_total", 0) for c in coverage_results)
+    included_reviews = sum(c.get("reviews_included", 0) for c in coverage_results)
+    truncated_count = sum(c.get("reviews_truncated_count", 0) for c in coverage_results)
+    excluded_reviews = total_reviews - included_reviews
+
+    if total_reviews == 0:
+        return
+
+    coverage_pct = (included_reviews / total_reviews) * 100 if total_reviews else 0
+    excluded_pct = (excluded_reviews / total_reviews) * 100 if total_reviews else 0
+    avg_per_request = included_reviews / len(coverage_results) if coverage_results else 0
+
+    print(f"\nReview Coverage (pack-to-budget truncation):")
+    print(f"  Reviews Included: {included_reviews:,} / {total_reviews:,} ({coverage_pct:.1f}%)")
+    print(f"  Reviews Excluded: {excluded_reviews:,} ({excluded_pct:.1f}%)")
+    print(f"  Reviews Truncated: {truncated_count:,} (partial text)")
+    print(f"  Avg Reviews/Request: {avg_per_request:.1f}")

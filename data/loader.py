@@ -11,6 +11,36 @@ from utils.io import loadjl
 
 DATA_DIR = Path(__file__).parent
 
+# Fields to strip from reviews/users (reduce token bloat)
+STRIP_USER_FIELDS = {'friends', 'user_id', 'elite'}
+STRIP_REVIEW_FIELDS = {'review_id', 'business_id', 'user_id'}
+
+
+def _load_user_mapping(data_name: str) -> dict | None:
+    """Load user mapping for G09/G10 social data synthesis.
+
+    Returns:
+        Dict with 'user_names' and 'restaurant_reviews' or None if not found
+    """
+    mapping_path = DATA_DIR / data_name / "user_mapping.json"
+    if not mapping_path.exists():
+        return None
+    with open(mapping_path) as f:
+        return json.load(f)
+
+
+def _strip_review_fields(review: dict) -> dict:
+    """Strip bloated fields from review to reduce tokens."""
+    # Strip review-level fields
+    cleaned = {k: v for k, v in review.items() if k not in STRIP_REVIEW_FIELDS}
+
+    # Strip user-level fields
+    if 'user' in cleaned and isinstance(cleaned['user'], dict):
+        cleaned['user'] = {k: v for k, v in cleaned['user'].items()
+                          if k not in STRIP_USER_FIELDS}
+
+    return cleaned
+
 
 def _parse_string_value(value: str):
     """Parse string-encoded Python values from Yelp data.
@@ -191,10 +221,33 @@ def load_dataset(data_name: str, review_limit: int = None) -> Dataset:
     # Build restaurant lookup by business_id
     restaurant_by_id = {r["business_id"]: r for r in restaurants}
 
+    # Load user mapping for G09/G10 social data synthesis
+    user_mapping = _load_user_mapping(data_name)
+    user_names = user_mapping.get("user_names", {}) if user_mapping else {}
+    restaurant_reviews_map = user_mapping.get("restaurant_reviews", {}) if user_mapping else {}
+
+    # Build restaurant index lookup (business_id -> index for user_mapping)
+    biz_id_to_idx = {r["business_id"]: str(i) for i, r in enumerate(restaurants)}
+
     # Load reviews and group by business_id
     reviews_by_biz = {}
     for review in loadjl(reviews_path):
         biz_id = review["business_id"]
+
+        # Strip bloated fields
+        review = _strip_review_fields(review)
+
+        # Apply G09/G10 social synthesis: rename user.name for matching reviews
+        rest_idx = biz_id_to_idx.get(biz_id)
+        if rest_idx and rest_idx in restaurant_reviews_map:
+            review_text_lower = review.get("text", "").lower()
+            for user_id, pattern in restaurant_reviews_map[rest_idx]:
+                if pattern in review_text_lower:
+                    # Apply friend name to this review
+                    if 'user' in review:
+                        review['user']['name'] = user_names.get(user_id, review['user'].get('name'))
+                    break  # Only apply first matching pattern
+
         if biz_id not in reviews_by_biz:
             reviews_by_biz[biz_id] = []
         reviews_by_biz[biz_id].append(review)

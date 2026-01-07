@@ -248,6 +248,29 @@ def format_items_compact(items: list, truncate: int = DEFAULT_LEAF_TRUNCATE) -> 
     return "\n".join(lines)
 
 
+def format_items_attrs_only(items: list, truncate: int = DEFAULT_LEAF_TRUNCATE) -> str:
+    """Format items with ONLY attributes/hours (no reviews) for attribute checks.
+
+    This drastically reduces token count for conditions that don't need review data.
+    For N=50 items, this can reduce from ~400k tokens to ~20k tokens.
+
+    Args:
+        items: List of item dicts
+        truncate: Max chars for leaf string values (default 12)
+
+    Returns:
+        Formatted string with one item per block, 1-indexed, reviews stripped
+    """
+    lines = []
+    for i, item in enumerate(items):
+        # Create copy without reviews
+        item_no_reviews = {k: v for k, v in item.items() if k != 'reviews'}
+        formatted = _format_value(item_no_reviews, truncate)
+        lines.append(f"Item {i+1}: {formatted}")
+
+    return "\n".join(lines)
+
+
 def format_schema_compact(items: list, num_examples: int = 2, truncate: int = 50) -> str:
     """Format 1-2 example items with FULL structure to show available schema.
 
