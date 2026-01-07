@@ -21,16 +21,38 @@ STEP1_EXTRACT_PROMPT = """Extract conditions from the user request.
 [USER REQUEST]
 {query}
 
+[RULES]
+- ONLY extract conditions the user EXPLICITLY wants
+- If user doesn't mention hours/timing, do NOT output any [HOURS] line
+- Use [REVIEW] for sentiment-based requirements:
+  - "is praised for X", "known for great X" → [REVIEW:POSITIVE] X
+  - "complaints about X", "criticized for X" → [REVIEW:NEGATIVE] X
+- For attribute requirements like "quiet", "trendy", "hipster vibe", use [ATTR] not [REVIEW]
+- If a category isn't mentioned, simply omit it - do NOT write "not specified" or "none"
+
 [OUTPUT FORMAT]
 List each condition on a new line:
 [ATTR] description of attribute condition
-[REVIEW] description of review text search
-[HOURS] description of hours condition
+[REVIEW:POSITIVE] topic (only if user asks about praised/recommended aspects)
+[REVIEW:NEGATIVE] topic (only if user asks about complaints/criticisms)
+[HOURS] day and time range (only if user explicitly mentions hours)
 
-Example output:
-[ATTR] has drive-thru
-[ATTR] kid-friendly
-[REVIEW] mentions wifi
+Example 1 - attribute query:
+User: "Looking for a quiet cafe with free WiFi"
+[ATTR] quiet
+[ATTR] free WiFi
+
+Example 2 - positive review query:
+User: "Looking for a cafe praised for their coffee"
+[REVIEW:POSITIVE] coffee
+
+Example 3 - negative review query:
+User: "Looking for a cafe without complaints about service"
+[REVIEW:NEGATIVE] service (absence required)
+
+Example 4 - hours query:
+User: "Looking for a cafe open on Sunday morning"
+[HOURS] Sunday morning
 """
 
 # =============================================================================
@@ -119,6 +141,8 @@ STEP4_SKELETON_PROMPT = """Generate LWT skeleton for soft conditions on candidat
 [RULES]
 - Generate ONE step per item per soft condition
 - Each step checks ONE item independently
+- For [REVIEW:POSITIVE], ask if reviews PRAISE/RECOMMEND the topic (not just mention it)
+- For [REVIEW:NEGATIVE], ask if reviews COMPLAIN/CRITICIZE the topic
 - Final step aggregates all results and outputs ranking as comma-separated numbers
 - IMPORTANT: In final step, map item numbers clearly (item 2=yes means output 2)
 
@@ -129,17 +153,24 @@ Use these exact patterns (with curly braces):
 
 [OUTPUT FORMAT]
 ===LWT_SKELETON===
-(r2)=LLM('Item 2 reviews: {{(context)}}[2][reviews]. [soft_question] Answer: yes/no')
-(r4)=LLM('Item 4 reviews: {{(context)}}[4][reviews]. [soft_question] Answer: yes/no')
+(r2)=LLM('Item 2 reviews: {{(context)}}[2][reviews]. [semantic_question] Answer: yes/no')
+(r4)=LLM('Item 4 reviews: {{(context)}}[4][reviews]. [semantic_question] Answer: yes/no')
 ...
 (final)=LLM('Item 2={{(r2)}}, Item 4={{(r4)}}... Output the item NUMBERS with yes first, then others. Format: 2, 4, 6, ...')
 
-[EXAMPLE for candidates [2,4,6] checking "mentions wifi"]
+[EXAMPLE for candidates [2,4,6] checking "POSITIVE coffee" (praised for coffee)]
 ===LWT_SKELETON===
-(r2)=LLM('Item 2 reviews: {{(context)}}[2][reviews]. Mentions wifi? Answer: yes/no')
-(r4)=LLM('Item 4 reviews: {{(context)}}[4][reviews]. Mentions wifi? Answer: yes/no')
-(r6)=LLM('Item 6 reviews: {{(context)}}[6][reviews]. Mentions wifi? Answer: yes/no')
+(r2)=LLM('Item 2 reviews: {{(context)}}[2][reviews]. Do reviewers PRAISE the coffee (positive sentiment)? Answer: yes/no')
+(r4)=LLM('Item 4 reviews: {{(context)}}[4][reviews]. Do reviewers PRAISE the coffee (positive sentiment)? Answer: yes/no')
+(r6)=LLM('Item 6 reviews: {{(context)}}[6][reviews]. Do reviewers PRAISE the coffee (positive sentiment)? Answer: yes/no')
 (final)=LLM('Item 2={{(r2)}}, Item 4={{(r4)}}, Item 6={{(r6)}}. Output item NUMBERS with yes first, comma-separated: ')
+
+[EXAMPLE for candidates [1,3,5] checking "NEGATIVE service" (complaints about service)]
+===LWT_SKELETON===
+(r1)=LLM('Item 1 reviews: {{(context)}}[1][reviews]. Do reviewers COMPLAIN about service (negative sentiment)? Answer: yes/no')
+(r3)=LLM('Item 3 reviews: {{(context)}}[3][reviews]. Do reviewers COMPLAIN about service (negative sentiment)? Answer: yes/no')
+(r5)=LLM('Item 5 reviews: {{(context)}}[5][reviews]. Do reviewers COMPLAIN about service (negative sentiment)? Answer: yes/no')
+(final)=LLM('Item 1={{(r1)}}, Item 3={{(r3)}}, Item 5={{(r5)}}. Output item NUMBERS with yes first, comma-separated: ')
 
 [IF NO SOFT CONDITIONS]
 ===LWT_SKELETON===
@@ -150,25 +181,32 @@ Use these exact patterns (with curly braces):
 # PHASE 2: ReAct Expansion (refine skeleton with read() calls)
 # =============================================================================
 
-PHASE2_PROMPT = """Refine the LWT skeleton by checking review content.
+PHASE2_PROMPT = """Refine the LWT skeleton by checking review lengths and adding summarization if needed.
 
 [LWT SKELETON]
 {lwt_skeleton}
 
 [AVAILABLE TOOLS]
-- read("items[2].reviews") - Read item 2's reviews to check if they match
-- lwt_set(idx, step) - Modify step at index
-- lwt_delete(idx) - Remove step at index (if item clearly doesn't match)
+- review_length(item_num) - Get character count of item's reviews (e.g., review_length(2))
+- lwt_insert(idx, "step") - Insert new step at index
+- lwt_set(idx, "step") - Modify step at index
+- lwt_delete(idx) - Remove step at index
+- read("items[2].reviews") - Read actual review content
 - done() - Finish refinement
 
 [TASK]
-1. Optionally read() reviews for items to verify they match soft conditions
-2. If an item clearly doesn't match, use lwt_delete() to remove its step
-3. Call done() when finished
+For each step that references reviews (contains [reviews]):
+1. Call review_length(item_num) to check size
+2. If length > 5000 chars:
+   - Insert summarization step: lwt_insert(idx, "(sN)=LLM('Summarize for [condition]: {{(context)}}[N][reviews]')")
+   - Modify original step to use summary: lwt_set(idx+1, "... {{(sN)}} ...")
+3. If length <= 5000: no change needed
+4. Call done() when all items checked
 
-[PROCESS]
-- You can read a few items to verify matching
-- Delete steps for items that clearly don't match
-- Keep steps for items that might match (let Phase 3 evaluate)
-- Call done() to finish
+[EXAMPLE]
+review_length(1) → 12500
+lwt_insert(0, "(s1)=LLM('Summarize item 1 reviews for wifi mentions: {{(context)}}[1][reviews]')")
+lwt_set(1, "(r1)=LLM('Based on summary: {{(s1)}}. Mentions wifi? yes/no')")
+review_length(2) → 2100
+done()
 """

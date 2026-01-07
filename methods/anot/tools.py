@@ -78,3 +78,12 @@ def tool_lwt_insert(idx: int, step: str, lwt_steps: List[str]) -> str:
         return f"Appended at index {len(lwt_steps) - 1}"
     lwt_steps.insert(idx, step)
     return f"Inserted at index {idx}"
+
+
+def tool_review_length(item_num: int, data: dict) -> str:
+    """Return total character count of reviews for item."""
+    items = data.get('items', data)
+    item = items.get(str(item_num), {})
+    reviews = item.get('reviews', [])
+    total = sum(len(r.get('text', '')) for r in reviews if isinstance(r, dict))
+    return str(total)

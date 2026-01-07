@@ -99,18 +99,18 @@ Given a user request with logical structure and N candidate restaurants, identif
 
 ### Request Groups
 
-| Group | Structure | Evidence Types |
-|-------|-----------|----------------|
-| G01 | Flat AND | item_meta only |
-| G02 | Flat AND | item_meta + review_text |
-| G03 | Flat AND | item_meta + item_meta_hours |
-| G04 | Flat AND | item_meta + review_text (weighted) |
-| G05 | AND + OR | Nested OR in AND |
-| G06 | AND + OR(AND) | OR containing ANDs |
-| G07 | AND + OR + OR | Multiple parallel ORs |
-| G08 | AND + OR(AND) | Complex nesting |
-| G09 | 1-hop | Social filter (friends) |
-| G10 | 2-hop | Social filter (friends-of-friends) |
+| Group | Structure | Description |
+|-------|-----------|-------------|
+| G01 | `AND(conds)` | Flat AND, item_meta only |
+| G02 | `AND(conds)` | Flat AND, item_meta + review_text |
+| G03 | `AND(conds)` | Flat AND, item_meta + item_meta_hours |
+| G04 | `AND(conds)` | Flat AND, item_meta + review_text (weighted) |
+| G05 | `AND(anchors, OR(a,b,c,d))` | 4-way OR |
+| G06 | `AND(anchors, OR(AND(a,b), AND(c,d)))` | OR of two ANDs |
+| G07 | `AND(anchors, OR(a,b), OR(c,d))` | Two parallel ORs |
+| G08 | `AND(anchors, OR(simple, AND(a,b)))` | Unbalanced OR |
+| G09 | `1HOP(friend, pattern)` or `AND(conds, 1HOP)` | 1-hop social filter |
+| G10 | `2HOP(friend, pattern)` or `AND(conds, 2HOP)` | 2-hop social filter |
 
 ### Evidence Types
 

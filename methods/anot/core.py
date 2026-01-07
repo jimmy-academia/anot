@@ -38,7 +38,7 @@ from .helpers import (
 )
 from .tools import (
     tool_read, tool_lwt_list, tool_lwt_get,
-    tool_lwt_set, tool_lwt_delete, tool_lwt_insert
+    tool_lwt_set, tool_lwt_delete, tool_lwt_insert, tool_review_length
 )
 
 
@@ -343,6 +343,9 @@ class AdaptiveNetworkOfThought(BaseMethod):
         resolved = parse_resolved_path(response)
         resolved["description"] = condition["description"]
         resolved["original_type"] = condition["type"]
+        # Carry sentiment through for review conditions
+        if "sentiment" in condition:
+            resolved["sentiment"] = condition["sentiment"]
         return resolved
 
     def _step3_quick_ruleout(self, hard_conditions: list, items_compact: str, n_items: int) -> list:
@@ -396,8 +399,10 @@ class AdaptiveNetworkOfThought(BaseMethod):
             top_k = candidates[:k]
             return [("final", f"LLM('Candidates: [{candidates_str}]. All passed hard conditions. Output: {top_k}')")]
 
-        # Format soft conditions
+        # Format soft conditions with sentiment if available
         soft_cond_str = "\n".join([
+            f"{i+1}. [REVIEW:{c.get('sentiment', 'POSITIVE').upper()}] {c['description']}"
+            if c.get('sentiment') else
             f"{i+1}. [{c.get('original_type', 'REVIEW')}] {c['description']} (search for: {c['expected']})"
             for i, c in enumerate(soft_conditions)
         ])
@@ -542,17 +547,7 @@ class AdaptiveNetworkOfThought(BaseMethod):
         lwt_skeleton_str = "\n".join(lwt_steps)
         self._debug(2, "P2", f"Initial LWT:\n{lwt_skeleton_str}")
 
-        # For now, skip ReAct refinement if skeleton looks reasonable
-        # This simplifies the flow and avoids the broken ReAct loop
-        if len(lwt_steps) >= 1:
-            self._debug(1, "P2", f"Using skeleton directly: {len(lwt_steps)} steps")
-            trace = self._get_trace()
-            if trace:
-                trace["phase2"]["expanded_lwt"] = lwt_steps
-                trace["phase2"]["react_iterations"] = 0
-            return lwt_steps
-
-        # Optional: ReAct loop for refinement (can be enabled later)
+        # ReAct loop for refinement - check review lengths, add summarization if needed
         prompt = PHASE2_PROMPT.format(lwt_skeleton=lwt_skeleton_str)
         conversation = [prompt]
 
@@ -592,6 +587,17 @@ class AdaptiveNetworkOfThought(BaseMethod):
                 result = tool_lwt_delete(int(match.group(1)), lwt_steps)
                 action_results.append((f"lwt_delete({match.group(1)})", result))
 
+            # Process lwt_insert() calls
+            for match in re.finditer(r'lwt_insert\((\d+),\s*"((?:[^"\\]|\\.)*)"\)', response, re.DOTALL):
+                step = match.group(2).replace('\\"', '"').replace('\\n', '\n')
+                result = tool_lwt_insert(int(match.group(1)), step, lwt_steps)
+                action_results.append((f"lwt_insert({match.group(1)})", result))
+
+            # Process review_length() calls
+            for match in re.finditer(r'review_length\((\d+)\)', response):
+                result = tool_review_length(int(match.group(1)), query)
+                action_results.append((f"review_length({match.group(1)})", result))
+
             # Process read() calls
             for match in re.finditer(r'read\("([^"]+)"\)', response):
                 result = tool_read(match.group(1), query)
@@ -609,7 +615,7 @@ class AdaptiveNetworkOfThought(BaseMethod):
                 conversation.append(f"\n{response}\n\nRESULTS:\n{results_text}\n\nContinue:")
             else:
                 self._debug(1, "P2", "No action found, prompting for action")
-                conversation.append(f"\n{response}\n\nUse read(path), lwt_set(idx, step), lwt_delete(idx), or done():")
+                conversation.append(f"\n{response}\n\nUse review_length(item_num), lwt_insert(idx, step), lwt_set(idx, step), lwt_delete(idx), read(path), or done():")
 
         self._debug(1, "P2", f"Refined LWT: {len(lwt_steps)} steps")
 
@@ -740,23 +746,15 @@ class AdaptiveNetworkOfThought(BaseMethod):
         if req_id:
             self._update_display(req_id, "P3", "executing")
 
-        # Extract items list for programmatic ATTR evaluation
+        # Use pipeline data directly - already {"1": {...}, "2": {...}} with reviews
         raw_items = items.get('items', items)
         if isinstance(raw_items, dict):
-            item_list = [raw_items[k_] for k_ in sorted(raw_items.keys(), key=lambda x: int(x))]
+            query_dict = raw_items  # Use directly - already 1-indexed string keys with reviews
         else:
-            item_list = raw_items
-        filtered_items = filter_items_for_ranking(item_list)
+            # Fallback for list format
+            query_dict = {str(i + 1): item for i, item in enumerate(raw_items)}
 
-        # Create flat query dict: {1: item1, 2: item2, ...} (1-indexed)
-        # Strip reviews to reduce token usage
-        # Path access: {(query)}[1][attributes][GoodForKids] -> True
-        query_dict = {}
-        for i, item in enumerate(filtered_items):
-            item_stripped = {k: v for k, v in item.items() if k != 'reviews'}
-            query_dict[str(i + 1)] = item_stripped  # 1-indexed string keys
-
-        self._debug(2, "P3", f"Query: {len(query_dict)} items (reviews stripped)")
+        self._debug(2, "P3", f"Query: {len(query_dict)} items")
 
         try:
             return asyncio.run(self._execute_parallel(lwt, query_dict, user_query, n_items, k))

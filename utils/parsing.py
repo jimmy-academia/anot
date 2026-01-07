@@ -198,17 +198,20 @@ def parse_index(response: str, max_index: int = 20) -> int:
 def parse_limit_spec(spec: str) -> list[int]:
     """Parse limit specification into list of request indices.
 
+    User input is 1-indexed (matching request IDs R01, R11, etc.).
+    Returns 0-indexed for internal use.
+
     Args:
-        spec: Limit specification string
+        spec: Limit specification string (1-indexed)
 
     Returns:
-        Sorted list of request indices (0-based)
+        Sorted list of request indices (0-based internally)
 
     Examples:
-        '5' -> [0,1,2,3,4]  (first 5)
-        '0-9' -> [0,1,2,3,4,5,6,7,8,9]
-        '0,5,10' -> [0,5,10]
-        '0-4,10,20-24' -> [0,1,2,3,4,10,20,21,22,23,24]
+        '5' -> [0,1,2,3,4]  (first 5 requests)
+        '1-10' -> [0,1,2,3,4,5,6,7,8,9]  (R01-R10)
+        '1,5,10' -> [0,4,9]  (R01, R05, R10)
+        '11,12,13' -> [10,11,12]  (R11, R12, R13)
     """
     if not spec or not spec.strip():
         return []
@@ -222,21 +225,23 @@ def parse_limit_spec(spec: str) -> list[int]:
             continue
 
         if '-' in part:
-            # Range: "0-9"
+            # Range: "11-15" means R11-R15 -> indices 10-14
             try:
                 start, end = part.split('-', 1)
-                indices.update(range(int(start), int(end) + 1))
+                # Convert 1-indexed to 0-indexed
+                indices.update(range(int(start) - 1, int(end)))
             except ValueError:
                 logger.warning(f"Invalid range in limit spec: {part}")
         else:
             # Single number: could be count or index
             try:
                 n = int(part)
-                # If it's a single number with no comma/range, treat as count
+                # If it's a single number with no comma/range, treat as count (first N)
                 if ',' not in spec and '-' not in spec:
                     indices.update(range(n))
                 else:
-                    indices.add(n)
+                    # Specific index: 1-indexed input -> 0-indexed internal
+                    indices.add(n - 1)
             except ValueError:
                 logger.warning(f"Invalid number in limit spec: {part}")
 

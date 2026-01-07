@@ -25,6 +25,74 @@ console = Console()
 
 DATA_DIR = Path(__file__).parent
 
+# --- Judgement Cache (for review_sentiment validation) ---
+
+_judgement_cache = None
+
+def get_judgement_cache():
+    """Load judgement_cache.json for review_sentiment evaluation."""
+    global _judgement_cache
+    if _judgement_cache is None:
+        cache_path = DATA_DIR / "philly_cafes" / "judgement_cache.json"
+        if cache_path.exists():
+            with open(cache_path) as f:
+                _judgement_cache = json.load(f)
+        else:
+            _judgement_cache = {}
+    return _judgement_cache
+
+
+def evaluate_review_sentiment(business_id: str, reviews: list, evidence_spec: dict) -> int:
+    """Evaluate review_sentiment condition.
+
+    Checks if reviews have positive/negative sentiment for a topic.
+    Uses star ratings as proxy: 4-5★ = positive, 1-2★ = negative.
+
+    Args:
+        business_id: Restaurant's business_id
+        reviews: List of review dicts
+        evidence_spec: {"kind": "review_sentiment", "topic": "X", "sentiment": "positive/negative", "min_positive": N}
+
+    Returns: 1 if condition met, -1 otherwise
+    """
+    topic = evidence_spec.get("topic", "")
+    expected_sentiment = evidence_spec.get("sentiment", "positive")
+    min_positive = evidence_spec.get("min_positive", 1)
+    min_negative = evidence_spec.get("min_negative", 1)
+
+    if not topic or not reviews:
+        return -1
+
+    # Try to use cached judgement first
+    cache = get_judgement_cache()
+    cache_key = f"{business_id}:{topic}"
+    if cache_key in cache:
+        cached = cache[cache_key]
+        if expected_sentiment == "positive":
+            return 1 if cached.get("is_valid_positive", False) else -1
+        else:  # negative
+            return 1 if cached.get("negative_count", 0) >= min_negative else -1
+
+    # Fall back to heuristic: count by star rating
+    pattern = re.compile(re.escape(topic), re.IGNORECASE)
+    pos_count = 0
+    neg_count = 0
+
+    for r in reviews:
+        text = r.get("text", "")
+        stars = r.get("stars", 3)
+        if pattern.search(text):
+            if stars >= 4:
+                pos_count += 1
+            elif stars <= 2:
+                neg_count += 1
+
+    if expected_sentiment == "positive":
+        return 1 if pos_count >= min_positive and pos_count > neg_count else -1
+    else:  # negative
+        return 1 if neg_count >= min_negative else -1
+
+
 # --- Social Filter Data (Lazy Loaded) ---
 
 _social_data = None
@@ -582,6 +650,13 @@ def evaluate_condition(item: dict, condition: dict, reviews: list = None) -> int
             return evidence_spec.get("missing", 0)
         return evaluate_review_meta(reviews, evidence_spec)
 
+    elif kind == "review_sentiment":
+        # Sentiment-based review check (positive/negative about topic)
+        business_id = item.get("business_id", "")
+        if not reviews:
+            return -1
+        return evaluate_review_sentiment(business_id, reviews, evidence_spec)
+
     elif kind == "item_meta_hours":
         day_hours = get_nested_value(item, path)
         required = evidence_spec.get("true", "")
@@ -684,7 +759,11 @@ def load_jsonl(path: Path) -> list:
 
 def validate_dataset(name: str):
     """Validate a dataset and generate groundtruth.jsonl."""
-    from .loader import load_dataset
+    # Import loader - works both as module and direct script
+    try:
+        from .loader import load_dataset
+    except ImportError:
+        from loader import load_dataset
 
     dataset_dir = DATA_DIR / name
 
@@ -700,19 +779,36 @@ def validate_dataset(name: str):
 
     # Load data using loader (applies synthetic user.name/friends for G09/G10)
     dataset = load_dataset(name)
+
+    # Handle both list and dict formats from loader
+    if isinstance(dataset.items, dict):
+        # Dict format: {"1": item1, "2": item2, ...}
+        items_list = [dataset.items[k] for k in sorted(dataset.items.keys(), key=lambda x: int(x))]
+    else:
+        items_list = dataset.items
+
     restaurants = [
         {**item, "reviews": item.get("reviews", [])}
-        for item in dataset.items
+        for item in items_list
     ]
     requests = dataset.requests
 
-    # Group reviews by business_id (from loaded/transformed data)
+    # Load raw business_ids from file (loader may strip them)
+    raw_restaurants = load_jsonl(restaurants_path)
+    business_ids = [r["business_id"] for r in raw_restaurants]
+
+    # Attach business_id to restaurants if missing
+    for i, r in enumerate(restaurants):
+        if "business_id" not in r and i < len(business_ids):
+            r["business_id"] = business_ids[i]
+
+    # Group reviews by business_id
     reviews_by_id = {}
-    for item in dataset.items:
-        bid = item.get("business_id", "")
+    for i, item in enumerate(restaurants):
+        bid = item.get("business_id", business_ids[i] if i < len(business_ids) else "")
         reviews_by_id[bid] = item.get("reviews", [])
 
-    total_reviews = sum(len(item.get("reviews", [])) for item in dataset.items)
+    total_reviews = sum(len(item.get("reviews", [])) for item in restaurants)
     print(f"Dataset: {name}")
     print(f"  Restaurants: {len(restaurants)}")
     print(f"  Reviews: {total_reviews}")

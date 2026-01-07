@@ -1,0 +1,843 @@
+{
+  "-cEFKAznWmI0cledNOIQ7w:gelato": {
+    "business_id": "-cEFKAznWmI0cledNOIQ7w",
+    "business_name": "Gran Caffe L'Aquila",
+    "topic": "gelato",
+    "positive_count": 7,
+    "negative_count": 4,
+    "sentiment": "positive",
+    "is_valid_positive": true,
+    "sample_reviews": [
+      {
+        "stars": 4.0,
+        "snippet": "Consider making a reservation for this gem. I called early afternoon Saturday to get in for two that evening around 6:30. Host explained he could get us in at that time in the downstairs area, but not"
+      },
+      {
+        "stars": 1.0,
+        "snippet": "Almost overwhelming menu as everything you'd ever want from Italy is here...but when it's delivered to your table, it's nothing you'd ever want to eat.\n\nWhile looking over the menu, we ordered two mix"
+      },
+      {
+        "stars": 5.0,
+        "snippet": "I have to start by saying that other than a big love of all things Italian and the fact that I stalked this place as it was being built, and hope it remains successful, I hold no stake or stock in the"
+      },
+      {
+        "stars": 1.0,
+        "snippet": "We walked in and requested a table for 3. The two? three? hostesses looked really confused, but then told us they were going to seat us upstairs in a few minutes. My friend told them we only wanted de"
+      },
+      {
+        "stars": 5.0,
+        "snippet": "Find parking, take the train, or get yourself an Uber/Lyft  and just make a \"B\" line to Gran Caffe L'Aquilla! That is all you need to know, because what ever you get from here will simply be AMAZING! "
+      }
+    ]
+  },
+  "iUZEGx29miZObLd6_lt7Vg:challah": {
+    "business_id": "iUZEGx29miZObLd6_lt7Vg",
+    "business_name": "Sabrina's Café",
+    "topic": "challah",
+    "positive_count": 4,
+    "negative_count": 0,
+    "sentiment": "positive",
+    "is_valid_positive": true,
+    "sample_reviews": [
+      {
+        "stars": 5.0,
+        "snippet": "One of the better and well-known brunch locations in Philly is Sabrina's. Owners Robert and Raquel DeAbreu named the original restaurant on 9th and Christian Streets after their daughter. Recently, fo"
+      },
+      {
+        "stars": 5.0,
+        "snippet": "FINALLY made my way over to callowhill to sample this legend. Ain't NOBODY got time to wait so I used yelp's app to add myself to the list about an hour before patronization. Due to poor time planning"
+      },
+      {
+        "stars": 4.0,
+        "snippet": "After many visits to Philadelphia, and specifically to Sabrina's Cafe, let me break the ice and dedicate this as my first review in Philadelphia, the city of \"Brotherly Love\"! Sabrina's Cafe is a popu"
+      },
+      {
+        "stars": 4.0,
+        "snippet": "We enjoyed our breakfast at Sabrina's Cafe and Spencer's Too in Logan Square, Center City. This local restaurant chain was recommended to us by three separate friends as one of Philadelphia's best spo"
+      }
+    ]
+  },
+  "ZpgVL2z1kgRi954c9m9INw:matcha latte": {
+    "business_id": "ZpgVL2z1kgRi954c9m9INw",
+    "business_name": "United By Blue",
+    "topic": "matcha latte",
+    "positive_count": 2,
+    "negative_count": 0,
+    "sentiment": "positive",
+    "is_valid_positive": true,
+    "sample_reviews": [
+      {
+        "stars": 5.0,
+        "snippet": "Love love love this place! As a med student, I'm always looking for new places to study. This place fits all the requirements and more!\n\n-$4.00 matcha latte  -- made without sweetener but you can add "
+      },
+      {
+        "stars": 5.0,
+        "snippet": "Best thing to happen to this part of Old City! There's no shortage of coffee shops around this part of town that are great for doing work in and have great cups of coffee, but what's great about Unite"
+      }
+    ]
+  },
+  "JrG4NINLspXPNhSXg7Q07Q:terrace": {
+    "business_id": "JrG4NINLspXPNhSXg7Q07Q",
+    "business_name": "Front Street Cafe",
+    "topic": "terrace",
+    "positive_count": 1,
+    "negative_count": 0,
+    "sentiment": "positive",
+    "is_valid_positive": true,
+    "sample_reviews": [
+      {
+        "stars": 5.0,
+        "snippet": "I went here on a Friday afternoon around 12:30. As soon as I walked up, I knew this would be my kind of place. You walk inside and are welcomed with a bright, clean, modern area. It's beautiful inside"
+      }
+    ]
+  },
+  "7hpUoYdAVToZXwuPRgoqdA:bring your dog": {
+    "business_id": "7hpUoYdAVToZXwuPRgoqdA",
+    "business_name": "Chapterhouse Café & Gallery",
+    "topic": "bring your dog",
+    "positive_count": 1,
+    "negative_count": 0,
+    "sentiment": "positive",
+    "is_valid_positive": true,
+    "sample_reviews": [
+      {
+        "stars": 4.0,
+        "snippet": "I really prefer not to sit around in coffee shops, but if I'm ever invited out for coffee in Center City I always suggest Chapterhouse first. As far as I'm concerned, it's the best coffee shop in the "
+      }
+    ]
+  },
+  "zjTBfbvbN2Ps6_Ar0w-fuQ:hidden gem": {
+    "business_id": "zjTBfbvbN2Ps6_Ar0w-fuQ",
+    "business_name": "Hinge Cafe",
+    "topic": "hidden gem",
+    "positive_count": 1,
+    "negative_count": 0,
+    "sentiment": "positive",
+    "is_valid_positive": true,
+    "sample_reviews": [
+      {
+        "stars": 4.0,
+        "snippet": "the website for hinge cafe lists the following definitions for its namesake:\n      1. a natural and anatomical joint in which motion occurs\n      2. a principal on which something is based or depends\n"
+      }
+    ]
+  },
+  "3yW8-dUi1wwCEf0URxUA7A:bubble": {
+    "business_id": "3yW8-dUi1wwCEf0URxUA7A",
+    "business_name": "Kung Fu Tea",
+    "topic": "bubble",
+    "positive_count": 4,
+    "negative_count": 3,
+    "sentiment": "positive",
+    "is_valid_positive": true,
+    "sample_reviews": [
+      {
+        "stars": 5.0,
+        "snippet": "Finally... decent milk tea on the East Coast! Words can't describe how much I miss home, and I contemplate daily about moving back to California because of how much I miss home and... good milk tea/as"
+      },
+      {
+        "stars": 2.0,
+        "snippet": "I was originally super excited about the Kung Fu tea opening in Philly because if this place proved legit I can finally satisfy my boba tea cravings in between the occasional trips to NYC. Unfortunate"
+      },
+      {
+        "stars": 4.0,
+        "snippet": "YESSSSSSSSSSSSS!!! I don't have to travel all the way to NYC for Kung Fu Tea anymore!\n\nWhat makes Kung Fu Tea different from the other bubble tea joints in Philly is that their bubbles actually have f"
+      },
+      {
+        "stars": 1.0,
+        "snippet": "I'm reviewing this place again solely due to half of the staff.\n\nI used to love Kung Fu Tea, but it's grown to be a bittersweet visit every time now.\n\nStaff: I enjoy seeing the originals that have bee"
+      },
+      {
+        "stars": 4.0,
+        "snippet": "After this past summer, I guess you could say I've become a bit of a bubble tea connoisseur. Kung Fu Tea was one of the many places I travelled to in order to really familiarize myself with the Philly"
+      }
+    ]
+  },
+  "oqbhVgliVJH-iRa3AnD-3A:work": {
+    "business_id": "oqbhVgliVJH-iRa3AnD-3A",
+    "business_name": "Elixr Coffee Roasters",
+    "topic": "work",
+    "positive_count": 6,
+    "negative_count": 3,
+    "sentiment": "positive",
+    "is_valid_positive": true,
+    "sample_reviews": [
+      {
+        "stars": 4.0,
+        "snippet": "I never review places while in them. I also am way behind on reviews in general. But I need to review Elixr as I sit in it-\nI have been craving hot chocolate for weeks now, and it got much worse today"
+      },
+      {
+        "stars": 2.0,
+        "snippet": "I tried the coffee at Elixr, and the place looks decent. They use PT's coffee. I would judge them on how they brew the coffee because Elixr has no power over how the coffee is roasted.  If the coffee "
+      },
+      {
+        "stars": 4.0,
+        "snippet": "This place is cool, dude! So probably like many other people, I saw their innovative sidewalk signs every time I passed (or went to) the neighboring Chipotle. (Side note: the one that really got me wa"
+      },
+      {
+        "stars": 5.0,
+        "snippet": "I am IN LOVE with this place. I've been wanting to find my regular spot while I'm staying here in Philly for a few weeks. I work online and thrive working out in a coffee shop or cafe rather than sitt"
+      },
+      {
+        "stars": 4.0,
+        "snippet": "tl;dr an edgy, lively coffee bar in the heart of Center City, but admittedly an unideal place to post up for work\n\nWhile strolling down the hustle and bustle of Center City Walnut Street, you may see "
+      }
+    ]
+  },
+  "1klRUBB6LfKCotq75BVmbA:game": {
+    "business_id": "1klRUBB6LfKCotq75BVmbA",
+    "business_name": "Thirsty Dice",
+    "topic": "game",
+    "positive_count": 8,
+    "negative_count": 6,
+    "sentiment": "positive",
+    "is_valid_positive": true,
+    "sample_reviews": [
+      {
+        "stars": 1.0,
+        "snippet": "I was unfortunately very disappointed with Thirsty Dice. We had a large group on a week night, and the place was nearly empty. A few small groups around - but for the most part, a quiet night. \n\nWe ha"
+      },
+      {
+        "stars": 5.0,
+        "snippet": "Finally, a place that combines board games with food and drinks in the city! And not only that, a place FILLED with so many types of board games and helpful people to teach you how to play these board"
+      },
+      {
+        "stars": 2.0,
+        "snippet": "My friends and I love games and heard about this place. We decided on friday night to try the place out. I called and asked if they had any room for a party of 10. The lady on the phone told me there'"
+      },
+      {
+        "stars": 4.0,
+        "snippet": "As anyone who has hosted a game night knows, there is nothing better than snacks and libations to make gaming fun. I am really into board games and party games, as is my family, so I was \"down like a "
+      },
+      {
+        "stars": 5.0,
+        "snippet": "The concept of Thirsty Dice met and exceeded my expectations by a long shot!\n\nI loved the layout of the room - much more open-space than you'd think, which allows for the hustle and bustle of people g"
+      }
+    ]
+  },
+  "JrG4NINLspXPNhSXg7Q07Q:brunch": {
+    "business_id": "JrG4NINLspXPNhSXg7Q07Q",
+    "business_name": "Front Street Cafe",
+    "topic": "brunch",
+    "positive_count": 3,
+    "negative_count": 2,
+    "sentiment": "positive",
+    "is_valid_positive": true,
+    "sample_reviews": [
+      {
+        "stars": 2.0,
+        "snippet": "I'm going to preface this review by saying that I am thrilled to have a spot like this so close to home. The variety of offerings from one venue with hours that practically make it a 24-hour operation"
+      },
+      {
+        "stars": 5.0,
+        "snippet": "It's just nice to see something done right. A restaurant/cafe/bar/performance space seems like a recipe for disaster, but thoughtful attention to the customer experience down to small details make thi"
+      },
+      {
+        "stars": 2.0,
+        "snippet": "Gorgeous, HUGE place.  Interior and massive outdoors patio is what dream eateries are made of.  Cool, clean, with a little industrial, a little farmhouse. There is so much room, you feel like you can "
+      },
+      {
+        "stars": 5.0,
+        "snippet": "The following review is for brunch:\n\nCame here on Saturday morning as I had bookmarked this place for a while and heard great things. I am not a vegan, but lactose intolerant and have a difficult time"
+      },
+      {
+        "stars": 4.0,
+        "snippet": "Ok, so my first time here was not my favorite dining experience. Actually, it's my least favorite dining experience of all time!!! My car got towed (illegally come to find out) on Front Street, in fro"
+      }
+    ]
+  },
+  "3yW8-dUi1wwCEf0URxUA7A:wine": {
+    "business_id": "3yW8-dUi1wwCEf0URxUA7A",
+    "business_name": "Kung Fu Tea",
+    "topic": "wine",
+    "positive_count": 2,
+    "negative_count": 0,
+    "sentiment": "positive",
+    "is_valid_positive": true,
+    "sample_reviews": [
+      {
+        "stars": 4.0,
+        "snippet": "YESSSSSSSSSSSSS!!! I don't have to travel all the way to NYC for Kung Fu Tea anymore!\n\nWhat makes Kung Fu Tea different from the other bubble tea joints in Philly is that their bubbles actually have f"
+      },
+      {
+        "stars": 4.0,
+        "snippet": "For Philly, this is the best bubble tea joint minus a few caveats so I would give this place 4 to 4.5 stars. I've tried all the other bubble tea places in Chinatown (Rising Tide, Tea Magic, Tea Do, Te"
+      }
+    ]
+  },
+  "zjTBfbvbN2Ps6_Ar0w-fuQ:music": {
+    "business_id": "zjTBfbvbN2Ps6_Ar0w-fuQ",
+    "business_name": "Hinge Cafe",
+    "topic": "music",
+    "positive_count": 2,
+    "negative_count": 1,
+    "sentiment": "positive",
+    "is_valid_positive": true,
+    "sample_reviews": [
+      {
+        "stars": 4.0,
+        "snippet": "It's been far too long since I've written anything here.  Holidays, cooking in, cold weather, and nothing too exciting on the restaurant front have all conspired against me trying out new places. I'll"
+      },
+      {
+        "stars": 5.0,
+        "snippet": "I know that if I'm going to update my review, I should do it because my opinion changed, but GUESS WHAT? I still think this place is the best, I just have more reasons to think so now. \n\nI've gone to "
+      },
+      {
+        "stars": 1.0,
+        "snippet": "The food was good. Pretty good. I'd eat there again just for the delicious food. But the older woman running the show behind the counter needs to improve her leadership skills and refrain from treatin"
+      }
+    ]
+  },
+  "ZpgVL2z1kgRi954c9m9INw:love": {
+    "business_id": "ZpgVL2z1kgRi954c9m9INw",
+    "business_name": "United By Blue",
+    "topic": "love",
+    "positive_count": 6,
+    "negative_count": 0,
+    "sentiment": "positive",
+    "is_valid_positive": true,
+    "sample_reviews": [
+      {
+        "stars": 5.0,
+        "snippet": "I'm not a big retail shopper, but we were lured by the groupon carrot that gave you twice the cash as well as a coffee and Danish. Sold! The decor of this place appeals to me, with many up cycled and "
+      },
+      {
+        "stars": 5.0,
+        "snippet": "I'm a big fan of United By Blue's atmosphere, products, coffee, and environmental cause! I often walk through this part of the city, and I have stopped in several times just because I love the vibe. I"
+      },
+      {
+        "stars": 4.0,
+        "snippet": "So I'm a little torn on this place! I would lean towards 3.5 stars, but I love their cause, so they definitely get upgraded for that.\n\nThis place is a combo store/coffee shop. I love that it doesn't g"
+      },
+      {
+        "stars": 4.0,
+        "snippet": "This place is an entire experience! We enjoyed it from beginning to end! Walking distance from old city, we chose here on elite Saturday afternoon! By the time we got there was about 1230 and there wa"
+      },
+      {
+        "stars": 5.0,
+        "snippet": "Love love love this place! As a med student, I'm always looking for new places to study. This place fits all the requirements and more!\n\n-$4.00 matcha latte  -- made without sweetener but you can add "
+      }
+    ]
+  },
+  "JrG4NINLspXPNhSXg7Q07Q:quiet": {
+    "business_id": "JrG4NINLspXPNhSXg7Q07Q",
+    "business_name": "Front Street Cafe",
+    "topic": "quiet",
+    "positive_count": 2,
+    "negative_count": 0,
+    "sentiment": "positive",
+    "is_valid_positive": true,
+    "sample_reviews": [
+      {
+        "stars": 4.0,
+        "snippet": "When I popped in after work around 5:30, the place was quiet. Just a few patrons and their laptops posted up at the bar, and couple of folks sprinkled at tables. I came in the front door where you can"
+      },
+      {
+        "stars": 4.0,
+        "snippet": "My company had a meeting here one afternoon around lunch time. \n\nWe called ahead to let them know a large party would be coming, and they saved a seat for us upstairs at a large table. The upstairs is"
+      }
+    ]
+  },
+  "BaSwNEingTmrBw4shffK5w:recommend": {
+    "business_id": "BaSwNEingTmrBw4shffK5w",
+    "business_name": "Function Coffee Labs",
+    "topic": "recommend",
+    "positive_count": 2,
+    "negative_count": 0,
+    "sentiment": "positive",
+    "is_valid_positive": true,
+    "sample_reviews": [
+      {
+        "stars": 4.0,
+        "snippet": "Function Coffee Labs is one of those places that literally read into exactly what I needed to function on any given morning! But it also won me over because of incredible baked goods and cool South Ph"
+      },
+      {
+        "stars": 5.0,
+        "snippet": "Judging from their yelp page, Function Coffee Labs doesn't need another 5 star review. Alas, here we are!\n\nI've only been here once, but I am in love. Came down here one morning to explore the Italian"
+      }
+    ]
+  },
+  "oqbhVgliVJH-iRa3AnD-3A:hidden gem": {
+    "business_id": "oqbhVgliVJH-iRa3AnD-3A",
+    "business_name": "Elixr Coffee Roasters",
+    "topic": "hidden gem",
+    "positive_count": 1,
+    "negative_count": 0,
+    "sentiment": "positive",
+    "is_valid_positive": true,
+    "sample_reviews": [
+      {
+        "stars": 4.0,
+        "snippet": "This place is cool, dude! So probably like many other people, I saw their innovative sidewalk signs every time I passed (or went to) the neighboring Chipotle. (Side note: the one that really got me wa"
+      }
+    ]
+  },
+  "7hpUoYdAVToZXwuPRgoqdA:organic": {
+    "business_id": "7hpUoYdAVToZXwuPRgoqdA",
+    "business_name": "Chapterhouse Café & Gallery",
+    "topic": "organic",
+    "positive_count": 1,
+    "negative_count": 0,
+    "sentiment": "positive",
+    "is_valid_positive": true,
+    "sample_reviews": [
+      {
+        "stars": 4.0,
+        "snippet": "I really prefer not to sit around in coffee shops, but if I'm ever invited out for coffee in Center City I always suggest Chapterhouse first. As far as I'm concerned, it's the best coffee shop in the "
+      }
+    ]
+  },
+  "iUZEGx29miZObLd6_lt7Vg:recommend": {
+    "business_id": "iUZEGx29miZObLd6_lt7Vg",
+    "business_name": "Sabrina's Café",
+    "topic": "recommend",
+    "positive_count": 3,
+    "negative_count": 1,
+    "sentiment": "positive",
+    "is_valid_positive": true,
+    "sample_reviews": [
+      {
+        "stars": 5.0,
+        "snippet": "I took my parents here when they came to Philadelphia to visit me, and for people that claim not to like American food, they sure seemed to have enjoyed their choices! So did I!\n\nI've been a long-time"
+      },
+      {
+        "stars": 4.0,
+        "snippet": "Another recommendation from our Airbnb host. This is also supposed to be one of the top brunches in town. \n\nWe needed a tasty brunch/breakfast before we started off our Art Museum Sunday so we decided"
+      },
+      {
+        "stars": 1.0,
+        "snippet": "I was visiting Philadelphia with my sister and she who lives here recommended Sabrina's Cafe. What a big mistake!!!!  This place has no sense of an organized process for seating.  We were told we woul"
+      },
+      {
+        "stars": 4.0,
+        "snippet": "We enjoyed our breakfast at Sabrina's Cafe and Spencer's Too in Logan Square, Center City. This local restaurant chain was recommended to us by three separate friends as one of Philadelphia's best spo"
+      }
+    ]
+  },
+  "noBinj5ChHbPCHfqTcUO6g:cozy": {
+    "business_id": "noBinj5ChHbPCHfqTcUO6g",
+    "business_name": "Plenty Café",
+    "topic": "cozy",
+    "positive_count": 4,
+    "negative_count": 0,
+    "sentiment": "positive",
+    "is_valid_positive": true,
+    "sample_reviews": [
+      {
+        "stars": 5.0,
+        "snippet": "Plenty is my new favorite study haven! Lofts are kind of enchanting places for me (something akin to hammocks and tree houses), and I absolutely love that Plenty has such a cute cozy little loft, one "
+      },
+      {
+        "stars": 4.0,
+        "snippet": "My lunch plans with a friend were cancelled, so I ventured out and decided to give this place a try. I've passed by it so many times but never went in! I checked out the menu online first (to try and "
+      },
+      {
+        "stars": 5.0,
+        "snippet": "Hands down the best spot for coffee and a sandwich in the neighborhood! \n\nThe sandwich selection is unique and of top quality from local vendors. Local roasters are also featured; Rival Bros., ReAnima"
+      },
+      {
+        "stars": 5.0,
+        "snippet": "Plenty Cafe is my go-to spot for easy Sunday mornings paired with a great book. \n\nAfter trying this place once, it's slowly turning into my Sunday haven where I can hide away, devour some delicious fo"
+      }
+    ]
+  },
+  "MlXH9dWYDFEBbwuGStlfZg:latte": {
+    "business_id": "MlXH9dWYDFEBbwuGStlfZg",
+    "business_name": "La Colombe Coffee",
+    "topic": "latte",
+    "positive_count": 4,
+    "negative_count": 2,
+    "sentiment": "positive",
+    "is_valid_positive": true,
+    "sample_reviews": [
+      {
+        "stars": 4.0,
+        "snippet": "I have been anxiously awaiting the opening of this coffee gem on Frankford and I can confidently say that it was worth the wait. The space is HUGE and seriously gorgeous. The attention to detail is am"
+      },
+      {
+        "stars": 1.0,
+        "snippet": "La Colombe has great product, but unless you're taking it home to brew yourself then don't waste your money. THEIR BARISTAS SUCK SO BAD- I'd be shocked to learn that they spend more than an hour train"
+      },
+      {
+        "stars": 4.0,
+        "snippet": "The best analogy I can compare La Colombe's coffee to is like eating pineapple in Hawaii. My whole life I had been used to the taste of imported pineapples from Costa Rica (and wherever else they come"
+      },
+      {
+        "stars": 1.0,
+        "snippet": "Ugh. Where do I start!? I love La Colombe Coffee. I traveled all the way from NYC to their flagship store on Frankford Ave on my visit to Philly. (On 8/16/19 around 7pm) From the moment  we (my husban"
+      },
+      {
+        "stars": 5.0,
+        "snippet": "A visit to this La Colombe Philly flagship is an experience. It's more than just grabbing a quick cup of coffee...or at least it should be. The space located in the ever flourishing Fishtown neighborh"
+      }
+    ]
+  },
+  "MlXH9dWYDFEBbwuGStlfZg:work": {
+    "business_id": "MlXH9dWYDFEBbwuGStlfZg",
+    "business_name": "La Colombe Coffee",
+    "topic": "work",
+    "positive_count": 6,
+    "negative_count": 2,
+    "sentiment": "positive",
+    "is_valid_positive": true,
+    "sample_reviews": [
+      {
+        "stars": 1.0,
+        "snippet": "The decor is awesome! Some of the breads are ok. The experience is garbage. \n\nI went here on a rainy Monday. I walked up to the counter where there were 5 people working. It took a full 2min for someo"
+      },
+      {
+        "stars": 4.0,
+        "snippet": "The infamous La Colombe, Frankford Ave...I want to give this barn like palace five stars but I just can't. Let's talk about the good stuff first... \n\nThe artsy Fishtown location feels dominating and t"
+      },
+      {
+        "stars": 2.0,
+        "snippet": "I really really REALLY want to like this place, but every single time they give me a reason to walk out grumbling and thinking I should have just gone to McDonalds for a cup of coffee and nicer people"
+      },
+      {
+        "stars": 5.0,
+        "snippet": "If you want the best coffee on the East Coast,* come to La Colombe. Period.\n\nThe Fishtown location is grand and gorgeous.  It is a beautiful space with industrial aesthetic.  Lots of natural light.  I"
+      },
+      {
+        "stars": 4.0,
+        "snippet": "The best analogy I can compare La Colombe's coffee to is like eating pineapple in Hawaii. My whole life I had been used to the taste of imported pineapples from Costa Rica (and wherever else they come"
+      }
+    ]
+  },
+  "0Z8ps_OfcR9eJaV2JtxigA:music": {
+    "business_id": "0Z8ps_OfcR9eJaV2JtxigA",
+    "business_name": "Square One Coffee",
+    "topic": "music",
+    "positive_count": 5,
+    "negative_count": 0,
+    "sentiment": "positive",
+    "is_valid_positive": true,
+    "sample_reviews": [
+      {
+        "stars": 5.0,
+        "snippet": "Delicious coffee - check!\nFree seltzer water at the perfect temperature - bonus!\nFriendly barista who welcomed me - yes!\n\nCan we talk about the meticulous planning that was required to purify the wate"
+      },
+      {
+        "stars": 4.0,
+        "snippet": "Square One Coffee is a hipster coffee joint that has a lot of comfortable and eclectic seating (they have a couch!), good wifi and its a big open space. It has pleasent decor and big windows with natu"
+      },
+      {
+        "stars": 4.0,
+        "snippet": "I really appreciate a coffee shop that makes you feel productive/creative as soon as you walk in the door. A big part of the reason I go to local coffee shops is to feel inspired by the environment. T"
+      },
+      {
+        "stars": 5.0,
+        "snippet": "I really love this cute, comfortable and quiet coffee shop which to me feels somewhat like a bookstore with the comfy couches, wooden tables and chairs, it's quite refreshing to actually be able to he"
+      },
+      {
+        "stars": 5.0,
+        "snippet": "I live right around the corner from this coffee shop and don't come here nearly enough. I stopped by on a Sunday morning with my father and it wasn't busy at all. In fact, most of the time I walk by, "
+      }
+    ]
+  },
+  "3yW8-dUi1wwCEf0URxUA7A:boba": {
+    "business_id": "3yW8-dUi1wwCEf0URxUA7A",
+    "business_name": "Kung Fu Tea",
+    "topic": "boba",
+    "positive_count": 5,
+    "negative_count": 3,
+    "sentiment": "positive",
+    "is_valid_positive": true,
+    "sample_reviews": [
+      {
+        "stars": 5.0,
+        "snippet": "Finally... decent milk tea on the East Coast! Words can't describe how much I miss home, and I contemplate daily about moving back to California because of how much I miss home and... good milk tea/as"
+      },
+      {
+        "stars": 2.0,
+        "snippet": "I was originally super excited about the Kung Fu tea opening in Philly because if this place proved legit I can finally satisfy my boba tea cravings in between the occasional trips to NYC. Unfortunate"
+      },
+      {
+        "stars": 4.0,
+        "snippet": "The last time I was here was when it first opened and I was impressed by the location. This time I went to take a friend and help him experience boba tea for the first time. What I noticed that was di"
+      },
+      {
+        "stars": 2.0,
+        "snippet": "I've ordered taro at other Kung Fu locations and  never had bad tea. I've ordered taro all over and it has always been purple. Their boba is sweet and perfectly cooked but something is desperately wro"
+      },
+      {
+        "stars": 2.0,
+        "snippet": "Went here with a couple friends because we had a hankering for something sweet after eating at a restaurant in Chinatown. Boba tea just felt right to us, even though it was a chilly day. I personally "
+      }
+    ]
+  },
+  "oqbhVgliVJH-iRa3AnD-3A:espresso": {
+    "business_id": "oqbhVgliVJH-iRa3AnD-3A",
+    "business_name": "Elixr Coffee Roasters",
+    "topic": "espresso",
+    "positive_count": 5,
+    "negative_count": 1,
+    "sentiment": "positive",
+    "is_valid_positive": true,
+    "sample_reviews": [
+      {
+        "stars": 5.0,
+        "snippet": "This is my favorite artisanal coffee shop in Philadelphia. AND it's in my old hood so I didn't even have to walk past Broad street to get good coffee. Plus they have awesome slate tiling, marble count"
+      },
+      {
+        "stars": 4.0,
+        "snippet": "This place is cool, dude! So probably like many other people, I saw their innovative sidewalk signs every time I passed (or went to) the neighboring Chipotle. (Side note: the one that really got me wa"
+      },
+      {
+        "stars": 2.0,
+        "snippet": "Change has not been for the better over at Elixir. I love, love to taut this places as the best espresso in the city, however, the treatment of patrons here is bordering ridiculous. There's always bee"
+      },
+      {
+        "stars": 5.0,
+        "snippet": "I am IN LOVE with this place. I've been wanting to find my regular spot while I'm staying here in Philly for a few weeks. I work online and thrive working out in a coffee shop or cafe rather than sitt"
+      },
+      {
+        "stars": 4.0,
+        "snippet": "tl;dr an edgy, lively coffee bar in the heart of Center City, but admittedly an unideal place to post up for work\n\nWhile strolling down the hustle and bustle of Center City Walnut Street, you may see "
+      }
+    ]
+  },
+  "1klRUBB6LfKCotq75BVmbA:friendly": {
+    "business_id": "1klRUBB6LfKCotq75BVmbA",
+    "business_name": "Thirsty Dice",
+    "topic": "friendly",
+    "positive_count": 6,
+    "negative_count": 0,
+    "sentiment": "positive",
+    "is_valid_positive": true,
+    "sample_reviews": [
+      {
+        "stars": 5.0,
+        "snippet": "Finally, a place that combines board games with food and drinks in the city! And not only that, a place FILLED with so many types of board games and helpful people to teach you how to play these board"
+      },
+      {
+        "stars": 4.0,
+        "snippet": "As anyone who has hosted a game night knows, there is nothing better than snacks and libations to make gaming fun. I am really into board games and party games, as is my family, so I was \"down like a "
+      },
+      {
+        "stars": 5.0,
+        "snippet": "The concept of Thirsty Dice met and exceeded my expectations by a long shot!\n\nI loved the layout of the room - much more open-space than you'd think, which allows for the hustle and bustle of people g"
+      },
+      {
+        "stars": 4.0,
+        "snippet": "Overall I had a lot of fun here. I went with a group of 4 on a Saturday night. The hostess was super friendly, she said it might be a 45 minute wait so we checked out the games and got drinks at the b"
+      },
+      {
+        "stars": 4.0,
+        "snippet": "I wish I could do a 4.5 star review!!! \nI had no idea what to expect entering Thirsty Dice but I felt like the staff truly wanted us to enjoy ourselves!! \nWe were told by the hostess it would be an ho"
+      }
+    ]
+  },
+  "-cEFKAznWmI0cledNOIQ7w:favorite": {
+    "business_id": "-cEFKAznWmI0cledNOIQ7w",
+    "business_name": "Gran Caffe L'Aquila",
+    "topic": "favorite",
+    "positive_count": 5,
+    "negative_count": 0,
+    "sentiment": "positive",
+    "is_valid_positive": true,
+    "sample_reviews": [
+      {
+        "stars": 5.0,
+        "snippet": "I have to start by saying that other than a big love of all things Italian and the fact that I stalked this place as it was being built, and hope it remains successful, I hold no stake or stock in the"
+      },
+      {
+        "stars": 5.0,
+        "snippet": "Find parking, take the train, or get yourself an Uber/Lyft  and just make a \"B\" line to Gran Caffe L'Aquilla! That is all you need to know, because what ever you get from here will simply be AMAZING! "
+      },
+      {
+        "stars": 5.0,
+        "snippet": "Came here for my boyfriend's birthday dinner earlier this year, and I've been wanting to come back ever since! Just the other day, I found an excuse to pop in for some gelato. This versatile establish"
+      },
+      {
+        "stars": 4.0,
+        "snippet": "Tonight was my second time here, and after having experienced drinks, food and service, I'm ready to write a review- and its a great one!\nBoth of my visits to Gran Caffe l'Aquila were work-related (ju"
+      },
+      {
+        "stars": 4.0,
+        "snippet": "I came here for restaurant week with a close friend and it was such a memorable experience! If you're looking for an aesthetic dinner place with \"city vibes,\" this would be an excellent place to go.\n\n"
+      }
+    ]
+  },
+  "zujdPV3HT-Y-CKE1GgkMHQ:breakfast": {
+    "business_id": "zujdPV3HT-Y-CKE1GgkMHQ",
+    "business_name": "The Bakeshop on 20th",
+    "topic": "breakfast",
+    "positive_count": 7,
+    "negative_count": 2,
+    "sentiment": "positive",
+    "is_valid_positive": true,
+    "sample_reviews": [
+      {
+        "stars": 2.0,
+        "snippet": "So maybe we got the wrong thing for breakfast, but the savory breakfast sandwiches were not particularly warm with soggy flatbread. The bacon in the bacon egg and cheese was good, but the rest of the "
+      },
+      {
+        "stars": 4.0,
+        "snippet": "The Bakeshop on 20th gets a whole lot of attention for both their savory and sweet offerings, and I fully understand why.\n\nStar 1: How were the service and atmosphere?\n\nThere's nothing quite like a qu"
+      },
+      {
+        "stars": 4.0,
+        "snippet": "I'm so happy I finally got to try this place after seeing all the foodie-blogger Instagram photos of sprinkle-covered cracked open cookies oozing rainbow whatever in someone's manicured hand.\n\nStopped"
+      },
+      {
+        "stars": 5.0,
+        "snippet": "Spent a night in Philly a couple weeks back and wanted to pop in somewhere for a quick breakfast before heading out in the AM. Yelp came to the rescue after a search for breakfast sandwiches yielded t"
+      },
+      {
+        "stars": 1.0,
+        "snippet": "Ordered a breakfast cookie and when I asked whether there were peanuts in it the answer was \"I don't know, there is a nut mix in it so I would rather you not take the risk\". I later learned this was t"
+      }
+    ]
+  },
+  "qaDImxPguQz0jToNYvB1Eg:delicious": {
+    "business_id": "qaDImxPguQz0jToNYvB1Eg",
+    "business_name": "Café y Chocolate",
+    "topic": "delicious",
+    "positive_count": 8,
+    "negative_count": 2,
+    "sentiment": "positive",
+    "is_valid_positive": true,
+    "sample_reviews": [
+      {
+        "stars": 4.0,
+        "snippet": "I crave this place and always want to go every weekend; however the length of time from sitting, ordering, waiting for food, and finally eating, (for even just 2 people) could end up taking 2 hours ou"
+      },
+      {
+        "stars": 4.0,
+        "snippet": "I recently moved to this South Philly neighborhood and I kept seeing the sign for cafe con chocolate out of the corner of my eye.  Always while heading in the opposite direction.  Well today I discove"
+      },
+      {
+        "stars": 5.0,
+        "snippet": "Wow what a cute little oasis of a cafe in a strangely not-so-nice neighborhood. The lady working at the counter is this super-sweet girl who provided excellent service. Don't get me started on the tra"
+      },
+      {
+        "stars": 5.0,
+        "snippet": "This is my new favorite restaurant. Seriously. Went for dinner without expectations, despite the amazing reviews here. It's in a totally middle-of-nowhere location, but it's right of 76. It's a tiny p"
+      },
+      {
+        "stars": 2.0,
+        "snippet": "I've heard so many wonderful things about this place, but I was so severely disappointed.\n\nWe came in as a party of 4, and got seated immediately. However, even though we got seated immediately, we ha"
+      }
+    ]
+  },
+  "K7KHmHzxNwzqiijSJeKe_A:excellence": {
+    "business_id": "K7KHmHzxNwzqiijSJeKe_A",
+    "business_name": "Cafe La Maude",
+    "topic": "excellence",
+    "positive_count": 1,
+    "negative_count": 0,
+    "sentiment": "positive",
+    "is_valid_positive": true,
+    "sample_reviews": [
+      {
+        "stars": 4.0,
+        "snippet": "As a long time Northern Liberties resident I am thrilled that this intimate little bistro opened within walking distance of my house. Latte Lounge, the owner-operated coffee shop that used to occupy t"
+      }
+    ]
+  },
+  "zjTBfbvbN2Ps6_Ar0w-fuQ:hinge": {
+    "business_id": "zjTBfbvbN2Ps6_Ar0w-fuQ",
+    "business_name": "Hinge Cafe",
+    "topic": "hinge",
+    "positive_count": 6,
+    "negative_count": 2,
+    "sentiment": "positive",
+    "is_valid_positive": true,
+    "sample_reviews": [
+      {
+        "stars": 4.0,
+        "snippet": "It's been far too long since I've written anything here.  Holidays, cooking in, cold weather, and nothing too exciting on the restaurant front have all conspired against me trying out new places. I'll"
+      },
+      {
+        "stars": 5.0,
+        "snippet": "I know that if I'm going to update my review, I should do it because my opinion changed, but GUESS WHAT? I still think this place is the best, I just have more reasons to think so now. \n\nI've gone to "
+      },
+      {
+        "stars": 5.0,
+        "snippet": "if more stars were an option, i would rate hinge higher.\n\npicture it: \n\nport richmond, wednesday, late into the afternoon, and needing a cake for the girlfriend's birthday by friday evening.\n\nentered "
+      },
+      {
+        "stars": 4.0,
+        "snippet": "the website for hinge cafe lists the following definitions for its namesake:\n      1. a natural and anatomical joint in which motion occurs\n      2. a principal on which something is based or depends\n"
+      },
+      {
+        "stars": 4.0,
+        "snippet": "With our wedding only a week away my fiance and I are trying to keep ourselves relaxed before the family shows up (which usually requires us to work our way through a bottle of aspirin or a bottle of "
+      }
+    ]
+  },
+  "3UBG2rwjgP-6ifTAuKl3Gg:herbal": {
+    "business_id": "3UBG2rwjgP-6ifTAuKl3Gg",
+    "business_name": "Steap and Grind",
+    "topic": "herbal",
+    "positive_count": 1,
+    "negative_count": 0,
+    "sentiment": "positive",
+    "is_valid_positive": true,
+    "sample_reviews": [
+      {
+        "stars": 4.0,
+        "snippet": "Steap and Grind first had me with its intricate ironwork gates with butterflies and fish. But as I entered within I discovered a caffeinated utopia of incredible coffees and loose leaf teas from aroun"
+      }
+    ]
+  },
+  "lh3ApskP-4XVdsQ-82792g:homework": {
+    "business_id": "lh3ApskP-4XVdsQ-82792g",
+    "business_name": "Last Drop",
+    "topic": "homework",
+    "positive_count": 1,
+    "negative_count": 0,
+    "sentiment": "positive",
+    "is_valid_positive": true,
+    "sample_reviews": [
+      {
+        "stars": 4.0,
+        "snippet": "I went there to meet someone for a coffee date. It's one of her favorite place and it was my first time going there. I walked in and noticed that it was dark - but the sunlight made it bright. Maybe t"
+      }
+    ]
+  },
+  "ZpgVL2z1kgRi954c9m9INw:bison": {
+    "business_id": "ZpgVL2z1kgRi954c9m9INw",
+    "business_name": "United By Blue",
+    "topic": "bison",
+    "positive_count": 1,
+    "negative_count": 0,
+    "sentiment": "positive",
+    "is_valid_positive": true,
+    "sample_reviews": [
+      {
+        "stars": 4.0,
+        "snippet": "Like reviewer Naomi C., we came here from the Wyndham. It's a different world - like something out of Portland. Take a moment to eye the merch as you pass through the store.\n\nYou order from a counter,"
+      }
+    ]
+  },
+  "7hpUoYdAVToZXwuPRgoqdA:writers": {
+    "business_id": "7hpUoYdAVToZXwuPRgoqdA",
+    "business_name": "Chapterhouse Café & Gallery",
+    "topic": "writers",
+    "positive_count": 1,
+    "negative_count": 0,
+    "sentiment": "positive",
+    "is_valid_positive": true,
+    "sample_reviews": [
+      {
+        "stars": 5.0,
+        "snippet": "I have a confession to make. I have lived a half block from the chapterhouse for going on 3 years, and I had never been there. I do not know why. I've always been a starbucks girl, even though I know "
+      }
+    ]
+  },
+  "iUZEGx29miZObLd6_lt7Vg:medley": {
+    "business_id": "iUZEGx29miZObLd6_lt7Vg",
+    "business_name": "Sabrina's Café",
+    "topic": "medley",
+    "positive_count": 1,
+    "negative_count": 0,
+    "sentiment": "positive",
+    "is_valid_positive": true,
+    "sample_reviews": [
+      {
+        "stars": 5.0,
+        "snippet": "One of the better and well-known brunch locations in Philly is Sabrina's. Owners Robert and Raquel DeAbreu named the original restaurant on 9th and Christian Streets after their daughter. Recently, fo"
+      }
+    ]
+  }
+}

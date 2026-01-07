@@ -311,19 +311,27 @@ def parse_conditions(response: str) -> list:
 
     Args:
         response: LLM response with lines like "[ATTR] has drive-thru"
+                  or "[REVIEW:POSITIVE] coffee"
 
     Returns:
         List of dicts: [{"type": "ATTR", "description": "has drive-thru"}, ...]
+        For review sentiment: [{"type": "REVIEW", "sentiment": "positive", "description": "coffee"}, ...]
     """
     conditions = []
     for line in response.strip().split('\n'):
         line = line.strip()
-        # Match [TYPE] description pattern
-        match = re.match(r'\[(\w+)\]\s*(.+)', line)
+        # Match [TYPE:SUBTYPE] description or [TYPE] description patterns
+        match = re.match(r'\[(\w+)(?::(\w+))?\]\s*(.+)', line)
         if match:
             cond_type = match.group(1).upper()
-            description = match.group(2).strip()
-            conditions.append({"type": cond_type, "description": description})
+            cond_subtype = match.group(2).upper() if match.group(2) else None
+            description = match.group(3).strip()
+
+            cond = {"type": cond_type, "description": description}
+            if cond_subtype:
+                # Handle [REVIEW:POSITIVE] or [REVIEW:NEGATIVE]
+                cond["sentiment"] = cond_subtype.lower()  # "positive" or "negative"
+            conditions.append(cond)
     return conditions
 
 
