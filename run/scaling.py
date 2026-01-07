@@ -21,7 +21,7 @@ from .io import (
 
 
 # Scale points for scaling experiment
-SCALE_POINTS = [10, 15, 20, 25, 30, 40, 50]
+SCALE_POINTS = [10, 20, 30, 40, 50]
 
 
 def _format_compact(tokens: int, cost: float, latency_ms: float) -> str:
