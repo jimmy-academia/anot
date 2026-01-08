@@ -550,7 +550,7 @@ def format_ranking_query(items: list[dict], mode: str = "string") -> tuple[Any, 
 
 
 # Methods using dict mode (don't need truncation - they access data selectively)
-DICT_MODE_METHODS = {"anot", "weaver", "react"}
+DICT_MODE_METHODS = {"anot", "anot_original", "weaver", "react"}
 
 
 def format_ranking_query_packed(

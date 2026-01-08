@@ -95,6 +95,8 @@ def parse_args():
                         help="Target number of runs for benchmark (default: 1)")
     parser.add_argument("--dev", action="store_true",
                         help="Use dev mode (results/dev/) instead of benchmark mode")
+    parser.add_argument("--smoke", action="store_true",
+                        help="Smoke test: run 1 request per group (10 total, fast validation)")
 
     # Verbose (default: True for now, use --no-verbose to disable)
     parser.add_argument("--verbose", "-v", action=argparse.BooleanOptionalAction, default=True,

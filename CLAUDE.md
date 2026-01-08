@@ -257,8 +257,8 @@ MODEL_CONFIG = {
 
 _config = {
     "temperature": 0.0,
-    "max_tokens": 1024,
-    "max_tokens_reasoning": 4096,
+    "max_tokens": 32000,
+    "max_tokens_reasoning": 32000,
     "provider": "openai",
     "request_timeout": 90.0,
     "max_retries": 6,

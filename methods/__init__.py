@@ -8,7 +8,8 @@ from .ps import PlanAndSolve
 from .plan_act import PlanAndAct
 from .listwise import ListwiseRanker
 from .weaver import Weaver
-from .anot import AdaptiveNetworkOfThought, create_method as create_anot
+from .anot import AdaptiveNetworkOfThought
+from .anot_original import AdaptiveNetworkOfThoughtOriginal
 
 # Additional baseline methods
 from .l2m import LeastToMost
@@ -34,6 +35,7 @@ METHOD_REGISTRY = {
     "listwise": (ListwiseRanker, True),
     "weaver": (Weaver, True),
     "anot": (AdaptiveNetworkOfThought, True),
+    "anot_original": (AdaptiveNetworkOfThoughtOriginal, True),  # Backup
     # CoT variants
     "l2m": (LeastToMost, False),
     "selfask": (SelfAsk, False),
@@ -112,6 +114,7 @@ __all__ = [
     "ListwiseRanker",
     "Weaver",
     "AdaptiveNetworkOfThought",
+    "AdaptiveNetworkOfThoughtOriginal",
     # CoT variants
     "LeastToMost",
     "SelfAsk",
