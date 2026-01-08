@@ -162,3 +162,5 @@ date
 ```
 
 Remember: You are running autonomously overnight. Be conservative, be stable, be thorough. Small consistent progress beats ambitious but unstable changes. Commit early, commit often, and always prefer prompt engineering solutions that make the system more generally capable rather than hardcoded fixes that handle specific cases.
+
+Try to auto execute and make decision. Don't pause and wait for user response until the set time. If you really find some action that needs user response, try to go around it and don't attempt to do the action. Don't wait for user response! Continue improving until the set time!

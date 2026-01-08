@@ -1,5 +1,6 @@
 **/raw
 preprocessing/output
+**/.claude
 
 # LaTeX files
 *.tex
