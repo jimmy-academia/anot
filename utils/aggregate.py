@@ -19,6 +19,15 @@ except ImportError:
 BENCHMARK_DIR = Path("results") / "benchmarks"
 
 
+def _format_latency(latency_ms: float) -> str:
+    """Format latency in human-readable form (e.g., '2m 30.5s' or '45.2s')."""
+    latency_s = latency_ms / 1000
+    if latency_s >= 60:
+        mins, secs = divmod(latency_s, 60)
+        return f"{int(mins)}m {secs:.1f}s"
+    return f"{latency_s:.1f}s"
+
+
 def aggregate_benchmark_runs(method: str, data: str, attack: str = "clean") -> Dict[str, Any]:
     """
     Aggregate stats across all runs for a specific attack variant.
@@ -231,6 +240,7 @@ def _aggregate_usage(all_usage: List[Dict]) -> Dict[str, Any]:
     total_prompt = sum(u.get("total_prompt_tokens", 0) for u in all_usage)
     total_completion = sum(u.get("total_completion_tokens", 0) for u in all_usage)
     total_cost = sum(u.get("total_cost_usd", 0) for u in all_usage)
+    total_latency = sum(u.get("total_latency_ms", 0) for u in all_usage)
 
     return {
         "total_calls": total_calls,
@@ -238,6 +248,8 @@ def _aggregate_usage(all_usage: List[Dict]) -> Dict[str, Any]:
         "total_completion_tokens": total_completion,
         "total_tokens": total_tokens,
         "total_cost_usd": round(total_cost, 6),
+        "total_latency_ms": round(total_latency, 2),
+        "mean_latency_per_run_ms": round(total_latency / len(all_usage), 2) if all_usage else 0,
         "mean_cost_per_run": round(total_cost / len(all_usage), 6) if all_usage else 0,
         "per_run": all_usage,
     }
@@ -311,6 +323,12 @@ def print_summary(summary: Dict[str, Any], show_details: bool = False):
         print(f"  Total Cost: ${usage.get('total_cost_usd', 0):.4f}")
         if usage.get("mean_cost_per_run"):
             print(f"  Mean Cost/Run: ${usage.get('mean_cost_per_run', 0):.4f}")
+        # Print latency
+        total_latency_ms = usage.get('total_latency_ms', 0)
+        if total_latency_ms > 0:
+            print(f"  Total Latency: {_format_latency(total_latency_ms)}")
+            if usage.get("mean_latency_per_run_ms"):
+                print(f"  Mean Latency/Run: {_format_latency(usage.get('mean_latency_per_run_ms', 0))}")
 
     # Load results from latest run for per-request details and coverage
     if summary.get("type") == "ranking":
@@ -545,8 +563,9 @@ def print_ranking_results(stats: Dict[str, Any], results: List[Dict] = None,
         print(f"\nToken Usage:")
         print(f"  Total Tokens: {usage.get('total_tokens', 0):,} (in: {usage.get('total_prompt_tokens', 0):,}, out: {usage.get('total_completion_tokens', 0):,})")
         print(f"  Total Cost: ${usage.get('total_cost_usd', 0):.4f}")
-        if usage.get('total_latency_ms'):
-            print(f"  Total Latency: {usage.get('total_latency_ms', 0) / 1000:.1f}s")
+        total_latency_ms = usage.get('total_latency_ms', 0)
+        if total_latency_ms > 0:
+            print(f"  Total Latency: {_format_latency(total_latency_ms)}")
         # Show avg tokens per request if results available
         if results and len(results) > 0:
             avg_tokens = usage.get('total_tokens', 0) / len(results)

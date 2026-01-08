@@ -11,7 +11,6 @@ from data.loader import load_dataset, filter_by_candidates, Dataset, DICT_MODE_M
 from utils.parsing import parse_limit_spec
 from utils.aggregate import print_ranking_results
 from utils.usage import get_usage_tracker
-from utils.llm import get_token_budget, get_configured_model
 from utils.experiment import ExperimentManager
 from methods.base import BaseMethod
 
@@ -45,17 +44,13 @@ def run_evaluation_loop(
     parallel = getattr(args, 'parallel', True)
     max_workers = getattr(args, 'max_concurrent', 40)
 
-    # Disable pack-to-budget truncation - use stripped data directly
-    # String-mode methods will hit natural context limits at high candidate counts
-    token_budget = None
-    model = None
-
-    # Ranking evaluation (default)
+    # Ranking evaluation
+    # String-mode methods use adaptive truncation: on context exceeded,
+    # reduce reviews by 1 per restaurant and retry until success
     mode_str = "parallel" if parallel else "sequential"
     shuffle_str = f", shuffle={shuffle}" if shuffle != "none" else ""
     attack_str = f", attack={attack_config['attack']}" if attack_config else ""
-    trunc_str = f", budget={token_budget:,}" if token_budget else ""
-    print(f"\nRunning ranking evaluation (k={k}, {mode_str}{shuffle_str}{attack_str}{trunc_str})...", flush=True)
+    print(f"\nRunning ranking evaluation (k={k}, {mode_str}{shuffle_str}{attack_str})...", flush=True)
     eval_out = evaluate_ranking(
         dataset.items,
         method,
@@ -67,8 +62,6 @@ def run_evaluation_loop(
         parallel=parallel,
         max_workers=max_workers,
         attack_config=attack_config,
-        token_budget=token_budget,
-        model=model
     )
 
     # Check if context length was exceeded

@@ -11,20 +11,9 @@ from utils.io import loadjl
 
 DATA_DIR = Path(__file__).parent
 
-# Fields to strip from reviews/users (reduce token bloat)
-# Keep: elite, fans, review_count, name (used by weight_by in requests)
-# Keep: useful (used by weight_by for helpful reviews)
-# Keep: average_stars (used by G04 harsh/generous reviewer filters)
-# Keep: date (used by G04 post_2020 filters)
-STRIP_USER_FIELDS = {'friends', 'user_id', 'yelping_since'}
-STRIP_REVIEW_FIELDS = {'business_id', 'user_id', 'cool', 'funny'}  # Keep review_id for validation cache
-
-# Unused attributes (not referenced by any request) - strip to save tokens
-STRIP_ATTRIBUTES = {
-    'BYOBCorkage', 'BestNights', 'BusinessAcceptsBitcoin', 'BusinessParking',
-    'ByAppointmentOnly', 'Caters', 'Corkage', 'GoodForDancing', 'Music',
-    'RestaurantsTableService', 'Smoking'
-}
+# Fields to strip from reviews/users (internal IDs only - not useful for reasoning)
+STRIP_USER_FIELDS = {'friends', 'user_id'}  # friends is huge, user_id is internal
+STRIP_REVIEW_FIELDS = {'review_id', 'business_id', 'user_id'}  # Internal IDs only
 
 
 def _load_user_mapping(data_name: str) -> dict:
@@ -314,12 +303,8 @@ def _load_reviews_with_synthesis(
     return reviews_by_biz
 
 
-# Fields to remove from restaurants (ground-truth, internal IDs, unused metadata)
-RESTAURANT_BLOCKLIST = {
-    "llm_score", "llm_reasoning",  # Evaluation-only
-    "latitude", "longitude",  # Internal/unused
-    "is_open", "postal_code", "state", "review_count", "stars"  # Redundant/unused
-}
+# Fields to remove from restaurants (evaluation-only, would leak ground truth)
+RESTAURANT_BLOCKLIST = {"llm_score", "llm_reasoning"}
 
 
 def _assemble_items(
@@ -353,9 +338,6 @@ def _assemble_items(
         # Parse string-encoded attributes (Yelp data has dicts as strings)
         if "attributes" in item:
             item["attributes"] = _parse_attributes(item["attributes"])
-            # Strip unused attributes to save tokens
-            item["attributes"] = {k: v for k, v in item["attributes"].items()
-                                  if k not in STRIP_ATTRIBUTES}
 
         # Parse categories string → list
         if isinstance(item.get("categories"), str):
@@ -520,15 +502,17 @@ def format_query(item: dict, mode: str = "string") -> tuple[Any, int]:
     return "\n".join(parts), len(reviews)
 
 
-def format_ranking_query(items: list[dict], mode: str = "string") -> tuple[Any, int]:
+def format_ranking_query(items: list[dict], mode: str = "string",
+                         max_reviews: int = None) -> tuple[Any, int, dict]:
     """Format all items with indices for ranking task.
 
     Args:
         items: List of item dicts (all restaurants to rank)
         mode: "string" for text format, "dict" for structured format
+        max_reviews: Max reviews per restaurant (string mode only, None=unlimited)
 
     Returns:
-        (query, item_count) where query has items indexed 1 to N
+        (query, item_count, coverage_stats) where query has items indexed 1 to N
     """
     if mode == "dict":
         # Dict format for 1-indexed access: items["1"], items["2"], etc.
@@ -537,16 +521,35 @@ def format_ranking_query(items: list[dict], mode: str = "string") -> tuple[Any, 
                 str(i + 1): {**item, "index": i + 1}
                 for i, item in enumerate(items)
             }
-        }, len(items)
+        }, len(items), None
 
     # String mode - serialize full item dicts as JSON (pass-through with index)
+    # Apply max_reviews limit if specified
+    total_reviews = sum(len(item.get("reviews", [])) for item in items)
+    reviews_included = 0
+
     parts = ["Restaurants:\n"]
     for i, item in enumerate(items, 1):
         item_dict = {**item, "index": i}
+        reviews = item.get("reviews", [])
+
+        if max_reviews is not None:
+            item_dict["reviews"] = reviews[:max_reviews]
+            reviews_included += min(len(reviews), max_reviews)
+        else:
+            reviews_included += len(reviews)
+
         parts.append(json.dumps(item_dict, indent=2))
         parts.append("")
 
-    return "\n".join(parts), len(items)
+    coverage_stats = {
+        "restaurants": len(items),
+        "reviews_included": reviews_included,
+        "reviews_total": total_reviews,
+        "max_reviews_per_item": max_reviews,
+    }
+
+    return "\n".join(parts), len(items), coverage_stats
 
 
 # Methods using dict mode (don't need truncation - they access data selectively)

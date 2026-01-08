@@ -26,11 +26,13 @@ def build_execution_layers(steps: list) -> list:
     input_vars = {"query", "input", "items", "context"}
 
     # Build dependency graph
+    step_ids = {idx for idx, _ in steps}  # All actual step IDs
     step_deps = {}
     for idx, instr in steps:
         deps = extract_dependencies(instr)
         # Filter out reserved input variables - they're always available
-        step_deps[idx] = deps - input_vars
+        # Also filter out references to non-existent steps (model hallucinations)
+        step_deps[idx] = (deps - input_vars) & step_ids
 
     # Assign steps to layers using topological sort
     layers = []

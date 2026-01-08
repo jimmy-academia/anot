@@ -7,7 +7,7 @@ from typing import Callable
 
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
 
-from data.loader import format_ranking_query, format_ranking_query_packed
+from data.loader import format_ranking_query
 from utils.parsing import parse_indices
 from utils.usage import get_usage_tracker
 
@@ -94,28 +94,20 @@ def _apply_attack_if_needed(
 def _format_context(
     items: list,
     mode: str,
-    token_budget: int | None,
-    model: str | None,
+    max_reviews: int | None = None,
 ) -> tuple:
     """Format items as context for the model.
 
     Args:
         items: List of items (already shuffled)
         mode: "string" or "dict" for formatting
-        token_budget: Optional token budget for truncation
-        model: Model name for tokenizer
+        max_reviews: Max reviews per restaurant (string mode only)
 
     Returns:
-        (context, item_count, coverage_stats) - coverage_stats is None if not truncated
+        (context, item_count, coverage_stats) - coverage_stats is None for dict mode
     """
-    if token_budget and mode == "string":
-        context, item_count, coverage_stats = format_ranking_query_packed(
-            items, token_budget, model or "gpt-4o"
-        )
-        return context, item_count, coverage_stats
-
-    context, item_count = format_ranking_query(items, mode)
-    return context, item_count, None
+    context, item_count, coverage_stats = format_ranking_query(items, mode, max_reviews)
+    return context, item_count, coverage_stats
 
 
 def _invoke_method(method, query: str, context, k: int, req_id: str) -> str:
@@ -185,11 +177,23 @@ def _build_result(
     return result
 
 
+def _is_context_length_error(error: Exception) -> bool:
+    """Check if exception is a context length error."""
+    error_str = str(error).lower()
+    context_errors = [
+        "context_length_exceeded", "too many tokens", "maximum context length",
+        "context window", "token limit", "max_tokens", "input too long"
+    ]
+    return any(err in error_str for err in context_errors)
+
+
 def evaluate_ranking_single(method, items: list, mode: str, shuffle: str,
                             query: str, k: int, req: dict,
-                            groundtruth: dict, attack_config: dict = None,
-                            token_budget: int = None, model: str = None) -> dict | None:
+                            groundtruth: dict, attack_config: dict = None) -> dict | None:
     """Evaluate a single request (thread-safe helper).
+
+    For string mode: implements adaptive truncation - on context exceeded,
+    reduces reviews by 1 per restaurant and retries until success or no reviews left.
 
     Args:
         method: LLM method instance
@@ -201,14 +205,12 @@ def evaluate_ranking_single(method, items: list, mode: str, shuffle: str,
         req: Request dict with 'id'
         groundtruth: {request_id: {"gold_restaurant": str, "gold_idx": int}}
         attack_config: Optional attack configuration for per-request attacks
-        token_budget: Optional token budget for pack-to-budget truncation (string mode only)
-        model: Model name for tokenizer (required if token_budget is set)
 
     Returns:
         Result dict or None if no ground truth
 
     Raises:
-        ContextLengthExceeded: If the context length limit is exceeded
+        ContextLengthExceeded: If context limit exceeded even with no reviews
     """
     req_id = req["id"]
     gt = groundtruth.get(req_id)
@@ -224,31 +226,55 @@ def evaluate_ranking_single(method, items: list, mode: str, shuffle: str,
     # Apply shuffle based on gold position
     shuffled_items, mapping, shuffled_gold_pos = apply_shuffle(items, gold_idx, shuffle)
 
-    # Format items as context
-    context, item_count, coverage_stats = _format_context(
-        shuffled_items, mode, token_budget, model
-    )
+    # Calculate max reviews across all items (for adaptive truncation)
+    max_reviews_in_data = max(len(item.get("reviews", [])) for item in shuffled_items)
 
     # Track per-request token usage
     tracker = get_usage_tracker()
     start_idx = len(tracker.get_records())
 
-    # Invoke method and parse response
+    # For string mode: adaptive truncation with retry
+    # For dict mode: single attempt (no truncation needed)
+    current_max_reviews = None  # None = unlimited (all reviews)
+    coverage_stats = None
     shuffled_preds = []
-    try:
-        response = _invoke_method(method, query, context, k, req_id)
-        shuffled_preds = parse_indices(response, item_count, k)
-    except Exception as e:
-        error_str = str(e).lower()
-        # Detect context length errors (various API phrasings)
-        context_errors = [
-            "context_length_exceeded", "too many tokens", "maximum context length",
-            "context window", "token limit", "max_tokens", "input too long"
-        ]
-        if any(err in error_str for err in context_errors):
-            print(f"[CONTEXT EXCEEDED] {req_id}: {str(e)[:300]}", flush=True)
-            raise ContextLengthExceeded(str(e))
-        print(f"[ERROR] {req_id}: {type(e).__name__}: {str(e)[:300]}", flush=True)
+
+    while True:
+        # Format items as context (with current review limit for string mode)
+        context, item_count, coverage_stats = _format_context(
+            shuffled_items, mode, current_max_reviews
+        )
+
+        try:
+            response = _invoke_method(method, query, context, k, req_id)
+            shuffled_preds = parse_indices(response, item_count, k)
+            break  # Success!
+
+        except Exception as e:
+            if not _is_context_length_error(e):
+                # Not a context error - log and continue with empty predictions
+                print(f"[ERROR] {req_id}: {type(e).__name__}: {str(e)[:300]}", flush=True)
+                break
+
+            # Context exceeded - try reducing reviews (string mode only)
+            if mode != "string":
+                # Dict mode doesn't support truncation - propagate error
+                print(f"[CONTEXT EXCEEDED] {req_id}: {str(e)[:300]}", flush=True)
+                raise ContextLengthExceeded(str(e))
+
+            # Calculate next review limit
+            if current_max_reviews is None:
+                # First failure: start with max_reviews - 1
+                current_max_reviews = max_reviews_in_data - 1
+            else:
+                current_max_reviews -= 1
+
+            if current_max_reviews < 0:
+                # No reviews left and still failing - give up
+                print(f"[CONTEXT EXCEEDED] {req_id}: Cannot fit even with 0 reviews", flush=True)
+                raise ContextLengthExceeded(str(e))
+
+            print(f"[TRUNCATE] {req_id}: Retrying with max_reviews={current_max_reviews}", flush=True)
 
     # Map predictions back to original indices
     pred_indices = unmap_predictions(shuffled_preds, mapping)
@@ -283,9 +309,11 @@ def _run_with_progress(generator, has_rich_display: bool, description: str, tota
 def evaluate_ranking(items: list[dict], method: Callable, requests: list[dict],
                      groundtruth: dict, mode: str = "string", k: int = 5,
                      shuffle: str = "random", parallel: bool = True,
-                     max_workers: int = 40, attack_config: dict = None,
-                     token_budget: int = None, model: str = None) -> dict:
+                     max_workers: int = 40, attack_config: dict = None) -> dict:
     """Evaluate using ranking (Hits@K accuracy).
+
+    For string mode: implements adaptive truncation - on context exceeded,
+    reduces reviews by 1 per restaurant and retries until success.
 
     Args:
         items: All items (restaurants) to rank
@@ -298,8 +326,6 @@ def evaluate_ranking(items: list[dict], method: Callable, requests: list[dict],
         parallel: Whether to use parallel execution (default True)
         max_workers: Maximum number of worker threads (default 40)
         attack_config: Optional attack configuration for per-request attacks
-        token_budget: Optional token budget for pack-to-budget truncation (string mode only)
-        model: Model name for tokenizer (required if token_budget is set)
 
     Returns:
         Dict with results and accuracy stats
@@ -313,14 +339,14 @@ def evaluate_ranking(items: list[dict], method: Callable, requests: list[dict],
     try:
         return _evaluate_ranking_inner(
             items, method, requests, groundtruth, mode, k, shuffle, parallel, max_workers,
-            has_rich_display, attack_config, token_budget, model
+            has_rich_display, attack_config
         )
     finally:
         if has_rich_display:
             method.stop_display()
 
 
-def _evaluate_ranking_inner(items, method, requests, groundtruth, mode, k, shuffle, parallel, max_workers, has_rich_display, attack_config=None, token_budget=None, model=None):
+def _evaluate_ranking_inner(items, method, requests, groundtruth, mode, k, shuffle, parallel, max_workers, has_rich_display, attack_config=None):
     """Inner implementation of evaluate_ranking (wrapped by display context)."""
     req_ids = [r["id"] for r in requests]
     context_exceeded = False
@@ -335,7 +361,7 @@ def _evaluate_ranking_inner(items, method, requests, groundtruth, mode, k, shuff
                         evaluate_ranking_single,
                         method, items, mode, shuffle,
                         req.get("context") or req.get("text", ""),  # query = user request
-                        k, req, groundtruth, attack_config, token_budget, model
+                        k, req, groundtruth, attack_config
                     ): req
                     for req in requests
                 }
@@ -361,7 +387,7 @@ def _evaluate_ranking_inner(items, method, requests, groundtruth, mode, k, shuff
                 try:
                     result = evaluate_ranking_single(
                         method, items, mode, shuffle, query, k, req, groundtruth,
-                        attack_config, token_budget, model
+                        attack_config
                     )
                     if result:
                         results.append(result)
