@@ -197,6 +197,10 @@ class ReActAgent:
             if n_items > 5:
                 spawn_cmds += f"\n... (spawn all {n_items} items)"
 
+            # Build final emit with labeled results
+            # Need {{(var)}} in final output -> {{{{(c{i}_eval)}}}} in f-string
+            result_lines = "\\n".join([f"Item {i}: {{{{(c{i}_eval)}}}}" for i in range(1, n_items + 1)])
+
             return f"""## Task: Evaluate {n_items} items against conditions
 Conditions: {conds}
 Logic: {self.context.logical_structure}
@@ -211,9 +215,9 @@ Then after spawning all:
 Thought: All spawned, now wait
 Action: wait_all()
 
-Then emit final:
+Then emit final (IMPORTANT: include item numbers with each result):
 Thought: Aggregate results
-Action: emit("final", "Results: {{{{(c1_eval)}}}}, {{{{(c2_eval)}}}}... Output items where eval=yes")
+Action: emit("final", "{result_lines}\\nOutput ONLY the item numbers where result contains 'yes', as comma-separated integers (e.g., 3, 7, 12):")
 Action: done()
 
 BEGIN (output Thought: then Action: lines):"""
