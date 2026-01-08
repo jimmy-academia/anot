@@ -212,6 +212,23 @@ def run_single(
         groups_str = ",".join(sorted(group_names))
         log.info(f"Filtered to groups {groups_str}: {len(dataset.requests)} requests")
 
+    # Smoke test: select first request from each group (10 total)
+    if getattr(args, 'smoke', False):
+        # Group requests by their group field
+        from collections import defaultdict
+        groups = defaultdict(list)
+        for r in dataset.requests:
+            groups[r.get("group", "unknown")].append(r)
+        # Take first request from each group
+        smoke_requests = []
+        for group_name in sorted(groups.keys()):
+            if groups[group_name]:
+                smoke_requests.append(groups[group_name][0])
+        dataset.requests = smoke_requests
+        filtered_ids = {r["id"] for r in dataset.requests}
+        dataset.groundtruth = {k: v for k, v in dataset.groundtruth.items() if k in filtered_ids}
+        log.info(f"Smoke test: {len(dataset.requests)} requests (1 per group)")
+
     # Filter requests if --limit specified (applies to group-filtered list)
     if args.limit:
         indices = parse_limit_spec(args.limit)

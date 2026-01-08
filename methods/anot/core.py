@@ -214,11 +214,12 @@ class AdaptiveNetworkOfThought(BaseMethod):
             self._live.stop()
             self._live = None
 
-        if self._errors:
-            print(f"\n⚠️  {len(self._errors)} error(s) during execution:")
-            for req_id, step_idx, msg in self._errors:
-                print(f"  [{req_id}] Step {step_idx}: {msg}")
-            self._errors.clear()
+        with self._errors_lock:
+            if self._errors:
+                print(f"\n⚠️  {len(self._errors)} error(s) during execution:")
+                for req_id, step_idx, msg in self._errors:
+                    print(f"  [{req_id}] Step {step_idx}: {msg}")
+                self._errors.clear()
 
     def _update_display(self, request_id: str, phase: str, status: str, context: str = None):
         """Update display row for request."""

@@ -314,8 +314,11 @@ Does this item satisfy? yes/no
 (final)=LLM('Item 2={{{{(c2)}}}}, Item 5={{{{(c5)}}}}, Item 7={{{{(c7)}}}}. Output item NUMBERS where answer is yes: ')
 
 [IF SOFT CONDITIONS EXIST - add review/hours steps]
-For REVIEW conditions, add steps like:
+For REVIEW:MENTION conditions, add steps like:
 (r2)=LLM('Item 2 reviews: {{{{(context)}}}}[2][reviews]. Do reviews mention X? yes/no')
+
+For REVIEW:RECENCY conditions (e.g. "4+ reviews since 2020"), add steps like:
+(r2)=LLM('Item 2 reviews with dates: {{{{(context)}}}}[2][reviews]. Count reviews where date >= 2020-01-01. Is count >= 4? Answer only: yes or no')
 
 [CRITICAL]
 - Replace [N] with actual item numbers from CANDIDATES
@@ -366,6 +369,13 @@ Build an executable LWT script:
 3. If conditions involve reviews, use get_review_lengths() and keyword_search()
 4. Add final aggregation step: add_step("final", "Item X={{{{(cX)}}}}, ... Output items with yes:")
 5. Call done() when script is complete
+
+[HANDLING REVIEW:RECENCY CONDITIONS]
+For date-based review conditions (e.g. "4+ reviews since 2020"):
+- The reviews array contains a 'date' field for each review (format: "YYYY-MM-DD HH:MM:SS")
+- Create step prompts that explicitly instruct counting by date
+- Example: add_step("r7", "Item 7 reviews: {{{{(context)}}}}[7][reviews]. Count reviews where date >= 2020-01-01. Is count >= 4? Answer only: yes or no")
+- Do NOT just ask "4+ reviews since 2020?" - be explicit about counting dates
 
 [CRITICAL]
 - You can output MULTIPLE actions in one turn for efficiency

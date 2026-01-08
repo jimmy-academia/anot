@@ -27,7 +27,7 @@ def parse_dict_attr(attr_str):
         # Handle both Python-style and u'string' formats
         cleaned = attr_str.replace("u'", "'").replace("True", "True").replace("False", "False")
         return ast.literal_eval(cleaned)
-    except:
+    except (ValueError, SyntaxError):
         return {}
 
 
@@ -209,7 +209,7 @@ def analyze_restaurants(restaurants):
                     if oh < 8:
                         if bid not in early_open:
                             early_open.append(bid)
-                except:
+                except (ValueError, TypeError):
                     pass
 
     results['hours'] = {
