@@ -85,8 +85,8 @@ class LLMService:
     def __init__(self):
         self._config = {
             "temperature": 0.0,
-            "max_tokens": 32000,
-            "max_tokens_reasoning": 32000,
+            "max_tokens": 4096,
+            "max_tokens_reasoning": 4096,
             "provider": "openai",
             "model": None,
             "base_url": "",

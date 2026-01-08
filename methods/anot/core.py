@@ -34,7 +34,8 @@ from .prompts import (
 from .helpers import (
     build_execution_layers, format_items_compact, format_schema_compact,
     filter_items_for_ranking, parse_conditions, parse_resolved_path,
-    parse_candidates, parse_lwt_skeleton, format_items_for_ruleout, get_attr_value
+    parse_candidates, parse_lwt_skeleton, format_items_for_ruleout, get_attr_value,
+    _load_social_mapping
 )
 from .tools import (
     tool_read, tool_lwt_list, tool_lwt_get,
@@ -44,6 +45,54 @@ from .tools import (
     tool_list_items, tool_check_item, tool_drop_item, tool_add_step
 )
 from .phase2_hierarchical import run_hierarchical_phase2
+
+
+def _extract_friend_sets(conditions: List[dict], data_name: str = "philly_cafes") -> Tuple[set, set]:
+    """Extract 1-hop and 2-hop friend sets from social conditions.
+
+    Returns:
+        (friends_1hop, friends_2hop) - user_id sets
+    """
+    friends_1hop = set()
+    friends_2hop = set()
+
+    # Extract direct friends from conditions
+    for cond in conditions:
+        desc = cond.get('description', '').lower()
+        ctype = cond.get('original_type', cond.get('type', ''))
+
+        if ctype == 'SOCIAL' or 'friend' in desc or 'social' in desc:
+            # Look for friend IDs in condition metadata
+            friends = cond.get('friends', [])
+            if friends:
+                friends_1hop.update(friends)
+
+    # Also check resolved path for social_filter
+    for cond in conditions:
+        path = cond.get('path', '')
+        if 'social_filter' in str(cond):
+            social_filter = cond.get('social_filter', {})
+            if social_filter:
+                friends_1hop.update(social_filter.get('friends', []))
+
+    if not friends_1hop:
+        return set(), set()
+
+    # Load friend graph and compute 2-hop
+    try:
+        mapping = _load_social_mapping(data_name)
+        if mapping:
+            friend_graph = mapping.get("friend_graph", {})
+            # Compute 2-hop friends (friends of friends)
+            for fid in friends_1hop:
+                if fid in friend_graph:
+                    for fof in friend_graph[fid]:
+                        if fof not in friends_1hop:
+                            friends_2hop.add(fof)
+    except Exception:
+        pass  # Non-critical - just won't have 2-hop
+
+    return friends_1hop, friends_2hop
 
 
 class AdaptiveNetworkOfThought(BaseMethod):
@@ -1020,6 +1069,10 @@ class AdaptiveNetworkOfThought(BaseMethod):
             if isinstance(items_dict, list):
                 items_dict = {str(i + 1): item for i, item in enumerate(items_dict)}
 
+            # Extract friend sets for social filtering
+            friends_1hop, friends_2hop = _extract_friend_sets(resolved_conditions)
+            self._debug(2, "P2H", f"Friend sets: 1hop={len(friends_1hop)}, 2hop={len(friends_2hop)}")
+
             step_tuples = asyncio.run(run_hierarchical_phase2(
                 lwt_seed=lwt_seed,
                 resolved_conditions=resolved_conditions,
@@ -1028,6 +1081,8 @@ class AdaptiveNetworkOfThought(BaseMethod):
                 request_id=request_id,
                 debug_callback=self._debug,
                 log_callback=self._log_llm_call,
+                friends_1hop=friends_1hop,
+                friends_2hop=friends_2hop,
             ))
             # Convert [(id, prompt), ...] to LWT format ["(id)=LLM('prompt')", ...]
             # Escape single quotes in prompts to avoid breaking LWT parsing

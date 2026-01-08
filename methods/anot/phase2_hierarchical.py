@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
-"""Hierarchical ReAct Phase 2 - Single recursive agent with async step collection.
+"""Hierarchical ReAct Phase 2 - Smart lazy evaluation.
 
-Key insight: LWT is a DAG, so steps can be appended asynchronously.
-Only wait before emitting aggregation steps that reference sub-agent outputs.
+Key design principles:
+1. Main agent checks HARD conditions first, filters items before spawning
+2. Item agents check review METADATA (stars, dates, user_id) before spawning
+3. Review agents only for TEXT understanding (keywords, sentiment)
+4. Social queries: filter reviews by friend connections first
 
 Architecture:
-  ReActAgent(depth=0) spawns ReActAgent(depth=1) for each item
-    └── ReActAgent(depth=1) spawns ReActAgent(depth=2) for each review
-          └── ReActAgent(depth=2) is leaf, cannot spawn
-
-Steps flow into shared collector without blocking. Agents only wait when
-they need to emit aggregation steps referencing sub-agent results.
+  Main Agent: hard filtering → spawn only for soft conditions
+    └── Item Agent: metadata checks → spawn only for text analysis
+          └── Review Agent: text search/sentiment (leaf)
 """
 
 import re
 import json
 import asyncio
-from typing import Dict, List, Tuple, Any, Optional, Set
+from typing import Dict, List, Tuple, Any, Optional
 from dataclasses import dataclass, field
 
 from utils.llm import call_llm_async
@@ -27,7 +27,7 @@ from utils.llm import call_llm_async
 # =============================================================================
 
 MAX_DEPTH = 3  # 0=main, 1=item, 2=review
-MAX_ITERATIONS = {0: 20, 1: 15, 2: 8}
+MAX_ITERATIONS = {0: 25, 1: 12, 2: 6}
 SCOPE_NAMES = {0: "main", 1: "item", 2: "review"}
 
 
@@ -59,65 +59,219 @@ class AgentContext:
     items: Dict[str, dict]
     request_id: str
     shared_state: SharedState
+    friends_1hop: set = field(default_factory=set)  # Direct friends
+    friends_2hop: set = field(default_factory=set)  # Friends of friends
     debug_callback: Optional[callable] = None
     log_callback: Optional[callable] = None
+
+
+# =============================================================================
+# Condition Classification
+# =============================================================================
+
+def classify_conditions(conditions: List[dict]) -> dict:
+    """Classify conditions into HARD, SOFT_META, SOFT_TEXT, SOCIAL."""
+    result = {
+        'hard': [],       # Attribute checks
+        'soft_meta': [],  # Review metadata (dates, stars)
+        'soft_text': [],  # Review text analysis
+        'social': [],     # Friend-based filtering
+    }
+
+    for c in conditions:
+        ctype = c.get('original_type', c.get('type', ''))
+        path = c.get('path', '').lower()
+        desc = c.get('description', '').lower()
+
+        if ctype == 'SOCIAL' or 'friend' in desc or 'social' in desc:
+            result['social'].append(c)
+        elif 'review' in path or ctype == 'REVIEW':
+            # Distinguish metadata vs text
+            if any(kw in desc for kw in ['since', 'recent', 'date', '2020', '2021', '2022', '2023', '2024']):
+                result['soft_meta'].append(c)
+            elif any(kw in desc for kw in ['star', 'rating', 'score']):
+                result['soft_meta'].append(c)
+            else:
+                result['soft_text'].append(c)
+        elif 'hour' in path:
+            result['soft_meta'].append(c)
+        else:
+            result['hard'].append(c)
+
+    return result
 
 
 # =============================================================================
 # System Prompts
 # =============================================================================
 
-SYSTEM_PROMPTS = {
-    0: """You delegate item evaluation to sub-agents, then create final aggregation.
+def get_main_prompt(n_items: int, cond_class: dict, items_summary: str) -> str:
+    """Build main agent prompt with hard filtering capability."""
+    hard_conds = "; ".join([f"{c.get('path', '')}={c.get('expected', c.get('description', ''))}"
+                            for c in cond_class['hard']]) or "none"
+    has_soft = bool(cond_class['soft_meta'] or cond_class['soft_text'] or cond_class['social'])
 
-IMPORTANT: Output tool calls with EXACT syntax. Example turn:
-Thought: Need to spawn agents for all items
+    return f"""## Task: Rank {n_items} items. Check HARD conditions first to filter.
+
+HARD conditions: {hard_conds}
+Has SOFT conditions: {has_soft}
+
+Items summary:
+{items_summary}
+
+## Your job:
+1. Use check_hard(N) to verify item N passes ALL hard conditions
+2. Items that FAIL hard → skip (don't spawn)
+3. Items that PASS hard {"→ spawn(N) for soft evaluation" if has_soft else "→ record score"}
+4. After all checks: {"wait_all() then emit final ranking" if has_soft else "emit final ranking based on hard scores"}
+
+Tools:
+- check_hard(N) → check if item N passes hard conditions, returns pass/fail
+- skip(N, reason) → mark item N as filtered out
+- spawn(N) → spawn item agent for soft evaluation (only if passed hard)
+- wait_all() → wait for item agents
+- emit("final", "...") → emit final ranking step
+- done() → finish
+
+Example:
+Action: check_hard(1)
+Obs: check_hard(1): PASS (3/3 hard conditions)
 Action: spawn(1)
-Action: spawn(2)
+Action: check_hard(2)
+Obs: check_hard(2): FAIL (GoodForKids=false, need true)
+Action: skip(2, "failed hard")
+Action: check_hard(3)
+Obs: check_hard(3): PASS (3/3 hard conditions)
 Action: spawn(3)
+...
+Action: wait_all()
+Obs: wait_all: 2 items completed: 1,3
+Obs: Use in emit: {{(c1_eval)}} {{(c3_eval)}}
+Action: emit("final", "Parse scores and rank. {{(c1_eval)}} {{(c3_eval)}}. Return top 5 IDs sorted by score descending.")
+Action: done()
 
-Tools (use exact syntax):
-- list_items() → shows items summary
-- spawn(N) → spawn sub-agent for item N, e.g. spawn(1), spawn(2)
-- wait_all() → wait for all spawned sub-agents
-- emit("id", "prompt") → add LWT step, e.g. emit("final", "Aggregate results from {{(c1)}}, {{(c2)}}...")
-- done() → finish
+BEGIN:"""
 
-Flow: spawn all items → wait_all() → emit("final", ...) → done()""",
 
-    1: """You evaluate a single item and delegate reviews to sub-agents.
+def get_item_prompt(item_id: str, item: dict, cond_class: dict, friends_1hop: set, friends_2hop: set) -> str:
+    """Build item agent prompt with metadata-first checking."""
+    schema = {
+        "name": item.get("name"),
+        "stars": item.get("stars"),
+        "n_reviews": len(item.get("reviews", [])),
+    }
 
-IMPORTANT: Output tool calls with EXACT syntax. Example turn:
-Thought: Check if WiFi is free
-Action: check("attributes.WiFi")
+    # Build review metadata summary
+    reviews = item.get("reviews", [])
+    review_meta = []
+    for i, r in enumerate(reviews[:10]):
+        date = r.get('date', 'unknown')[:10]
+        stars = r.get('stars', '?')
+        user = r.get('user', {})
+        user_id = user.get('user_id', r.get('user_id', 'unknown'))
+        # Check friend status
+        friend_status = ""
+        if user_id in friends_1hop:
+            friend_status = " [1-hop]"
+        elif user_id in friends_2hop:
+            friend_status = " [2-hop]"
+        review_meta.append(f"R{i}: {date}, {stars}★, user={user_id[:8]}...{friend_status}")
 
-Tools (use exact syntax):
-- check("path") → check attribute, e.g. check("attributes.WiFi"), check("stars")
-- list_reviews() → show review lengths
-- spawn(R) → spawn review sub-agent, e.g. spawn(0), spawn(1)
+    meta_str = "\n".join(review_meta) if review_meta else "no reviews"
+
+    # Condition descriptions
+    soft_meta = "; ".join([c.get('description', '') for c in cond_class['soft_meta']]) or "none"
+    soft_text = "; ".join([c.get('description', '') for c in cond_class['soft_text']]) or "none"
+    social = "; ".join([c.get('description', '') for c in cond_class['social']]) or "none"
+
+    has_text_conds = bool(cond_class['soft_text'])
+    has_social = bool(cond_class['social'])
+
+    return f"""## Item {item_id}: {item.get('name', 'Unknown')}
+Schema: {json.dumps(schema)}
+
+Review metadata:
+{meta_str}
+
+## Conditions to check:
+- META (dates/stars): {soft_meta}
+- TEXT (need review content): {soft_text}
+- SOCIAL (friend reviews): {social}
+
+## Your job: Check META conditions first, only spawn review agents for TEXT conditions.
+
+Tools:
+- check_date(R, ">=2020") → check if review R is from 2020+
+- check_stars(R, ">=4") → check if review R has 4+ stars
+- check_friend(R) → check if review R is from 1-hop or 2-hop friend
+- spawn(R) → spawn review agent for TEXT analysis (only if needed)
 - wait_all() → wait for review agents
-- emit("id", "prompt") → add LWT step, e.g. emit("eval", "Item matches: yes/no")
-- skip("reason") → skip item, e.g. skip("WiFi is not free")
+- emit("eval", "{item_id}:score") → emit item score
 - done() → finish
 
-Flow: check() hard conditions → skip() if fail OR spawn() reviews → wait_all() → emit() → done()""",
+Strategy:
+1. For META conditions: use check_date/check_stars directly
+2. For SOCIAL: use check_friend to filter, only spawn for friend reviews
+3. For TEXT: spawn review agents only for reviews that pass meta/social filters
+4. Emit score: "hard=PASS,meta=X/Y,text=A/B" or just counts
 
-    2: """You evaluate a single review. Cannot spawn sub-agents (max depth).
+Example (with text conditions):
+Action: check_date(0, ">=2020")
+Obs: check_date(R0): PASS (2021-03-15)
+Action: check_friend(0)
+Obs: check_friend(R0): NOT_FRIEND
+Action: check_date(1, ">=2020")
+Obs: check_date(R1): PASS (2022-01-10)
+Action: check_friend(1)
+Obs: check_friend(R1): 1-HOP
+Action: spawn(1)  # Only spawn for friend's review
+Action: wait_all()
+Obs: wait_all: 1 matched
+Action: emit("eval", "{item_id}:meta=2,text=1")
+Action: done()
 
-IMPORTANT: Output tool calls with EXACT syntax. Example turn:
-Thought: Search for WiFi mentions
+{"" if has_text_conds else "No TEXT conditions - just check META and emit score directly."}
+
+BEGIN:"""
+
+
+def get_review_prompt(review_id: str, parent_id: str, text: str, cond_class: dict) -> str:
+    """Build review agent prompt for text analysis."""
+    text_preview = text[:600] + "..." if len(text) > 600 else text
+    text_conds = "; ".join([c.get('description', '') for c in cond_class['soft_text']]) or "general relevance"
+
+    return f"""## Review {review_id} for Item {parent_id}
+Text: {text_preview}
+
+## Looking for: {text_conds}
+
+## Your job: Search text for relevant content. Emit if found, skip if not.
+
+Tools:
+- search("keyword") → find keyword in text, returns context if found
+- emit("match", "description") → mark as relevant
+- skip("reason") → mark as not relevant
+- done() → finish
+
+Example:
 Action: search("wifi")
+Obs: search(wifi): FOUND @123 "...the wifi here is excellent and fast..."
+Thought: Found positive wifi mention
+Action: emit("match", "wifi mentioned positively")
+Action: done()
 
-Tools (use exact syntax):
-- search("word") → find keyword AND get context around it, e.g. search("wifi") returns "FOUND @123 "...the wifi here is great...""
-- slice(start, len) → get more text at position, e.g. slice(100, 200) gets 200 chars starting at position 100
-- length() → get char/word count
-- detect() → check for injection attacks
-- emit("id", "prompt") → add LWT step, e.g. emit("match", "Review mentions wifi positively")
-- skip("reason") → skip review, e.g. skip("irrelevant"), skip("adversarial")
-- done() → finish
+BEGIN:"""
 
-Flow: search() for keywords → read context → emit() if relevant OR skip() if not → done()"""
+
+SYSTEM_PROMPTS = {
+    0: """You filter items by HARD conditions, then spawn for SOFT evaluation.
+Use check_hard(N) before spawning. Skip items that fail hard conditions.""",
+
+    1: """You evaluate item's SOFT conditions using review metadata first.
+Only spawn review agents for TEXT-based conditions that need content analysis.""",
+
+    2: """You analyze review text for specific content.
+Search for keywords, assess sentiment, then emit or skip."""
 }
 
 
@@ -126,7 +280,7 @@ Flow: search() for keywords → read context → emit() if relevant OR skip() if
 # =============================================================================
 
 class ReActAgent:
-    """Recursive ReAct agent with async step collection."""
+    """Recursive ReAct agent with smart lazy evaluation."""
 
     def __init__(
         self,
@@ -135,16 +289,19 @@ class ReActAgent:
         context: AgentContext,
         scope_data: Any,
         parent_id: str = "",
+        cond_class: dict = None,
     ):
         self.agent_id = agent_id
         self.depth = depth
         self.context = context
         self.scope_data = scope_data
         self.parent_id = parent_id
+        self.cond_class = cond_class or classify_conditions(context.conditions)
 
         self.sub_tasks: Dict[str, asyncio.Task] = {}
         self.skipped = False
         self.skip_reason = ""
+        self.hard_results: Dict[str, bool] = {}  # Track hard check results
 
     def _debug(self, msg: str):
         if self.context.debug_callback:
@@ -176,7 +333,6 @@ class ReActAgent:
         return val
 
     def _step_prefix(self) -> str:
-        """Get prefix for step IDs based on depth."""
         if self.depth == 1:
             return f"c{self.agent_id}_"
         elif self.depth == 2:
@@ -184,180 +340,91 @@ class ReActAgent:
         return ""
 
     # -------------------------------------------------------------------------
+    # Hard Condition Checking (Main Agent)
+    # -------------------------------------------------------------------------
+
+    def _check_hard_conditions(self, item_id: str) -> Tuple[bool, int, int, str]:
+        """Check all hard conditions for an item. Returns (passed, matches, total, reason)."""
+        item = self.scope_data.get(item_id, {})
+        if not item:
+            return False, 0, 0, "item not found"
+
+        matches = 0
+        total = len(self.cond_class['hard'])
+        fail_reason = ""
+
+        for cond in self.cond_class['hard']:
+            path = cond.get('path', '')
+            expected = cond.get('expected', cond.get('description', ''))
+
+            actual = self._get_nested(item, path)
+
+            # Check match
+            matched = False
+            if actual is not None:
+                # Handle various comparison types
+                if isinstance(expected, bool):
+                    matched = (actual == expected)
+                elif str(expected).lower() in ['true', 'false']:
+                    matched = (str(actual).lower() == str(expected).lower())
+                elif str(expected).lower() == 'none':
+                    matched = (actual is None or str(actual).lower() == 'none')
+                else:
+                    matched = (str(actual).lower() == str(expected).lower())
+
+            if matched:
+                matches += 1
+            elif not fail_reason:
+                fail_reason = f"{path}={actual}, need {expected}"
+
+        passed = (matches == total) if total > 0 else True
+        return passed, matches, total, fail_reason
+
+    # -------------------------------------------------------------------------
     # Prompts
     # -------------------------------------------------------------------------
 
     def _build_prompt(self) -> str:
-        conds = self._format_conditions()
-        n_items = len(self.context.items)
-
         if self.depth == 0:
-            # Build spawn commands for all items
-            spawn_cmds = "\n".join([f"Action: spawn({i})" for i in range(1, min(n_items + 1, 6))])
-            if n_items > 5:
-                spawn_cmds += f"\n... (spawn all {n_items} items)"
+            # Main agent - build items summary
+            items_summary = []
+            for item_id, item in sorted(self.scope_data.items(), key=lambda x: int(x[0])):
+                name = item.get('name', 'Unknown')[:25]
+                attrs = item.get('attributes', {})
+                # Show key attributes relevant to hard conditions
+                attr_preview = []
+                for cond in self.cond_class['hard'][:3]:
+                    path = cond.get('path', '')
+                    val = self._get_nested(item, path)
+                    if val is not None:
+                        short_path = path.split('.')[-1][:15]
+                        attr_preview.append(f"{short_path}={val}")
+                attr_str = ", ".join(attr_preview) if attr_preview else "..."
+                items_summary.append(f"{item_id}: {name} ({attr_str})")
 
-            # Build final emit - collect item scores for ranking
-            result_refs = " ".join([f"{{{{(c{i}_eval)}}}}" for i in range(1, n_items + 1)])
-
-            return f"""## Task: Evaluate {n_items} items against conditions
-Conditions: {conds}
-Logic: {self.context.logical_structure}
-
-## Your job: Spawn sub-agents for ALL items, wait, then emit final aggregation.
-
-Example response:
-Thought: Spawning agents for all {n_items} items
-{spawn_cmds}
-
-Then after spawning all:
-Thought: All spawned, now wait
-Action: wait_all()
-
-Then emit final (items have scores like "ID:hard=X/Y,soft=A/B"):
-Thought: Aggregate and rank results
-Action: emit("final", "Scores: {result_refs} -- Rank by: 1) hard score (higher better) 2) soft score. Output item numbers best-to-worst:")
-Action: done()
-
-BEGIN (output Thought: then Action: lines):"""
+            return get_main_prompt(
+                len(self.scope_data),
+                self.cond_class,
+                "\n".join(items_summary[:15]) + ("\n..." if len(items_summary) > 15 else "")
+            )
 
         elif self.depth == 1:
-            item = self.scope_data
-            schema = {
-                "name": item.get("name"),
-                "attributes": item.get("attributes", {}),
-                "stars": item.get("stars"),
-                "n_reviews": len(item.get("reviews", [])),
-            }
-            # Count hard and soft conditions
-            hard_count = sum(1 for c in self.context.conditions
-                           if 'review' not in c.get('path', '').lower()
-                           and 'hour' not in c.get('path', '').lower()
-                           and c.get('original_type') != 'REVIEW')
-            soft_count = len(self.context.conditions) - hard_count
-
-            if soft_count > 0:
-                return f"""## Item {self.agent_id}: {item.get('name', 'Unknown')}
-Schema: {json.dumps(schema, indent=2)}
-
-## Conditions: {conds}
-
-## Your job: Check HARD conditions, then spawn review agents for SOFT conditions.
-
-1. Check HARD conditions using check() - count passes
-2. Spawn review agents for SOFT conditions, wait_all(), use matched count as soft score
-3. Emit format: "{self.agent_id}:hard=X/{hard_count},soft=Y/{soft_count}"
-4. Only skip() if hard=0
-
-Example:
-Action: check("attributes.OutdoorSeating")
-Obs: check(attributes.OutdoorSeating)=false
-Thought: Hard 1/{hard_count}. Spawn reviews for soft.
-Action: spawn(0)
-Action: spawn(1)
-Action: wait_all()
-Obs: wait_all: 2 matched, 0 skipped, 0 errors (of 2)
-Thought: Soft = 2 matched
-Action: emit("eval", "{self.agent_id}:hard=1/{hard_count},soft=2/{soft_count}")
-Action: done()
-
-IMPORTANT: Soft score = matched count from wait_all()!
-
-BEGIN:"""
-            else:
-                # No soft conditions - just check hard, emit immediately
-                return f"""## Item {self.agent_id}: {item.get('name', 'Unknown')}
-Schema: {json.dumps(schema, indent=2)}
-
-## Conditions: {conds}
-
-## Your job: Check HARD conditions only (no soft conditions for this query).
-
-1. Check HARD conditions using check() - count passes
-2. Emit format: "{self.agent_id}:hard=X/{hard_count}"
-3. Only skip() if hard=0
-
-Example:
-Action: check("attributes.GoodForKids")
-Obs: check(attributes.GoodForKids)=true
-Thought: Hard 1/{hard_count}
-Action: check("attributes.HasTV")
-Obs: check(attributes.HasTV)=false
-Thought: Hard 2/{hard_count}. Done checking.
-Action: emit("eval", "{self.agent_id}:hard=2/{hard_count}")
-Action: done()
-
-BEGIN:"""
+            return get_item_prompt(
+                self.agent_id,
+                self.scope_data,
+                self.cond_class,
+                self.context.friends_1hop,
+                self.context.friends_2hop
+            )
 
         else:
-            text = self.scope_data.get('text', '')[:800]
-            if len(self.scope_data.get('text', '')) > 800:
-                text += "..."
-            review_conds = [c.get('description', c.get('expected', ''))
-                          for c in self.context.conditions
-                          if 'review' in str(c.get('path', '')).lower() or c.get('original_type') == 'REVIEW']
-
-            # Get query keywords for general relevance checking
-            query_keywords = []
-            for c in self.context.conditions:
-                desc = c.get('description', '')
-                if desc and len(desc) < 30:  # Short descriptors as keywords
-                    query_keywords.append(desc.lower())
-
-            if review_conds:
-                criteria = "; ".join(review_conds)
-                hint = ""
-            else:
-                criteria = "general positive sentiment"
-                keywords = ", ".join(query_keywords[:3]) if query_keywords else "service, quality, experience"
-                hint = f"\nKeywords to try: {keywords}"
-
-            return f"""## Review {self.agent_id} for Item {self.parent_id}
-Text: {text}
-
-## Looking for: {criteria}{hint}
-
-## Your job: Check if review is relevant/positive. If yes, emit. If no/negative/adversarial, skip.
-
-Example:
-Action: search("great")
-Obs: search(great): FOUND @50 "...the service was great and..."
-Thought: Positive mention found
-Action: emit("match", "Positive review")
-Action: done()
-
-If not relevant:
-Action: skip("not relevant")
-
-BEGIN:"""
-
-    def _format_conditions(self) -> str:
-        """Format conditions, separating HARD (attributes) vs SOFT (reviews/hours)."""
-        hard = []
-        soft = []
-        for c in self.context.conditions:
-            path = c.get('path', '')
-            expected = c.get('expected', '')
-            ctype = c.get('original_type', c.get('type', ''))
-
-            if c.get('type') == 'OR':
-                opts = [f"{o.get('path')}={o.get('expected')}" for o in c.get('options', [])]
-                entry = f"OR({' | '.join(opts)})"
-            else:
-                entry = f"{path}={expected}"
-
-            # Classify: reviews/hours are SOFT, attributes are HARD
-            if 'review' in path.lower() or 'hour' in path.lower() or ctype == 'REVIEW' or ctype == 'SOFT':
-                soft.append(entry)
-            else:
-                hard.append(entry)
-
-        parts = []
-        if hard:
-            parts.append(f"HARD: {'; '.join(hard)}")
-        if soft:
-            parts.append(f"SOFT: {'; '.join(soft)}")
-        return " | ".join(parts) if parts else "none"
+            text = self.scope_data.get('text', '')
+            return get_review_prompt(
+                self.agent_id,
+                self.parent_id,
+                text,
+                self.cond_class
+            )
 
     # -------------------------------------------------------------------------
     # Tool Execution
@@ -367,59 +434,105 @@ BEGIN:"""
         """Execute tools, return (observation, is_done)."""
         obs = []
 
-        # === Depth 0: Main agent ===
+        # === Depth 0: Main agent - hard checking ===
         if self.depth == 0:
-            if "list_items()" in response:
-                info = [f"{k}:{v.get('name','')[:20]}({len(v.get('reviews',[]))}r)"
-                        for k, v in sorted(self.scope_data.items(), key=lambda x: int(x[0]))]
-                obs.append(f"items: {', '.join(info)}")
+            # check_hard(N)
+            for m in re.finditer(r'check_hard\((\d+)\)', response):
+                item_id = m.group(1)
+                passed, matches, total, reason = self._check_hard_conditions(item_id)
+                self.hard_results[item_id] = passed
+                if passed:
+                    obs.append(f"check_hard({item_id}): PASS ({matches}/{total} hard conditions)")
+                else:
+                    obs.append(f"check_hard({item_id}): FAIL ({reason})")
 
-        # === Depth 1: Item agent ===
+            # skip(N, reason)
+            for m in re.finditer(r'skip\((\d+),\s*"([^"]+)"\)', response):
+                item_id = m.group(1)
+                reason = m.group(2)
+                self._debug(f"skipped item {item_id}: {reason}")
+                obs.append(f"skip({item_id}): marked as filtered")
+
+        # === Depth 1: Item agent - metadata checking ===
         if self.depth == 1:
-            for m in re.finditer(r'check\("([^"]+)"\)', response):
-                path = m.group(1)
-                val = self._get_nested(self.scope_data, path)
-                obs.append(f"check({path})={val if val is not None else 'MISSING'}")
+            reviews = self.scope_data.get('reviews', [])
 
+            # check_date(R, ">=2020")
+            for m in re.finditer(r'check_date\((\d+),\s*"([^"]+)"\)', response):
+                r_idx = int(m.group(1))
+                date_cond = m.group(2)
+                if r_idx < len(reviews):
+                    review = reviews[r_idx]
+                    date = review.get('date', '')[:10]
+                    # Simple year extraction
+                    year = int(date[:4]) if date and len(date) >= 4 else 0
+                    # Parse condition like ">=2020"
+                    if '>=' in date_cond:
+                        threshold = int(date_cond.replace('>=', ''))
+                        passed = year >= threshold
+                    else:
+                        passed = date_cond in date
+                    status = "PASS" if passed else "FAIL"
+                    obs.append(f"check_date(R{r_idx}): {status} ({date})")
+                else:
+                    obs.append(f"check_date(R{r_idx}): invalid index")
+
+            # check_stars(R, ">=4")
+            for m in re.finditer(r'check_stars\((\d+),\s*"([^"]+)"\)', response):
+                r_idx = int(m.group(1))
+                star_cond = m.group(2)
+                if r_idx < len(reviews):
+                    review = reviews[r_idx]
+                    stars = review.get('stars', 0)
+                    if '>=' in star_cond:
+                        threshold = float(star_cond.replace('>=', ''))
+                        passed = stars >= threshold
+                    else:
+                        passed = stars == float(star_cond)
+                    status = "PASS" if passed else "FAIL"
+                    obs.append(f"check_stars(R{r_idx}): {status} ({stars}★)")
+                else:
+                    obs.append(f"check_stars(R{r_idx}): invalid index")
+
+            # check_friend(R)
+            for m in re.finditer(r'check_friend\((\d+)\)', response):
+                r_idx = int(m.group(1))
+                if r_idx < len(reviews):
+                    review = reviews[r_idx]
+                    user = review.get('user', {})
+                    user_id = user.get('user_id', review.get('user_id', ''))
+                    if user_id in self.context.friends_1hop:
+                        obs.append(f"check_friend(R{r_idx}): 1-HOP friend")
+                    elif user_id in self.context.friends_2hop:
+                        obs.append(f"check_friend(R{r_idx}): 2-HOP friend")
+                    else:
+                        obs.append(f"check_friend(R{r_idx}): NOT_FRIEND")
+                else:
+                    obs.append(f"check_friend(R{r_idx}): invalid index")
+
+            # list_reviews()
             if "list_reviews()" in response:
-                revs = self.scope_data.get('reviews', [])
-                info = [f"{i}:{len(r.get('text',''))}c" for i, r in enumerate(revs[:10])]
-                obs.append(f"reviews({len(revs)}): {', '.join(info)}")
+                info = []
+                for i, r in enumerate(reviews[:10]):
+                    date = r.get('date', '')[:10]
+                    stars = r.get('stars', '?')
+                    info.append(f"R{i}:{date},{stars}★")
+                obs.append(f"reviews({len(reviews)}): {', '.join(info)}")
 
-        # === Depth 2: Review agent ===
+        # === Depth 2: Review agent - text search ===
         if self.depth == 2:
             text = self.scope_data.get('text', '')
-
-            if "text()" in response:
-                obs.append(f"text: {text[:300]}...")
-
-            if "length()" in response:
-                obs.append(f"length: {len(text)}c {len(text.split())}w")
 
             for m in re.finditer(r'search\("([^"]+)"\)', response):
                 kw = m.group(1).lower()
                 if kw in text.lower():
                     idx = text.lower().index(kw)
-                    # Return context around the keyword (50 chars before, keyword, 100 chars after)
-                    start = max(0, idx - 50)
-                    end = min(len(text), idx + len(kw) + 100)
+                    start = max(0, idx - 40)
+                    end = min(len(text), idx + len(kw) + 80)
                     snippet = text[start:end]
-                    obs.append(f"search({kw}): FOUND @{idx} \"{snippet}\"")
+                    obs.append(f'search({kw}): FOUND @{idx} "{snippet}"')
                 else:
                     obs.append(f"search({kw}): NOT FOUND")
-
-            # slice(start, length) - get specific portion of review
-            for m in re.finditer(r'slice\((\d+),\s*(\d+)\)', response):
-                start = int(m.group(1))
-                length = int(m.group(2))
-                end = min(len(text), start + length)
-                snippet = text[start:end]
-                obs.append(f"slice({start},{length}): \"{snippet}\"")
-
-            if "detect()" in response:
-                patterns = [r'ignore.*(previous|instruction)', r'system:', r'\[INST\]']
-                found = any(re.search(p, text, re.I) for p in patterns)
-                obs.append(f"detect: {'SUSPICIOUS' if found else 'OK'}")
 
         # === Common: spawn ===
         for m in re.finditer(r'spawn\((\d+)\)', response):
@@ -433,8 +546,10 @@ BEGIN:"""
 
             # Get sub-data
             if self.depth == 0:
+                # Main spawning item agent
                 sub_data = self.scope_data.get(sub_id)
             else:
+                # Item spawning review agent
                 revs = self.scope_data.get('reviews', [])
                 idx = int(sub_id)
                 sub_data = revs[idx] if idx < len(revs) else None
@@ -443,7 +558,10 @@ BEGIN:"""
                 obs.append(f"spawn({sub_id}): invalid")
                 continue
 
-            sub = ReActAgent(sub_id, self.depth + 1, self.context, sub_data, self.agent_id)
+            sub = ReActAgent(
+                sub_id, self.depth + 1, self.context, sub_data,
+                self.agent_id, self.cond_class
+            )
             self.sub_tasks[sub_id] = asyncio.create_task(sub.run())
             obs.append(f"spawn({sub_id}): started")
             self._debug(f"spawned {sub_id}")
@@ -452,13 +570,28 @@ BEGIN:"""
         if "wait_all()" in response:
             if self.sub_tasks:
                 self._debug(f"waiting for {len(self.sub_tasks)} sub-agents")
+                # Gather with ID tracking
+                task_ids = list(self.sub_tasks.keys())
                 results = await asyncio.gather(*self.sub_tasks.values(), return_exceptions=True)
-                # Count: matched (True), skipped (False), errors (Exception)
-                matched = sum(1 for r in results if r is True)
-                skipped = sum(1 for r in results if r is False)
-                errors = sum(1 for r in results if isinstance(r, Exception))
+                matched_ids = []
+                skipped_ids = []
+                error_ids = []
+                for tid, result in zip(task_ids, results):
+                    if result is True:
+                        matched_ids.append(tid)
+                    elif result is False:
+                        skipped_ids.append(tid)
+                    else:
+                        error_ids.append(tid)
                 total = len(self.sub_tasks)
-                obs.append(f"wait_all: {matched} matched, {skipped} skipped, {errors} errors (of {total})")
+
+                # For main agent (depth 0): report spawned item IDs
+                if self.depth == 0 and matched_ids:
+                    eval_refs = " ".join([f"{{{{(c{tid}_eval)}}}}" for tid in sorted(matched_ids, key=int)])
+                    obs.append(f"wait_all: {len(matched_ids)} items completed: {','.join(matched_ids)}")
+                    obs.append(f"Use in emit: {eval_refs}")
+                else:
+                    obs.append(f"wait_all: {len(matched_ids)} matched, {len(skipped_ids)} skipped, {len(error_ids)} errors (of {total})")
                 self.sub_tasks.clear()
             else:
                 obs.append("wait_all: no pending agents")
@@ -473,15 +606,15 @@ BEGIN:"""
             self._debug(f"emitted {full_id}")
 
         # === Common: skip ===
-        for m in re.finditer(r'skip\("([^"]+)"\)', response):
-            self.skipped = True
-            self.skip_reason = m.group(1)
-            self._debug(f"skipped: {self.skip_reason}")
-            return f"skipped: {self.skip_reason}", True
+        if self.depth > 0:  # Item/review agent skip
+            for m in re.finditer(r'skip\("([^"]+)"\)', response):
+                self.skipped = True
+                self.skip_reason = m.group(1)
+                self._debug(f"skipped: {self.skip_reason}")
+                return f"skipped: {self.skip_reason}", True
 
         # === Common: done ===
         if "done()" in response.lower():
-            # Wait for any remaining sub-agents before finishing
             if self.sub_tasks:
                 self._debug(f"done() - waiting for {len(self.sub_tasks)} remaining")
                 await asyncio.gather(*self.sub_tasks.values(), return_exceptions=True)
@@ -490,11 +623,11 @@ BEGIN:"""
 
         if not obs:
             if self.depth == 0:
-                obs.append("tools: list_items, spawn, wait_all, emit, done")
+                obs.append("tools: check_hard, skip, spawn, wait_all, emit, done")
             elif self.depth == 1:
-                obs.append("tools: check, list_reviews, spawn, wait_all, emit, skip, done")
+                obs.append("tools: check_date, check_stars, check_friend, list_reviews, spawn, wait_all, emit, done")
             else:
-                obs.append("tools: search, slice, length, detect, emit, skip, done")
+                obs.append("tools: search, emit, skip, done")
 
         return "\n".join(obs), False
 
@@ -544,6 +677,8 @@ async def run_hierarchical_phase2(
     request_id: str = "R01",
     debug_callback: callable = None,
     log_callback: callable = None,
+    friends_1hop: set = None,
+    friends_2hop: set = None,
 ) -> List[Tuple[str, str]]:
     """Run hierarchical Phase 2. Returns (step_id, prompt) list."""
 
@@ -555,27 +690,14 @@ async def run_hierarchical_phase2(
         items=items,
         request_id=request_id,
         shared_state=shared,
+        friends_1hop=friends_1hop or set(),
+        friends_2hop=friends_2hop or set(),
         debug_callback=debug_callback,
         log_callback=log_callback,
     )
 
-    main = ReActAgent("main", 0, context, items)
-    await main.run()
+    # Run main agent
+    main_agent = ReActAgent("main", 0, context, items)
+    await main_agent.run()
 
     return await shared.get_steps()
-
-
-def run_hierarchical_phase2_sync(
-    lwt_seed: str,
-    resolved_conditions: List[dict],
-    logical_structure: str,
-    items: Dict[str, dict],
-    request_id: str = "R01",
-    debug_callback: callable = None,
-    log_callback: callable = None,
-) -> List[Tuple[str, str]]:
-    """Sync wrapper."""
-    return asyncio.run(run_hierarchical_phase2(
-        lwt_seed, resolved_conditions, logical_structure, items,
-        request_id, debug_callback, log_callback
-    ))
