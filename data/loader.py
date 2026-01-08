@@ -13,7 +13,7 @@ DATA_DIR = Path(__file__).parent
 
 # Fields to strip from reviews/users (internal IDs only - not useful for reasoning)
 STRIP_USER_FIELDS = {'friends', 'user_id'}  # friends is huge, user_id is internal
-STRIP_REVIEW_FIELDS = {'review_id', 'business_id', 'user_id'}  # Internal IDs only
+STRIP_REVIEW_FIELDS = {'user_id'}  # Internal IDs only
 
 
 def _load_user_mapping(data_name: str) -> dict:

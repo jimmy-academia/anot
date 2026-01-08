@@ -197,7 +197,7 @@ class ReActAgent:
             if n_items > 5:
                 spawn_cmds += f"\n... (spawn all {n_items} items)"
 
-            # Build final emit - just collect item eval results (passing items emit their ID)
+            # Build final emit - collect item scores for ranking
             result_refs = " ".join([f"{{{{(c{i}_eval)}}}}" for i in range(1, n_items + 1)])
 
             return f"""## Task: Evaluate {n_items} items against conditions
@@ -214,9 +214,9 @@ Then after spawning all:
 Thought: All spawned, now wait
 Action: wait_all()
 
-Then emit final (collects passing item IDs):
-Thought: Aggregate results
-Action: emit("final", "Passing items: {result_refs} -- Output these numbers as comma-separated list:")
+Then emit final (items have scores like "ID:hard=X/Y,soft=A/B"):
+Thought: Aggregate and rank results
+Action: emit("final", "Scores: {result_refs} -- Rank by: 1) hard score (higher better) 2) soft score. Output item numbers best-to-worst:")
 Action: done()
 
 BEGIN (output Thought: then Action: lines):"""
@@ -229,25 +229,39 @@ BEGIN (output Thought: then Action: lines):"""
                 "stars": item.get("stars"),
                 "n_reviews": len(item.get("reviews", [])),
             }
+            # Count hard and soft conditions
+            hard_count = sum(1 for c in self.context.conditions
+                           if 'review' not in c.get('path', '').lower()
+                           and 'hour' not in c.get('path', '').lower()
+                           and c.get('original_type') != 'REVIEW')
+            soft_count = len(self.context.conditions) - hard_count
+
             return f"""## Item {self.agent_id}: {item.get('name', 'Unknown')}
 Schema: {json.dumps(schema, indent=2)}
 
-## Conditions to check: {conds}
+## Conditions: {conds}
 
-## Your job: Check hard conditions. If fail, skip(). If pass, emit YOUR ITEM NUMBER.
+## Your job: Check conditions and emit a SCORE showing how many matched.
 
-Example response:
-Thought: Check OutdoorSeating attribute
+1. Check HARD conditions (attributes) - count how many pass
+2. Check SOFT conditions (reviews/hours) - count how many pass
+3. Emit format: "{self.agent_id}:hard=X/{hard_count},soft=Y/{soft_count}"
+4. Only skip() if hard=0 (no hard conditions met at all)
+
+Example flow:
+Thought: Check WiFi attribute
+Action: check("attributes.WiFi")
+Thought: WiFi=free matches. Hard: 1/2
 Action: check("attributes.OutdoorSeating")
-
-If condition fails:
-Thought: OutdoorSeating is False, skip this item
-Action: skip("OutdoorSeating=False")
-
-If ALL conditions pass, emit JUST the item number:
-Thought: All conditions met
-Action: emit("eval", "{self.agent_id}")
+Thought: OutdoorSeating=False, doesnt match. Hard: 1/2
+Thought: Hard conditions: 1/{hard_count} passed. Now checking soft...
+(for soft conditions involving reviews, you can spawn review agents or skip soft checks)
+Thought: Soft: 0/{soft_count}. Emitting score.
+Action: emit("eval", "{self.agent_id}:hard=1/{hard_count},soft=0/{soft_count}")
 Action: done()
+
+If hard=0 (NO hard conditions match):
+Action: skip("hard=0/{hard_count}")
 
 BEGIN (output Thought: then Action: lines):"""
 
@@ -283,14 +297,32 @@ Action: skip("no relevant content")
 BEGIN (output Thought: then Action: lines):"""
 
     def _format_conditions(self) -> str:
-        lines = []
+        """Format conditions, separating HARD (attributes) vs SOFT (reviews/hours)."""
+        hard = []
+        soft = []
         for c in self.context.conditions:
+            path = c.get('path', '')
+            expected = c.get('expected', '')
+            ctype = c.get('original_type', c.get('type', ''))
+
             if c.get('type') == 'OR':
                 opts = [f"{o.get('path')}={o.get('expected')}" for o in c.get('options', [])]
-                lines.append(f"OR({' | '.join(opts)})")
+                entry = f"OR({' | '.join(opts)})"
             else:
-                lines.append(f"{c.get('path')}={c.get('expected')}")
-        return "; ".join(lines)
+                entry = f"{path}={expected}"
+
+            # Classify: reviews/hours are SOFT, attributes are HARD
+            if 'review' in path.lower() or 'hour' in path.lower() or ctype == 'REVIEW' or ctype == 'SOFT':
+                soft.append(entry)
+            else:
+                hard.append(entry)
+
+        parts = []
+        if hard:
+            parts.append(f"HARD: {'; '.join(hard)}")
+        if soft:
+            parts.append(f"SOFT: {'; '.join(soft)}")
+        return " | ".join(parts) if parts else "none"
 
     # -------------------------------------------------------------------------
     # Tool Execution
