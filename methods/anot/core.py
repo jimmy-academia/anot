@@ -762,7 +762,7 @@ class AdaptiveNetworkOfThought(BaseMethod):
                     step_id = match.group(1)
                     step_refs.append(f"Item {step_id[1:]}={{{{({step_id})}}}}")
             if step_refs:
-                final_prompt = f"{', '.join(step_refs)}. Output item numbers where answer is yes:"
+                final_prompt = f"{', '.join(step_refs)}. Output ONLY the item NUMBERS where answer is yes, as comma-separated integers (e.g. 2, 7):"
                 tool_add_step("final", final_prompt, lwt_steps)
                 self._debug(1, "P2", "Added missing final step")
 

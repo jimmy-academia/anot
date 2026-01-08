@@ -367,7 +367,7 @@ Build an executable LWT script:
    - If item CLEARLY cannot satisfy the logical structure → drop_item(N, reason)
    - If item MIGHT satisfy → add_step("cN", prompt based on seed)
 3. If conditions involve reviews, use get_review_lengths() and keyword_search()
-4. Add final aggregation step: add_step("final", "Item X={{{{(cX)}}}}, ... Output items with yes:")
+4. Add final aggregation step: add_step("final", "Item X={{{{(cX)}}}}, ... Output ONLY the item NUMBERS where answer is yes, as comma-separated integers (e.g. 2, 7):")
 5. Call done() when script is complete
 
 [HANDLING REVIEW:RECENCY CONDITIONS]
@@ -406,7 +406,7 @@ Action: drop_item(1, "no OR satisfied")
 Action: drop_item(3, "no OR satisfied")
 Action: add_step("c2", "Item 2: DriveThru={{{{(context)}}}}[2][attributes][DriveThru], romantic={{{{(context)}}}}[2][attributes][Ambience][romantic]. DriveThru=True OR romantic=True? yes/no")
 Action: add_step("c7", "Item 7: DriveThru={{{{(context)}}}}[7][attributes][DriveThru], romantic={{{{(context)}}}}[7][attributes][Ambience][romantic]. DriveThru=True OR romantic=True? yes/no")
-Action: add_step("final", "c2={{{{(c2)}}}}, c7={{{{(c7)}}}}. Items with yes:")
+Action: add_step("final", "Item 2={{{{(c2)}}}}, Item 7={{{{(c7)}}}}. Output ONLY the item NUMBERS where answer is yes, as comma-separated integers (e.g. 2, 7):")
 Action: done()
 
 Begin. Output Thought and Action:"""
