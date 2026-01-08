@@ -44,10 +44,10 @@ from .tools import (
 )
 
 
-class AdaptiveNetworkOfThoughtOriginal(BaseMethod):
-    """Enhanced Adaptive Network of Thought - three-phase architecture (BACKUP)."""
+class AdaptiveNetworkOfThought(BaseMethod):
+    """Enhanced Adaptive Network of Thought - three-phase architecture."""
 
-    name = "anot_original"
+    name = "anot"
 
     def __init__(self, run_dir: str = None, defense: bool = False, verbose: bool = True, **kwargs):
         super().__init__(run_dir=run_dir, defense=defense, verbose=verbose, **kwargs)
@@ -933,5 +933,5 @@ class AdaptiveNetworkOfThoughtOriginal(BaseMethod):
 
 
 def create_method(run_dir: str = None, defense: bool = False, debug: bool = False):
-    """Factory function to create ANoT Original (backup) instance."""
-    return AdaptiveNetworkOfThoughtOriginal(run_dir=run_dir, defense=defense, verbose=debug)
+    """Factory function to create ANoT instance."""
+    return AdaptiveNetworkOfThought(run_dir=run_dir, defense=defense, verbose=debug)

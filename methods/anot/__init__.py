@@ -7,6 +7,6 @@ Three-phase architecture:
 3. EXECUTION: Pure LWT execution with async DAG
 """
 
-from .core import AdaptiveNetworkOfThoughtOriginal, create_method
+from .core import AdaptiveNetworkOfThought, create_method
 
-__all__ = ["AdaptiveNetworkOfThoughtOriginal", "create_method"]
+__all__ = ["AdaptiveNetworkOfThought", "create_method"]

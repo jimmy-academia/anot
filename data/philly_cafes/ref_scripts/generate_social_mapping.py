@@ -160,7 +160,7 @@ def get_names_that_have_friend(anchor_name: str) -> list:
 
 def generate_mapping(data_name: str = "philly_cafes"):
     """Generate complete social mapping for dataset."""
-    data_dir = Path(__file__).parent.parent / data_name
+    data_dir = Path(__file__).parent.parent  # Already in philly_cafes dir
 
     print(f"Loading data from {data_dir}...")
     restaurants, reviews_by_biz, requests = load_data(data_dir)
