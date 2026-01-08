@@ -1030,7 +1030,8 @@ class AdaptiveNetworkOfThought(BaseMethod):
                 log_callback=self._log_llm_call,
             ))
             # Convert [(id, prompt), ...] to LWT format ["(id)=LLM('prompt')", ...]
-            expanded_lwt_steps = [f"({sid})=LLM('{sprompt}')" for sid, sprompt in step_tuples]
+            # Escape single quotes in prompts to avoid breaking LWT parsing
+            expanded_lwt_steps = [f"({sid})=LLM('{sprompt.replace(chr(39), chr(39)+chr(39))}')" for sid, sprompt in step_tuples]
         else:
             # Original sequential ReAct phase2
             expanded_lwt_steps = self.phase2_expand(

@@ -217,7 +217,7 @@ Action: wait_all()
 
 Then emit final (IMPORTANT: include item numbers with each result):
 Thought: Aggregate results
-Action: emit("final", "{result_lines}\\nOutput ONLY the item numbers where result contains 'yes', as comma-separated integers (e.g., 3, 7, 12):")
+Action: emit("final", "{result_lines}\\nOutput ONLY the item numbers where result contains yes, as comma-separated integers like 3, 7, 12:")
 Action: done()
 
 BEGIN (output Thought: then Action: lines):"""
