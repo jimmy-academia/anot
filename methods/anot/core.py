@@ -182,6 +182,11 @@ class AdaptiveNetworkOfThought(BaseMethod):
         cache[key] = value
         self._thread_local.cache = cache
 
+    def _cache_get(self, key: str):
+        """Get value from thread-local cache."""
+        cache = self._get_cache()
+        return cache.get(key)
+
     # =========================================================================
     # Display Methods
     # =========================================================================
