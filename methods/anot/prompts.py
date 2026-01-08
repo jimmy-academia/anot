@@ -10,7 +10,13 @@ __all__ = [
     'PHASE2_PROMPT', 'RANKING_TASK_COMPACT'
 ]
 
-SYSTEM_PROMPT = "You follow instructions precisely. Output ONLY what is requested - no explanations, no caveats, no clarification requests. If asked yes/no, respond with only 'yes' or 'no'."
+SYSTEM_PROMPT = """You follow instructions precisely. Output ONLY what is requested - no explanations, no caveats, no clarification requests. If asked yes/no, respond with only 'yes' or 'no'.
+
+When checking if data matches requirements, use semantic understanding:
+- WiFi='free' or WiFi='paid' satisfies WiFi=True (has WiFi); WiFi='no' or None fails
+- Alcohol='full_bar' or 'beer_and_wine' satisfies Alcohol=True (serves alcohol); 'none' fails
+- NoiseLevel='quiet' satisfies quiet=True; 'loud'/'very_loud' satisfies loud=True
+- Any non-None/non-False value generally satisfies a True requirement for that field"""
 
 # =============================================================================
 # STEP 1: Condition Extraction
@@ -22,7 +28,16 @@ STEP1_EXTRACT_PROMPT = """Extract conditions from the user request, preserving l
 {query}
 
 [RULES]
-- ONLY extract conditions the user EXPLICITLY wants
+- Extract ONLY the conditions that are EXPLICITLY required or clearly implied
+- Do NOT add extra "nice to have" conditions - stick to what the user actually needs
+- For narrative requests, identify what restaurant attributes the user actually needs
+- Think about SCENARIOS → ATTRIBUTES:
+  * Family/children scenarios → kid-friendly
+  * Distraction-free/focus scenarios → no TV
+  * Convenience/speed/vehicle scenarios → drive-thru
+  * Date/couple scenarios → romantic ambience
+  * Accessibility/mobility scenarios → wheelchair accessible
+  * Energetic/rowdy scenarios → loud/lively noise level
 - PRESERVE LOGICAL STRUCTURE: Use [OR] to group alternatives
 - If user says "A or B or C", group them as [OR] A | B | C
 - If user says "A and B" or just lists requirements, they are AND (default)
@@ -80,6 +95,18 @@ User: "Looking for a place with TV, WiFi, reservations, that either serves alcoh
 Example 6 - recency/activity condition:
 User: "Looking for a cafe with strong recent activity (4+ reviews since 2020)"
 [REVIEW:RECENCY] 4+ reviews since 2020
+
+Example 7 - narrative/indirect request (extract the underlying needs):
+User: "Planning a work session - need reliable internet and somewhere I won't be distracted by sports on TV. Bonus if I can sit outside when the weather's nice."
+[ATTR] free WiFi
+[ATTR] no TV
+[ATTR] outdoor seating
+
+Example 8 - another narrative request:
+User: "My elderly mom uses a wheelchair and we want somewhere not too loud where we can have a nice dinner together."
+[ATTR] wheelchair accessible
+[ATTR] quiet
+[ATTR] good for dinner
 """
 
 # =============================================================================
@@ -91,68 +118,35 @@ STEP2_PATH_PROMPT = """Determine where to find the value for this condition.
 [CONDITION]
 {condition_description}
 
-[SCHEMA - example items showing available fields]
+[SCHEMA - available fields in items]
 {schema_compact}
 
-[COMMON FIELDS]
-- attributes.GoodForKids: True/False
-- attributes.WiFi: "free", "paid", "no", or None
-- attributes.DriveThru: True/False
-- attributes.NoiseLevel: "quiet", "average", "loud", "very_loud"
-- attributes.OutdoorSeating: True/False
-- attributes.HasTV: True/False
-- attributes.Ambience: dict with keys like hipster, casual, upscale, romantic, etc.
-- attributes.GoodForMeal: dict with keys like breakfast, lunch, dinner, brunch, etc.
-- attributes.Alcohol: "full_bar", "beer_and_wine", "none"
-- attributes.CoatCheck: True/False
-- attributes.RestaurantsPriceRange2: 1, 2, 3, 4
-- hours: dict with day names as keys, values like "8:0-22:0"
-- reviews: list of review objects with 'text' field
+[CRITICAL RULES]
+1. ONLY use attributes that EXIST in the schema above. Do NOT invent attributes.
+2. Check the schema CAREFULLY before deciding on a path.
+3. For "indoor/inside" requirements: use OutdoorSeating=False (there is NO IndoorSeating attribute)
+4. For "no reservations/walk-in": use RestaurantsReservations=False (NOT ByAppointmentOnly)
+5. WiFi is a STRING field with values: "free", "paid", "no", or None - never use True/False
+6. Alcohol is a STRING field with values: "full_bar", "beer_and_wine", "none"
+7. NoiseLevel is a STRING field with values: "quiet", "average", "loud", "very_loud"
 
 [TASK]
-1. Identify which field to check for this condition
-2. Determine expected value based on what the user WANTS:
-   - "drive-thru" or "has drive-thru" → DriveThru=True
-   - "outdoor seating" or "patio" → OutdoorSeating=True
-   - "has TV" or "shows sports" → HasTV=True
-   - "trendy" → Ambience.trendy=True
-   - "romantic vibe" → Ambience.romantic=True
-   - "divey atmosphere" → Ambience.divey=True
-   - "not kid-friendly" → GoodForKids=False
-   - "quiet" → NoiseLevel="quiet"
-   - "free WiFi" → WiFi="free"
-   - "serves alcohol" or "full bar" → Alcohol="full_bar" or Alcohol="beer_and_wine"
-   - "good for late night" → GoodForMeal.latenight=True
-   - "good for dinner" → GoodForMeal.dinner=True
-   - "good for brunch" → GoodForMeal.brunch=True
-3. For CATEGORY conditions (pub, gift shop, Italian, etc.): Use PATH: categories, TYPE: HARD
-4. For HOURS conditions: ALWAYS use TYPE: SOFT (requires range checking, not exact match)
-5. NEVER output "value" as the EXPECTED - always specify True, False, or a quoted string
+1. Read the schema to see what attributes actually exist
+2. Find the attribute that best matches the condition
+3. Determine the expected value based on what the user wants
+4. Output the path, expected value, and type
 
 [OUTPUT FORMAT]
-PATH: attributes.FieldName
-EXPECTED: True/False/"value"
-TYPE: HARD
+PATH: attributes.FieldName (must exist in schema!)
+EXPECTED: True/False/"string_value"
+TYPE: HARD (for attributes) or SOFT (for reviews/hours)
 
-Example outputs:
-- For "drive-thru": PATH: attributes.DriveThru, EXPECTED: True, TYPE: HARD
-- For "romantic": PATH: attributes.Ambience.romantic, EXPECTED: True, TYPE: HARD
-- For "quiet": PATH: attributes.NoiseLevel, EXPECTED: "quiet", TYPE: HARD
-- For "serves alcohol": PATH: attributes.Alcohol, EXPECTED: "full_bar", TYPE: HARD
-- For "late night": PATH: attributes.GoodForMeal.latenight, EXPECTED: True, TYPE: HARD
-
-For category conditions (cuisine, place type):
-PATH: categories
-EXPECTED: "category_name"
-TYPE: HARD
-Examples: "Italian" → PATH: categories, EXPECTED: "Italian", TYPE: HARD
-          "gift shop" → PATH: categories, EXPECTED: "Gift Shops", TYPE: HARD
-          "pub" → PATH: categories, EXPECTED: "Pubs", TYPE: HARD
-
-For review text search (only for sentiment/mentions):
-PATH: reviews
-EXPECTED: keyword
-TYPE: SOFT
+[EXAMPLES]
+Condition: "indoor seating" → PATH: attributes.OutdoorSeating, EXPECTED: False, TYPE: HARD
+Condition: "has WiFi" → PATH: attributes.WiFi, EXPECTED: "free", TYPE: HARD
+Condition: "quiet atmosphere" → PATH: attributes.NoiseLevel, EXPECTED: "quiet", TYPE: HARD
+Condition: "Italian restaurant" → PATH: categories, EXPECTED: "Italian", TYPE: HARD
+Condition: "reviews mention coffee" → PATH: reviews, EXPECTED: "coffee", TYPE: SOFT
 
 For hours conditions (ALWAYS use SOFT):
 PATH: hours.DayName
@@ -197,8 +191,8 @@ Item [N] data:
 - field2: {{{{(context)}}}}[N][path2]
 ...
 
-Query requires: (logical expression using field names)
-Does this item satisfy the query? Answer yes or no.
+Required: (logical expression using field names)
+Does this item's data match the requirement? Answer yes or no.
 
 [EXAMPLE 1: Simple OR]
 Query: "Looking for drive-thru or romantic or divey"
@@ -210,8 +204,8 @@ Item [N] data:
 - romantic: {{{{(context)}}}}[N][attributes][Ambience][romantic]
 - divey: {{{{(context)}}}}[N][attributes][Ambience][divey]
 
-Query requires: DriveThru=True OR romantic=True OR divey=True
-Does this item satisfy the query? Answer yes or no.
+Required: DriveThru=True OR romantic=True OR divey=True
+Does this item's data match the requirement? Answer yes or no.
 
 [EXAMPLE 2: AND with nested OR]
 Query: "Looking for a place with TV and WiFi that serves alcohol or has outdoor seating"
@@ -224,8 +218,8 @@ Item [N] data:
 - Alcohol: {{{{(context)}}}}[N][attributes][Alcohol]
 - OutdoorSeating: {{{{(context)}}}}[N][attributes][OutdoorSeating]
 
-Query requires: HasTV=True AND WiFi='free' AND (Alcohol!='none' OR OutdoorSeating=True)
-Does this item satisfy the query? Answer yes or no.
+Required: HasTV=True AND WiFi='free' AND (Alcohol!='none' OR OutdoorSeating=True)
+Does this item's data match the requirement? Answer yes or no.
 
 [EXAMPLE 3: Categories]
 Query: "Looking for an Italian restaurant or pub"
@@ -235,8 +229,8 @@ Conditions: categories contains 'Italian' OR categories contains 'Pubs'
 Item [N] data:
 - categories: {{{{(context)}}}}[N][categories]
 
-Query requires: categories contains 'Italian' OR categories contains 'Pubs'
-Does this item satisfy the query? Answer yes or no.
+Required: categories contains 'Italian' OR categories contains 'Pubs'
+Does this item's data match the requirement? Answer yes or no.
 """
 
 # =============================================================================
@@ -304,13 +298,13 @@ LWT Seed:
 Item [N] data:
 - DriveThru: {{{{(context)}}}}[N][attributes][DriveThru]
 - romantic: {{{{(context)}}}}[N][attributes][Ambience][romantic]
-Query requires: DriveThru=True OR romantic=True
-Does this item satisfy? yes/no
+Required: DriveThru=True OR romantic=True
+Does this item's data match the requirement? yes/no
 
 ===LWT_SKELETON===
-(c2)=LLM('Item 2 data: DriveThru={{{{(context)}}}}[2][attributes][DriveThru], romantic={{{{(context)}}}}[2][attributes][Ambience][romantic]. Query requires: DriveThru=True OR romantic=True. Satisfy? yes/no')
-(c5)=LLM('Item 5 data: DriveThru={{{{(context)}}}}[5][attributes][DriveThru], romantic={{{{(context)}}}}[5][attributes][Ambience][romantic]. Query requires: DriveThru=True OR romantic=True. Satisfy? yes/no')
-(c7)=LLM('Item 7 data: DriveThru={{{{(context)}}}}[7][attributes][DriveThru], romantic={{{{(context)}}}}[7][attributes][Ambience][romantic]. Query requires: DriveThru=True OR romantic=True. Satisfy? yes/no')
+(c2)=LLM('Item 2 data: DriveThru={{{{(context)}}}}[2][attributes][DriveThru], romantic={{{{(context)}}}}[2][attributes][Ambience][romantic]. Required: DriveThru=True OR romantic=True. Does this item match? yes/no')
+(c5)=LLM('Item 5 data: DriveThru={{{{(context)}}}}[5][attributes][DriveThru], romantic={{{{(context)}}}}[5][attributes][Ambience][romantic]. Required: DriveThru=True OR romantic=True. Does this item match? yes/no')
+(c7)=LLM('Item 7 data: DriveThru={{{{(context)}}}}[7][attributes][DriveThru], romantic={{{{(context)}}}}[7][attributes][Ambience][romantic]. Required: DriveThru=True OR romantic=True. Does this item match? yes/no')
 (final)=LLM('Item 2={{{{(c2)}}}}, Item 5={{{{(c5)}}}}, Item 7={{{{(c7)}}}}. Output item NUMBERS where answer is yes: ')
 
 [IF SOFT CONDITIONS EXIST - add review/hours steps]
@@ -404,8 +398,8 @@ Thought: Based on list_items, I can batch process all items.
          Items with potential matches get evaluation steps.
 Action: drop_item(1, "no OR satisfied")
 Action: drop_item(3, "no OR satisfied")
-Action: add_step("c2", "Item 2: DriveThru={{{{(context)}}}}[2][attributes][DriveThru], romantic={{{{(context)}}}}[2][attributes][Ambience][romantic]. DriveThru=True OR romantic=True? yes/no")
-Action: add_step("c7", "Item 7: DriveThru={{{{(context)}}}}[7][attributes][DriveThru], romantic={{{{(context)}}}}[7][attributes][Ambience][romantic]. DriveThru=True OR romantic=True? yes/no")
+Action: add_step("c2", "Item 2 data: DriveThru={{{{(context)}}}}[2][attributes][DriveThru], romantic={{{{(context)}}}}[2][attributes][Ambience][romantic]. Required: DriveThru=True OR romantic=True. Does this item's data match the requirement? yes/no")
+Action: add_step("c7", "Item 7 data: DriveThru={{{{(context)}}}}[7][attributes][DriveThru], romantic={{{{(context)}}}}[7][attributes][Ambience][romantic]. Required: DriveThru=True OR romantic=True. Does this item's data match the requirement? yes/no")
 Action: add_step("final", "Item 2={{{{(c2)}}}}, Item 7={{{{(c7)}}}}. Output ONLY the item NUMBERS where answer is yes, as comma-separated integers (e.g. 2, 7):")
 Action: done()
 

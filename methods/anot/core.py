@@ -603,6 +603,22 @@ class AdaptiveNetworkOfThought(BaseMethod):
                 logical_parts.append(f"{path_info.get('path')}={path_info.get('expected')}")
                 self._debug(2, "P1", f"  {cond['description']}: {path_info}")
 
+        # Deduplicate logical parts (same path=value appearing multiple times)
+        seen_parts = set()
+        unique_parts = []
+        unique_resolved = []
+        for i, part in enumerate(logical_parts):
+            if part not in seen_parts:
+                seen_parts.add(part)
+                unique_parts.append(part)
+                unique_resolved.append(all_resolved[i])
+
+        if len(unique_parts) < len(logical_parts):
+            self._debug(1, "P1", f"Deduped {len(logical_parts)} -> {len(unique_parts)} conditions")
+
+        logical_parts = unique_parts
+        all_resolved = unique_resolved
+
         # Build logical structure string
         logical_structure = " AND ".join(logical_parts)
         self._debug(1, "P1", f"Logical structure: {logical_structure}")

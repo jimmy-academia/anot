@@ -106,6 +106,12 @@ def parse_args():
     parser.add_argument("--full", action="store_true", default=False,
                         help="Show full per-request results (default: summary only)")
 
+    # Request text override for testing (without modifying files)
+    parser.add_argument("--request", type=int, default=None,
+                        help="Request number to test (e.g., 1 for R01). Implies --limit to that request.")
+    parser.add_argument("--rtext", type=str, default=None,
+                        help="Override request text for --request (for testing new phrasings)")
+
     args = parser.parse_args()
 
     # Validate --limit: single integer must be positive; ranges/lists validated later
@@ -115,6 +121,18 @@ def parse_args():
                 parser.error(f"--limit must be positive (got {args.limit})")
         except ValueError:
             pass
+
+    # Validate --request and --rtext
+    if args.rtext and not args.request:
+        parser.error("--rtext requires --request")
+    if args.request:
+        # Auto-set limit to just that request
+        # Use range format 'N-N' to select exactly request N (e.g., '5-5' = R05 only)
+        args.limit = f"{args.request}-{args.request}"
+        # Force dev mode for testing
+        args.dev = True
+        # Force sequential for easier debugging
+        args.sequential = True
 
     # Derived arguments
     args.parallel = PARALLEL_MODE and not args.sequential

@@ -238,6 +238,7 @@ def evaluate_ranking_single(method, items: list, mode: str, shuffle: str,
     current_max_reviews = None  # None = unlimited (all reviews)
     coverage_stats = None
     shuffled_preds = []
+    truncation_retries = 0
 
     while True:
         # Format items as context (with current review limit for string mode)
@@ -269,12 +270,18 @@ def evaluate_ranking_single(method, items: list, mode: str, shuffle: str,
             else:
                 current_max_reviews -= 1
 
+            truncation_retries += 1
+
             if current_max_reviews < 0:
                 # No reviews left and still failing - give up
                 print(f"[CONTEXT EXCEEDED] {req_id}: Cannot fit even with 0 reviews", flush=True)
                 raise ContextLengthExceeded(str(e))
 
-            print(f"[TRUNCATE] {req_id}: Retrying with max_reviews={current_max_reviews}", flush=True)
+            print(f"[TRUNCATE] {req_id}: Retrying with max_reviews={current_max_reviews} (retry {truncation_retries})", flush=True)
+
+    # Add truncation info to coverage stats
+    if coverage_stats and truncation_retries > 0:
+        coverage_stats["truncation_retries"] = truncation_retries
 
     # Map predictions back to original indices
     pred_indices = unmap_predictions(shuffled_preds, mapping)

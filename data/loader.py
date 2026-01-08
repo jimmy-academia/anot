@@ -546,6 +546,7 @@ def format_ranking_query(items: list[dict], mode: str = "string",
         "restaurants": len(items),
         "reviews_included": reviews_included,
         "reviews_total": total_reviews,
+        "reviews_dropped": total_reviews - reviews_included,
         "max_reviews_per_item": max_reviews,
     }
 

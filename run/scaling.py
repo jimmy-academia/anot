@@ -11,7 +11,6 @@ from data.loader import load_dataset, filter_by_candidates, DICT_MODE_METHODS
 from utils.parsing import parse_limit_spec
 from utils.aggregate import print_ranking_results
 from utils.usage import get_usage_tracker
-from utils.llm import get_token_budget, get_configured_model
 
 from .evaluate import evaluate_ranking, compute_multi_k_stats, extract_hits_at
 from .io import (
@@ -110,6 +109,16 @@ def _run_scale_point(args, run_dir: Path, n_candidates: int, k: int, tracker, lo
         filtered_ids = {r["id"] for r in dataset.requests}
         dataset.groundtruth = {rid: gt for rid, gt in dataset.groundtruth.items() if rid in filtered_ids}
 
+    # Apply request text override for testing (--request N --rtext "...")
+    if getattr(args, 'rtext', None) and dataset.requests:
+        req = dataset.requests[0]  # --request selects exactly one
+        original_text = req.get('text', '')
+        req['text'] = args.rtext
+        req['context'] = args.rtext  # Also update context field
+        log.info(f"[TEST MODE] Overriding {req['id']} text:")
+        log.info(f"  Original: {original_text[:80]}{'...' if len(original_text) > 80 else ''}")
+        log.info(f"  Override: {args.rtext[:80]}{'...' if len(args.rtext) > 80 else ''}")
+
     if len(dataset.requests) == 0:
         log.info(f"Scale {n_candidates}: No valid requests (gold not in candidate set)")
         return [], None, False
@@ -153,11 +162,7 @@ def _run_scale_point(args, run_dir: Path, n_candidates: int, k: int, tracker, lo
     eval_mode = "dict" if args.method in DICT_MODE_METHODS else "string"
     shuffle = getattr(args, 'shuffle', 'random')
 
-    # Disable pack-to-budget truncation - use stripped data directly
-    # String-mode methods will hit natural context limits at high candidate counts
-    token_budget = None
-    model = None
-
+    # String-mode methods use adaptive truncation on context exceeded
     eval_result = evaluate_ranking(
         dataset.items,
         method,
@@ -169,8 +174,6 @@ def _run_scale_point(args, run_dir: Path, n_candidates: int, k: int, tracker, lo
         parallel=args.parallel,
         max_workers=getattr(args, 'max_concurrent', 200),
         attack_config=attack_config,
-        token_budget=token_budget,
-        model=model
     )
 
     # Merge with existing

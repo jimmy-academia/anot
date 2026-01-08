@@ -231,6 +231,16 @@ def run_single(
         dataset.groundtruth = {k: v for k, v in dataset.groundtruth.items() if k in filtered_ids}
         log.info(f"Filtered to {len(dataset.requests)} requests (indices: {indices[:5]}{'...' if len(indices) > 5 else ''})")
 
+    # Apply request text override for testing (--request N --rtext "...")
+    if getattr(args, 'rtext', None) and dataset.requests:
+        req = dataset.requests[0]  # --request selects exactly one
+        original_text = req.get('text', '')
+        req['text'] = args.rtext
+        req['context'] = args.rtext  # Also update context field
+        log.info(f"[TEST MODE] Overriding {req['id']} text:")
+        log.info(f"  Original: {original_text[:80]}{'...' if len(original_text) > 80 else ''}")
+        log.info(f"  Override: {args.rtext[:80]}{'...' if len(args.rtext) > 80 else ''}")
+
     # Check for existing results and skip/resume
     n_candidates = getattr(args, 'candidates', None) or len(dataset.items)
     if not args.force:
