@@ -119,12 +119,14 @@ class ChainOfThought(BaseMethod):
 
 [ANALYSIS]"""
 
-    def evaluate_ranking(self, query: str, context: str, k: int = 1) -> str:
+    def evaluate_ranking(self, query: str, context: str, k: int = 1, request_id: str = None) -> str:
         """Evaluate ranking task.
 
         Args:
             query: User request text
             context: All restaurants formatted
+            k: Number of top predictions
+            request_id: Request ID for logging
 
         Returns:
             Response string with indices
@@ -135,5 +137,5 @@ class ChainOfThought(BaseMethod):
         if _defense:
             system = _defense + "\n\n" + system
         response = call_llm(prompt, system=system)
-        self._log_llm_call("evaluate_ranking", prompt, response, system)
+        self._log_llm_call("evaluate_ranking", prompt, response, system, request_id)
         return response

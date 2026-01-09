@@ -132,13 +132,14 @@ class ReAct(BaseMethod):
             return "1"
         return ", ".join(str(i) for i in indices[:k])
 
-    def evaluate_ranking(self, query: str, context, k: int = 1, **kwargs) -> str:
+    def evaluate_ranking(self, query: str, context, k: int = 1, request_id: str = None, **kwargs) -> str:
         """Evaluate ranking task using ReACT loop with dict-mode data access.
 
         Args:
             query: User request text
             context: Restaurant data dict {"items": {"1": {...}, ...}} or JSON string
             k: Number of top predictions
+            request_id: Request ID for logging
 
         Returns:
             Comma-separated indices (e.g., "3, 1, 5")
@@ -161,7 +162,7 @@ class ReAct(BaseMethod):
         for step in range(MAX_STEPS):
             prompt = self._build_ranking_prompt(query, n_items, history, k)
             response = call_llm(prompt, system=SYSTEM_PROMPT_RANKING)
-            self._log_llm_call(f"step_{step+1}", prompt, response, SYSTEM_PROMPT_RANKING)
+            self._log_llm_call(f"step_{step+1}", prompt, response, SYSTEM_PROMPT_RANKING, request_id)
 
             thought, action = self._parse_response(response)
 
@@ -190,6 +191,6 @@ class ReAct(BaseMethod):
         prompt += f"\nAction: finish(\""
 
         response = call_llm(prompt, system=SYSTEM_PROMPT_RANKING)
-        self._log_llm_call("force_finish", prompt, response, SYSTEM_PROMPT_RANKING)
+        self._log_llm_call("force_finish", prompt, response, SYSTEM_PROMPT_RANKING, request_id)
         indices = parse_indices(response, max_index=n_items, k=k)
         return self._format_indices(indices, k)

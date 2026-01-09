@@ -37,20 +37,20 @@ class BaseMethod(ABC):
             except Exception:
                 pass
 
-    def _log_llm_call(self, step: str, prompt: str, response: str, system: str = None):
-        """Log LLM call to debug file (thread-safe). No-op for ANoT."""
+    def _log_llm_call(self, step: str, prompt: str, response: str, system: str = None, request_id: str = None):
+        """Log LLM response to debug file (thread-safe). No-op for ANoT.
+
+        Only logs output (response) to keep debug files compact.
+        """
         if not self._debug_log_file:
             return
         with self._debug_log_lock:
             try:
                 ts = datetime.now().strftime("%H:%M:%S.%f")[:-3]
-                self._debug_log_file.write(f"{'='*60}\n")
-                self._debug_log_file.write(f"[{ts}] {step}\n")
-                self._debug_log_file.write(f"{'='*60}\n")
-                if system:
-                    self._debug_log_file.write(f"SYSTEM:\n{system}\n{'-'*40}\n")
-                self._debug_log_file.write(f"PROMPT:\n{prompt}\n{'-'*40}\n")
-                self._debug_log_file.write(f"RESPONSE:\n{response}\n\n")
+                req_str = request_id or "?"
+                self._debug_log_file.write(f"[{ts}] {req_str} | {step}\n")
+                self._debug_log_file.write(f"{response}\n")
+                self._debug_log_file.write(f"{'-'*40}\n")
                 self._debug_log_file.flush()
             except Exception:
                 pass
