@@ -269,6 +269,17 @@ _config = {
 
 **Retry**: Exponential backoff on 429/5xx errors (up to 6 retries).
 
+**Model shorthand** (for benchmark directory naming):
+```python
+# utils/llm.py - MODEL_SHORTHAND
+"gpt-5-nano": "5n", "gpt-4o": "4o", "gpt-4o-mini": "4om", "o1": "o1", "o3-mini": "o3m",
+"claude-3-5-sonnet-20241022": "c35s", "claude-sonnet-4-20250514": "c4s",
+"qwen-0.5b": "q05", "qwen-1.5b": "q15", "qwen-3b": "q3",
+"phi-3-mini": "phi3m", "phi-3.5-mini": "phi35",
+"llama-1b": "ll1", "llama-3b": "ll3", "gemma-2b": "gem2",
+"smollm-1.7b": "sm17", "tinyllama": "tll",
+```
+
 ### API Keys
 
 Auto-loaded from `../.openaiapi` if env vars not set. Or:
@@ -293,7 +304,7 @@ results/
 ├── dev/               # Development runs (gitignored)
 │   └── {NNN}_{run-name}/
 └── benchmarks/        # Benchmark runs (tracked)
-    └── {method}_{data}/{attack}/run_{N}/
+    └── {method}_{data}_{model_short}/{attack}/run_{N}/
 
 methods/
 ├── __init__.py        # METHOD_REGISTRY, get_method()

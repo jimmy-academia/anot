@@ -76,6 +76,64 @@ MODEL_INPUT_LIMITS = {
     "gpt-5-nano": 270000,
 }
 
+# Model shorthand for directory naming
+MODEL_SHORTHAND = {
+    # OpenAI models
+    "gpt-5-nano": "5n",
+    "gpt-4o": "4o",
+    "gpt-4o-mini": "4om",
+    "gpt-4-turbo": "4t",
+    "gpt-4": "4",
+    "gpt-3.5-turbo": "35t",
+    "o1": "o1",
+    "o1-mini": "o1m",
+    "o3-mini": "o3m",
+    # Anthropic models
+    "claude-3-5-sonnet-20241022": "c35s",
+    "claude-3-opus-20240229": "c3o",
+    "claude-3-sonnet-20240229": "c3s",
+    "claude-3-haiku-20240307": "c3h",
+    "claude-sonnet-4-20250514": "c4s",
+    # SLM models (from slm.py SLM_REGISTRY)
+    "qwen-0.5b": "q05",
+    "qwen-1.5b": "q15",
+    "qwen-3b": "q3",
+    "phi-3-mini": "phi3m",
+    "phi-3.5-mini": "phi35",
+    "llama-1b": "ll1",
+    "llama-3b": "ll3",
+    "gemma-2b": "gem2",
+    "smollm-1.7b": "sm17",
+    "tinyllama": "tll",
+}
+
+
+def get_model_shorthand(model: str = None) -> str:
+    """Get shorthand for a model name, for use in directory naming.
+
+    Args:
+        model: Full model name. If None, uses configured default.
+
+    Returns:
+        Short identifier for the model (e.g., "5n" for "gpt-5-nano")
+    """
+    if model is None:
+        model = MODEL_CONFIG.get("default", "gpt-5-nano")
+
+    # Direct lookup
+    if model in MODEL_SHORTHAND:
+        return MODEL_SHORTHAND[model]
+
+    # Fuzzy match for partial model names (e.g., "gpt-4o-2024-08-06" -> "4o")
+    model_lower = model.lower()
+    for full_name, short in MODEL_SHORTHAND.items():
+        if full_name in model_lower or model_lower in full_name:
+            return short
+
+    # Last resort: sanitize and truncate
+    sanitized = model.replace("-", "").replace("_", "").replace(".", "")
+    return sanitized[:6]
+
 
 def _load_api_key():
     """Load API key from file if not in environment."""

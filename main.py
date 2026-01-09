@@ -77,7 +77,7 @@ def run_all_attacks(args, log):
     print(f"{'='*60}")
     for attack in attacks:
         args.attack = attack
-        summary = aggregate_benchmark_runs(args.method, args.data, attack=attack)
+        summary = aggregate_benchmark_runs(args.method, args.data, attack=attack, model=args.model)
         if summary:
             print(f"\n{attack}:")
             print_summary(summary, show_details=False)
@@ -171,7 +171,7 @@ def main():
                     run_single(args, experiment, log)
 
         # Always aggregate at end (benchmark mode)
-        summary = aggregate_benchmark_runs(args.method, args.data)
+        summary = aggregate_benchmark_runs(args.method, args.data, model=args.model)
         print_summary(summary, show_details=True)
 
     else:

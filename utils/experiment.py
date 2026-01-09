@@ -28,7 +28,7 @@ class ExperimentManager:
     """
 
     def __init__(self, run_name: str, benchmark_mode: bool = False,
-                 method: str = None, data: str = None,
+                 method: str = None, data: str = None, model: str = None,
                  attack: str = None, target_run: int = None,
                  force: bool = False, partial: bool = False):
         """
@@ -39,6 +39,7 @@ class ExperimentManager:
             benchmark_mode: If True, use benchmark directory (tracked in git)
             method: Method name (for benchmark directory naming)
             data: Data name (for benchmark directory naming)
+            model: Model name (for benchmark directory naming via shorthand)
             attack: Attack name for benchmark subdirectory (default: "clean")
             target_run: Specific run number to target (for partial updates)
             force: If True, allow overwriting existing results
@@ -51,6 +52,7 @@ class ExperimentManager:
         self.benchmark_mode = benchmark_mode
         self.method = method
         self.data = data
+        self.model = model
         # Normalize attack name for directory purposes
         self.attack = attack if attack not in (None, "", "none") else "clean"
         self.target_run = target_run
@@ -59,6 +61,15 @@ class ExperimentManager:
         self.run_dir: Optional[Path] = None
         self.config: Dict[str, Any] = {}
         self._created = False
+
+    def _get_benchmark_parent_name(self) -> str:
+        """Get the parent directory name for benchmark mode.
+
+        Returns: "{method}_{data}_{model_short}" string
+        """
+        from utils.llm import get_model_shorthand
+        model_short = get_model_shorthand(self.model)
+        return f"{self.method}_{self.data}_{model_short}"
 
     def setup(self) -> Path:
         """
@@ -136,13 +147,13 @@ class ExperimentManager:
         """
         Create benchmark directory with two-level structure.
 
-        Pattern: results/benchmarks/{method}_{data}/{attack}/run_{N}/
+        Pattern: results/benchmarks/{method}_{data}_{model_short}/{attack}/run_{N}/
 
         Raises:
             ExperimentError: If specific run directory already exists (without force)
         """
-        # Parent directory: results/benchmarks/{method}_{data}/{attack}/
-        parent_name = f"{self.method}_{self.data}"
+        # Parent directory: results/benchmarks/{method}_{data}_{model_short}/{attack}/
+        parent_name = self._get_benchmark_parent_name()
         attack_dir = BENCHMARK_DIR / parent_name / self.attack
         attack_dir.mkdir(parents=True, exist_ok=True)
 
@@ -187,7 +198,7 @@ class ExperimentManager:
         """
         if not self.benchmark_mode:
             return 0
-        attack_dir = BENCHMARK_DIR / f"{self.method}_{self.data}" / self.attack
+        attack_dir = BENCHMARK_DIR / self._get_benchmark_parent_name() / self.attack
         if not attack_dir.exists():
             return 0
 
@@ -216,7 +227,7 @@ class ExperimentManager:
         if not self.benchmark_mode:
             return list(range(1, total_requests + 1))
 
-        attack_dir = BENCHMARK_DIR / f"{self.method}_{self.data}" / self.attack
+        attack_dir = BENCHMARK_DIR / self._get_benchmark_parent_name() / self.attack
         if not attack_dir.exists():
             return list(range(1, total_requests + 1))
 
@@ -404,6 +415,10 @@ def create_experiment(args, attack: str = None) -> ExperimentManager:
     if hasattr(args, 'data_dir'):
         data_name = args.data_dir.name
 
+    # Get model from args or use configured default
+    from utils.llm import get_model
+    model = getattr(args, 'model', None) or get_model()
+
     # Check if this is a partial run (--limit was used)
     partial = getattr(args, 'limit', None) is not None
 
@@ -412,6 +427,7 @@ def create_experiment(args, attack: str = None) -> ExperimentManager:
         benchmark_mode=getattr(args, 'benchmark', False),
         method=getattr(args, 'method', None),
         data=data_name,
+        model=model,
         attack=attack_name,
         target_run=getattr(args, 'run', None),
         force=getattr(args, 'force', False),

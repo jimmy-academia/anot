@@ -28,7 +28,8 @@ def _format_latency(latency_ms: float) -> str:
     return f"{latency_s:.1f}s"
 
 
-def aggregate_benchmark_runs(method: str, data: str, attack: str = "clean") -> Dict[str, Any]:
+def aggregate_benchmark_runs(method: str, data: str, attack: str = "clean",
+                             model: str = None) -> Dict[str, Any]:
     """
     Aggregate stats across all runs for a specific attack variant.
 
@@ -36,12 +37,15 @@ def aggregate_benchmark_runs(method: str, data: str, attack: str = "clean") -> D
         method: Method name (e.g., 'cot')
         data: Data name (e.g., 'philly_cafes')
         attack: Attack name (e.g., 'clean', 'typo')
+        model: Model name for directory lookup (uses shorthand)
 
     Returns:
         Summary dict with mean/std and per-run stats
     """
-    # Structure: {method}_{data}/{attack}/run_{N}/
-    attack_dir = BENCHMARK_DIR / f"{method}_{data}" / attack
+    # Structure: {method}_{data}_{model_short}/{attack}/run_{N}/
+    from utils.llm import get_model_shorthand
+    model_short = get_model_shorthand(model)
+    attack_dir = BENCHMARK_DIR / f"{method}_{data}_{model_short}" / attack
     if not attack_dir.exists():
         return {"runs": 0, "error": f"No benchmark directory found for attack '{attack}'"}
 
@@ -49,11 +53,11 @@ def aggregate_benchmark_runs(method: str, data: str, attack: str = "clean") -> D
     if not run_dirs:
         return {"runs": 0, "error": f"No runs found for attack '{attack}'"}
 
-    return _aggregate_from_dirs(run_dirs, method, data, attack, attack_dir)
+    return _aggregate_from_dirs(run_dirs, method, data, attack, attack_dir, model)
 
 
 def _aggregate_from_dirs(run_dirs: List[Path], method: str, data: str,
-                         attack: str, summary_dir: Path) -> Dict[str, Any]:
+                         attack: str, summary_dir: Path, model: str = None) -> Dict[str, Any]:
     """Helper to aggregate stats from a list of run directories."""
     # Load stats and usage from each run's config.json
     all_stats = []
@@ -102,6 +106,7 @@ def _aggregate_from_dirs(run_dirs: List[Path], method: str, data: str,
     summary["runs"] = len(all_stats)
     summary["method"] = method
     summary["data"] = data
+    summary["model"] = model
     summary["attack"] = attack
 
     # Add usage aggregation if available
@@ -116,18 +121,21 @@ def _aggregate_from_dirs(run_dirs: List[Path], method: str, data: str,
     return summary
 
 
-def aggregate_all_attacks(method: str, data: str) -> Dict[str, Any]:
+def aggregate_all_attacks(method: str, data: str, model: str = None) -> Dict[str, Any]:
     """
     Aggregate across all attack variants for comparison.
 
     Args:
         method: Method name (e.g., 'cot')
         data: Data name (e.g., 'philly_cafes')
+        model: Model name for directory lookup (uses shorthand)
 
     Returns:
         Dict mapping attack names to their aggregated summaries
     """
-    parent = BENCHMARK_DIR / f"{method}_{data}"
+    from utils.llm import get_model_shorthand
+    model_short = get_model_shorthand(model)
+    parent = BENCHMARK_DIR / f"{method}_{data}_{model_short}"
     if not parent.exists():
         return {"error": "No benchmark directory found"}
 
@@ -140,7 +148,7 @@ def aggregate_all_attacks(method: str, data: str) -> Dict[str, Any]:
             continue
 
         attack_name = attack_dir.name
-        summary = aggregate_benchmark_runs(method, data, attack_name)
+        summary = aggregate_benchmark_runs(method, data, attack_name, model)
         if summary.get("runs", 0) > 0:
             results[attack_name] = summary
 
@@ -334,9 +342,12 @@ def print_summary(summary: Dict[str, Any], show_details: bool = False):
     if summary.get("type") == "ranking":
         method = summary.get("method")
         data = summary.get("data")
+        model = summary.get("model")
         attack = summary.get("attack", "clean")
         if method and data:
-            attack_dir = BENCHMARK_DIR / f"{method}_{data}" / attack
+            from utils.llm import get_model_shorthand
+            model_short = get_model_shorthand(model)
+            attack_dir = BENCHMARK_DIR / f"{method}_{data}_{model_short}" / attack
             latest_run = get_latest_run_dir(attack_dir)
             if latest_run:
                 # Find results file (could be results.jsonl or results_{N}.jsonl)
