@@ -163,12 +163,15 @@ async def eval_restaurant_async(
     name = restaurant['business']['name']
     task = get_task(task_id)
 
+    # Determine formula version from task
+    version = task.get('version', 'v1')
+
     # Build prompt
     prompt = build_prompt(task_id, restaurant, k)
 
-    # Get dynamic GT for this K
+    # Get dynamic GT for this K with correct version
     try:
-        gt = compute_gt_for_k(name, k=k)
+        gt = compute_gt_for_k(name, k=k, version=version)
     except ValueError:
         # No judgments for this restaurant
         return {
