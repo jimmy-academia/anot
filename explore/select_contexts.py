@@ -23,6 +23,14 @@ OUTPUT_FILE = Path("explore/contexts.json")
 TARGET_CITY = "Philadelphia"
 MIN_REVIEWS = 50
 
+TARGET_CATEGORIES = [
+    "Italian",       # G2 (Date/Social), G1 (Gluten)
+    "Coffee & Tea",  # G7 (Psych - Work vs Chat), G3 (Value)
+    "Pizza",         # G3 (Value), G5 (Ops - Delivery)
+    "Steakhouses",   # G4 (Service), G6 (Strategy - Premium)
+    "Chinese"        # G1 (Allergy), G8 (Trends - Authenticity)
+]
+
 def load_candidates():
     candidates = []
     print(f"Scanning {RAW_BUSINESS} for {TARGET_CITY} Restaurants...")
@@ -32,23 +40,12 @@ def load_candidates():
             b = json.loads(line)
             if b['city'].lower() == TARGET_CITY.lower():
                 categories = (b['categories'] or "").split(', ')
-                if 'Restaurants' in categories:
+                # Must match at least one target category
+                if any(tc in categories for tc in TARGET_CATEGORIES):
                     if b['review_count'] >= MIN_REVIEWS:
                         b['category_list'] = categories
                         candidates.append(b)
     return candidates
-
-def get_top_cuisines(candidates, n=5):
-    # Tally all categories excluding generic 'Restaurants'
-    counts = Counter()
-    for b in candidates:
-        for c in b['category_list']:
-            if c not in ['Restaurants', 'Food', 'Nightlife', 'Bars', 'Event Planning & Services']:
-                counts[c] += 1
-    
-    top_categories = [c for c, _ in counts.most_common(n)]
-    print(f"\nTop {n} Cuisines in Philly: {top_categories}")
-    return top_categories
 
 def stratify_by_quadrant(candidates, cuisine, n_target=20):
     # Filter for this cuisine
@@ -90,37 +87,40 @@ def main():
         print("No candidates found!")
         return
 
-    # 1. Select Top Cuisines to ensure semantic diversity
-    top_cuisines = get_top_cuisines(candidates, n=5)
-    
-    # 2. Startify within each Cuisine
+    # Stratify within each Fixed Cuisine
     core_100 = []
     seen_ids = set()
     
     random.seed(42)
     
-    for cuisine in top_cuisines:
+    for cuisine in TARGET_CATEGORIES:
+        print(f"\nSelecting for: {cuisine}")
         selection = stratify_by_quadrant(candidates, cuisine, n_target=20)
+        
         # Avoid duplicates if a place has multiple top categories
+        count = 0
         for b in selection:
             if b['business_id'] not in seen_ids:
                 b['stratification_tag'] = cuisine
                 core_100.append(b)
                 seen_ids.add(b['business_id'])
+                count += 1
+        print(f"  -> Added {count} unique contexts")
     
     # Fill remaining if duplicates reduced count
     if len(core_100) < 100:
         remaining_needed = 100 - len(core_100)
-        print(f"Need {remaining_needed} more to reach 100...")
+        print(f"\nNeed {remaining_needed} more to reach 100...")
         pool = [b for b in candidates if b['business_id'] not in seen_ids]
-        core_100.extend(random.sample(pool, remaining_needed))
+        if pool:
+            # Prefer target cuisinse in pool
+            core_100.extend(random.sample(pool, min(len(pool), remaining_needed)))
 
     OUTPUT_FILE.parent.mkdir(parents=True, exist_ok=True)
     with open(OUTPUT_FILE, 'w') as f:
         json.dump(core_100, f, indent=2)
         
     print(f"\nSaved {len(core_100)} Stratified Contexts to {OUTPUT_FILE}")
-    print("Dimensions: 5 Cuisines x 4 Quadrants (Vol/Stars) x 5 Restaurants = 100 Contexts")
 
 if __name__ == "__main__":
     main()

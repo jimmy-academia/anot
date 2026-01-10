@@ -173,6 +173,15 @@ def score_field(predicted: Any, expected: Any, tolerance: float = 0) -> float:
     if isinstance(expected, str):
         return 1.0 if str(predicted).upper() == expected.upper() else 0.0
 
+    # Boolean comparison
+    if isinstance(expected, bool):
+        # Parse predicted if string
+        if isinstance(predicted, str):
+            pred_bool = predicted.lower() == 'true'
+        else:
+            pred_bool = bool(predicted)
+        return 1.0 if pred_bool == expected else 0.0
+
     # Numeric comparison
     try:
         pred_val = float(predicted)
@@ -188,7 +197,7 @@ def score_field(predicted: Any, expected: Any, tolerance: float = 0) -> float:
         return 0.0
 
 
-def evaluate_task(parsed: Dict, ground_truth: Any, tolerances: Dict[str, float] = None) -> Dict:
+def evaluate_task(parsed: Dict, ground_truth: Any, tolerances: Dict[str, float] = None, scoring_fields: List[str] = None) -> Dict:
     """Evaluate parsed response against ground truth."""
     if tolerances is None:
         tolerances = {}
@@ -208,7 +217,32 @@ def evaluate_task(parsed: Dict, ground_truth: Any, tolerances: Dict[str, float] 
             'score': score,
         }
 
-    results['_total_score'] = sum(r['score'] for r in results.values() if isinstance(r, dict)) / len(gt_dict)
+    # Calculate total score
+    # Custom Logic: Verdict Gating
+    # If a field named 'VERDICT' exists and scores 0, the entire task fails.
+    verdict_score = results.get('VERDICT', {}).get('score', 1.0)
+    
+    if verdict_score == 0.0:
+        results['_total_score'] = 0.0
+    else:
+        # Determine which fields to include in the average
+        if scoring_fields:
+            # Filter for fields present in both results and scoring_fields
+            # Case-insensitive matching might be needed if registry keys differ from result keys, 
+            # but usually they match the GT dataclass field names (lowercase).
+            target_keys = [k for k in results.keys() if k in scoring_fields and k != 'VERDICT']
+        else:
+            # Default: All non-Verdict dict fields
+            target_keys = [k for k, r in results.items() if k != 'VERDICT' and isinstance(r, dict)]
+            
+        scores_to_avg = [results[k]['score'] for k in target_keys if k in results]
+        
+        if scores_to_avg:
+            avg_premises = sum(scores_to_avg) / len(scores_to_avg)
+            results['_total_score'] = verdict_score * avg_premises
+        else:
+            # If no premises to score, result is just verdict score
+            results['_total_score'] = verdict_score
 
     return results
 
@@ -230,7 +264,12 @@ def _process_response(ctx: Dict, response: str) -> Dict:
     parsed = parse_response(response)
     expected_fields = len(asdict(ctx['gt']))
     prompt_failure = detect_prompt_failure(response, parsed, expected_fields)
-    results = evaluate_task(parsed, ctx['gt'], ctx['task']['tolerances'])
+    results = evaluate_task(
+        parsed, 
+        ctx['gt'], 
+        ctx['task']['tolerances'], 
+        scoring_fields=ctx['task'].get('scoring_fields')
+    )
     results['_prompt_failure'] = prompt_failure
 
     return {
