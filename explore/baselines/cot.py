@@ -15,18 +15,19 @@ from typing import Dict, List, Any, Optional
 import numpy as np
 from dataclasses import asdict
 
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from utils.llm import call_llm_async, configure
 
-from g1_gt_compute import compute_gt_for_k
-from g1_allergy import get_task, TASK_G1_PROMPT
-from score_auprc import (
+from explore.scoring.ground_truth import compute_gt_for_k
+from explore.tasks.g1_allergy import get_task, TASK_G1_PROMPT
+from explore.scoring.auprc import (
     calculate_ordinal_auprc, compute_avg_primitive_accuracy,
     print_report, CLASS_ORDER
 )
 
-DATA_DIR = Path(__file__).parent / "data"
-RESULTS_DIR = Path(__file__).parent / "results"
+DATA_DIR = Path(__file__).parent.parent / "data"
+RESULTS_DIR = Path(__file__).parent.parent / "results"
 
 COT_SYSTEM_PROMPT = '''You are an expert data analyst evaluating restaurant peanut allergy safety.
 

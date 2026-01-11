@@ -23,14 +23,15 @@ from typing import Dict, List, Any, Optional
 from datetime import datetime
 import numpy as np
 
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from utils.llm import call_llm_async, configure
-from g1_allergy import TASK_REGISTRY, get_task
-from g1_gt_compute import compute_gt_for_k
-from score_auprc import calculate_ordinal_auprc, CLASS_ORDER, DEFAULT_TOLERANCES_V2
+from explore.tasks.g1_allergy import TASK_REGISTRY, get_task
+from explore.scoring.ground_truth import compute_gt_for_k
+from explore.scoring.auprc import calculate_ordinal_auprc, CLASS_ORDER, DEFAULT_TOLERANCES_V2
 
-DATA_DIR = Path(__file__).parent / "data"
-RESULTS_DIR = Path(__file__).parent / "results"
+DATA_DIR = Path(__file__).parent.parent / "data"
+RESULTS_DIR = Path(__file__).parent.parent / "results"
 
 # Primitive hierarchy for V2
 PRIMITIVE_LEVELS = {

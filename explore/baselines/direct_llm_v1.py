@@ -20,14 +20,15 @@ from typing import Dict, List, Any, Optional
 from datetime import datetime
 import numpy as np
 
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from utils.llm import call_llm, call_llm_async, configure
-from g1_allergy import TASK_REGISTRY, get_task, list_tasks
-from g1_gt_compute import compute_gt_for_k
-from score_auprc import calculate_ordinal_auprc, print_report, CLASS_ORDER, compute_avg_primitive_accuracy
+from explore.tasks.g1_allergy import TASK_REGISTRY, get_task, list_tasks
+from explore.scoring.ground_truth import compute_gt_for_k
+from explore.scoring.auprc import calculate_ordinal_auprc, print_report, CLASS_ORDER, compute_avg_primitive_accuracy
 
-DATA_DIR = Path(__file__).parent / "data"
-RESULTS_DIR = Path(__file__).parent / "results"
+DATA_DIR = Path(__file__).parent.parent / "data"
+RESULTS_DIR = Path(__file__).parent.parent / "results"
 
 
 SYSTEM_PROMPT_TEMPLATE = '''You are an expert data analyst. Your task is to analyze restaurant review data and compute specific metrics.

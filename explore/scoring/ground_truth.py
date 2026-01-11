@@ -34,7 +34,7 @@ from pathlib import Path
 from dataclasses import dataclass, asdict
 from typing import Dict, List, Any, Optional
 
-DATA_DIR = Path(__file__).parent / "data"
+DATA_DIR = Path(__file__).parent.parent / "data"
 JUDGMENTS_FILE = DATA_DIR / "semantic_gt" / "task_G1a" / "judgments.json"
 OUTPUT_FILE = DATA_DIR / "semantic_gt" / "task_G1a" / "computed_gt.json"
 

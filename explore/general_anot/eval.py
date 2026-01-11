@@ -14,9 +14,9 @@ import sys
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from explore.general_anot.phase2_v2 import FormulaSeedInterpreter
-from explore.g1_gt_compute import compute_gt_for_k
-from explore.score_auprc import calculate_ordinal_auprc, CLASS_ORDER, print_report, DEFAULT_TOLERANCES_V2
+from explore.general_anot.phase2 import FormulaSeedInterpreter
+from explore.scoring.ground_truth import compute_gt_for_k
+from explore.scoring.auprc import calculate_ordinal_auprc, CLASS_ORDER, print_report, DEFAULT_TOLERANCES_V2
 from dataclasses import asdict
 
 
